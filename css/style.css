@@ -1,0 +1,248 @@
+/*
+ * Archivo: public/css/styles.css
+ * Tema: Dark Mode - Sistema de Gestión Empresarial
+ */
+
+/* ==================== 1. BASE / LAYOUT ==================== */
+body {
+    background-color: #1e1e1e;
+    color: #f0f0f0;
+    font-family: 'Open Sans', sans-serif;
+    margin: 0;
+    display: flex;
+    padding: 10px; /* Margen de respiro solicitado */
+    min-height: 100vh;
+    box-sizing: border-box;
+}
+
+/* ==================== 2. SIDEBAR (MENÚ) ==================== */
+.sidebar {
+    background-color: #2c2c2c;
+    width: 250px;
+    height: auto; /* Se ajusta al padding del body */
+    border-radius: 8px;
+    padding-top: 20px;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.5);
+}
+
+.sidebar h3 {
+    color: #00bcd4;
+    text-align: center;
+    margin-bottom: 30px;
+}
+/* Estilo para los títulos de sección (Maestros, Transacciones, Informes) */
+.sidebar h4 {
+    color: #f0f0f0; /* Color blanco para contraste */
+    font-size: 1em; /* Tamaño estándar */
+    margin: 20px 0 5px 0; /* Margen superior/inferior para separarlos de los enlaces */
+    /* AÑADIDO: Padding izquierdo para separarlos del borde del sidebar */
+    padding-left: 15px; 
+    border-bottom: 1px solid #383838; /* Línea de separación sutil */
+    padding-bottom: 5px;
+}
+.sidebar p {
+    padding: 0 20px;
+    font-size: 0.9em;
+    color: #aaa;
+}
+
+.sidebar hr {
+    border-color: #444;
+    margin: 15px 0;
+}
+
+/* Enlaces del menú */
+.sidebar a {
+    color: #f0f0f0;
+    text-decoration: none;
+    display: block;
+    padding: 12px 20px;
+    transition: background-color 0.3s;
+    border-left: 5px solid transparent;
+}
+
+.sidebar a:hover {
+    background-color: #383838;
+    border-left-color: #00bcd4;
+}
+
+.sidebar .logout {
+    color: #ff5252;
+    margin-top: 30px;
+}
+
+/* ==================== 3. CONTENT & CARDS ==================== */
+.content {
+    flex-grow: 1;
+    padding: 30px;
+    margin-left: 10px;
+}
+
+h1 {
+    border-bottom: 2px solid #00bcd4;
+    padding-bottom: 10px;
+    margin-bottom: 30px;
+}
+
+.card {
+    background-color: #2c2c2c;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+/* 1. Contenedor: Activa Flexbox para alinear los elementos horizontal y verticalmente */
+.header-clientes {
+    display: flex;
+    align-items: center; 
+    gap: 10px; /* Espacio entre el botón y el input */
+    width: 50%;
+
+}
+
+/* 2. Botón: Le damos el color y una altura fija */
+.boton-nuevo {
+    background-color: #28a745; 
+    color: white;
+    border: none;
+    padding: 8px 15px; 
+    flex-shrink: 0; /* Evita que el botón se encoja */
+    border-radius: 4px;
+}
+
+/* 3. Input: Le damos el ancho reducido y la altura fija */
+.input-filtro {
+    /* **ESTO ES CLAVE:** Fija el ancho para que no ocupe todo el espacio */
+    width: 100px; 
+    
+    /* Si tienes problemas de sobrescritura, usa !important como prueba */
+    /* width: 250px !important; */
+    
+    padding: 8px 12px;
+    height: 40px; 
+    box-sizing: border-box; 
+    
+    /* El input no debe crecer más allá de su width */
+    flex-grow: 0; 
+}
+
+/* ==================== 4. FORMULARIOS Y BOTONES ==================== */
+
+
+.btn {
+    padding: 8px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    color: white;
+    margin-right: 5px;
+    transition: background-color 0.2s;
+}
+
+.btn-success { background-color: #4caf50; }
+.btn-primary { background-color: #00bcd4; }
+.btn-danger { background-color: #f44336; }
+.btn-warning { background-color: #ff9800; }
+
+.btn:hover { opacity: 0.9; }
+
+input[type="text"], input[type="password"], input[type="number"], input[type="date"], select, textarea {
+    width: 100% !important; /* Añadido !important */
+    padding: 10px !important;
+    margin-bottom: 15px !important;
+    border: 1px solid #444 !important;
+    background-color: #383838 !important; /* Color de fondo oscuro - ¡CLAVE! */
+    color: #f0f0f0 !important; /* Color de texto claro - ¡CLAVE! */
+    border-radius: 4px !important;
+    box-sizing: border-box !important;
+    
+    /* PROPIEDADES CLAVE PARA ANULAR ESTILOS NATIVOS */
+    -webkit-appearance: none !important; 
+    -moz-appearance: none !important;
+    appearance: none !important;
+    
+    /* Para el select, evita que se desborde */
+    height: auto !important;
+}
+
+label { 
+    display: block; 
+    margin-bottom: 5px; 
+    color: #aaa; 
+    font-weight: bold;
+}
+
+/* ==================== 5. ALERTAS ==================== */
+.alert { 
+    padding: 15px; 
+    border-radius: 4px; 
+    margin-bottom: 20px; 
+    font-weight: bold; 
+}
+.alert-success { background-color: #4CAF50; color: white; }
+.alert-error { background-color: #f44336; color: white; }
+
+/* ==================== 6. TABLAS ==================== */
+table { 
+    width: 100%; 
+    border-collapse: collapse; 
+    margin-top: 20px; 
+}
+th, td { 
+    padding: 12px; 
+    border-bottom: 1px solid #383838; 
+    text-align: left; 
+}
+th { 
+    background-color: #383838; 
+    color: #00bcd4; 
+}
+/* ==================== 7. AUTOCOMPLETADO (Búsqueda de Clientes/Productos) ==================== */
+
+/* 1. Contenedor de Búsqueda del Cliente */
+/* Es CRUCIAL que el contenedor padre del input y los resultados tenga position: relative */
+.contenedor-busqueda-cliente {
+    position: relative; /* Define el punto de referencia para el div de resultados */
+}
+
+/* 2. Estilo para el Contenedor de Resultados Flotante */
+#resultadosBusquedaClientes {
+    /* Posicionamiento y Dimensión */
+    position: absolute; 
+    width: 100%; /* Ocupa el 100% del ancho del contenedor relativo */
+    z-index: 20; /* Asegura que flote sobre otros elementos */
+    top: 100%; /* Coloca el div justo debajo del input de búsqueda */
+    left: 0;
+    
+    /* Apariencia y Scroll */
+    background-color: #2c2c2c; /* Usamos el color de fondo de las cards */
+    border: 1px solid #444; /* Borde sutil */
+    max-height: 250px; /* Altura máxima para evitar que sea muy largo */
+    overflow-y: auto; /* Agrega scroll si hay muchos resultados */
+    box-sizing: border-box; /* Incluye padding/borde en el ancho total */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.6); /* Sombra para darle profundidad */
+}
+
+/* 3. Estilo para los Ítems Individuales (Resultado del cliente) */
+.resultado-cliente-item {
+    cursor: pointer !important;
+    padding: 10px 12px; /* Espaciado similar a tus inputs */
+    color: #f0f0f0; /* Color de texto estándar de tu tema */
+    background-color: #2c2c2c; /* Fondo para el ítem */
+    border-bottom: 1px solid #383838; /* Línea separadora sutil */
+    
+    /* Propiedades para manejo de texto largo */
+    white-space: nowrap; 
+    overflow: hidden;
+    text-overflow: ellipsis; 
+    transition: background-color 0.2s;
+}
+
+.resultado-cliente-item:last-child {
+    border-bottom: none; /* Eliminar el borde del último ítem */
+}
+
+.resultado-cliente-item:hover {
+    background-color: #383838; /* Color de fondo al pasar el ratón (similar al hover del sidebar) */
+}

@@ -1,0 +1,73 @@
+/*
+ * Archivo: styles.css
+ * Estilos de login con centrado y paleta de colores original (Modo Oscuro).
+ */
+
+/* CENTRADO Y FONDO DE PÁGINA */
+body { 
+    background-color: #1e1e1e; 
+    color: #f0f0f0; 
+    font-family: sans-serif; 
+    /* Centrado con Flexbox */
+    display: flex; 
+    justify-content: center; 
+    align-items: center; 
+    height: 100vh; 
+    margin: 0; 
+}
+
+/* ESTILO DEL CONTENEDOR LOGIN */
+.login-box { 
+    background-color: #2c2c2c; 
+    padding: 40px; 
+    border-radius: 8px; 
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5); 
+    width: 350px; 
+}
+
+/* Título principal */
+h2 { 
+    color: #00bcd4; 
+    text-align: center; 
+    margin-bottom: 25px; 
+}
+
+/* ESTILO DE LOS CAMPOS */
+input[type="text"], 
+input[type="password"] { 
+    width: 100%; 
+    padding: 10px; 
+    margin-bottom: 15px; 
+    border: 1px solid #444; 
+    background-color: #383838; 
+    color: #f0f0f0; 
+    border-radius: 4px; 
+    
+    /* 🔥 LA SOLUCIÓN: Asegura que el ancho del campo sea exactamente 100% */
+    box-sizing: border-box; 
+}
+
+/* EL BOTÓN */
+button { 
+    width: 100%; 
+    padding: 10px; 
+    background-color: #00bcd4; 
+    color: white; 
+    border: none; 
+    border-radius: 4px; 
+    cursor: pointer; 
+    transition: background-color 0.2s;
+    
+    /* 🔥 BUENA PRÁCTICA: También se lo aplicamos al botón para consistencia */
+    box-sizing: border-box;
+}
+
+button:hover {
+    background-color: #008ba3; 
+}
+
+.error { 
+    color: #ff5252; 
+    text-align: center; 
+    margin-bottom: 15px; 
+}
