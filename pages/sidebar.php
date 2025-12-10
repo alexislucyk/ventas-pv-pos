@@ -24,7 +24,12 @@
     <hr>
 
     <h4>Informes</h4>
+    <a href="../../pos/pages/resumen_ventas.php">Resumen de ventas</a>
     <a href="#">✂️ Corte de Caja</a>
+
+    <hr>
+    <h4>Mantenimiento</h4>
+    <a href="../../pos/pages/configuracion.php">Configuración</a>
     
     <a href="../../pos/logout.php" class="logout">❌ Cerrar Sesión</a>
 </div>

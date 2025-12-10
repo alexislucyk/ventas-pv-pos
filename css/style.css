@@ -9,20 +9,25 @@ body {
     color: #f0f0f0;
     font-family: 'Open Sans', sans-serif;
     margin: 0;
-    display: flex;
-    padding: 10px; /* Margen de respiro solicitado */
-    min-height: 100vh;
-    box-sizing: border-box;
+    padding: 0;
+    min-height: 100vh; /* CRÍTICO: Asegura que el body tenga el alto de la ventana */
+    width: 100%;       /* CRÍTICO: Asegura que el body use el 100% del ancho disponible */
+    overflow-x: hidden;
 }
 
 /* ==================== 2. SIDEBAR (MENÚ) ==================== */
 .sidebar {
     background-color: #2c2c2c;
     width: 250px;
-    height: auto; /* Se ajusta al padding del body */
+    position: fixed; 
+    left: 10px; /* Colocamos el sidebar en la posición 10px (para el padding que tenía el body) */
+    top: 10px; /* Colocamos el sidebar en la posición 10px */
+    /* CORRECCIÓN: Ajustamos la altura para que ocupe todo el espacio disponible */
+    height: calc(100vh - 20px); /* 100% de la altura de la ventana menos 10px arriba y 10px abajo */
     border-radius: 8px;
     padding-top: 20px;
     box-shadow: 2px 0 5px rgba(0, 0, 0, 0.5);
+    z-index: 50; /* Aseguramos que el menú siempre esté visible */
 }
 
 .sidebar h3 {
@@ -73,9 +78,23 @@ body {
 
 /* ==================== 3. CONTENT & CARDS ==================== */
 .content {
-    flex-grow: 1;
     padding: 30px;
-    margin-left: 10px;
+    box-sizing: border-box !important;
+    /* Mantenemos el margen izquierdo para el sidebar fijo */
+    margin-left: 280px; 
+    display: block;
+    /* margin-right: 10px; /* Margen derecho simple */
+    /* CORRECCIÓN FINAL: El ancho debe ser todo el espacio restante. */
+    box-sizing: border-box;
+    width: calc(100% - 280px); /* Usamos 100% en lugar de 100vw si es contenido con scroll */
+    
+    /* Si lo anterior falla, usa esta opción alternativa que funciona en navegadores modernos */
+    /*
+    width: calc(100vw - 280px);
+    */
+    
+    /* Asegurar que su posición no sea fija ni absoluta */
+    position: relative;
 }
 
 h1 {
@@ -141,9 +160,11 @@ h1 {
 }
 
 .btn-success { background-color: #4caf50; }
-.btn-primary { background-color: #00bcd4; }
+.btn-primary { background-color: #005cd4; }
 .btn-danger { background-color: #f44336; }
 .btn-warning { background-color: #ff9800; }
+.btn-yellow { background-color: #b0b30c; }
+.btn-green { background-color: #159455; }
 
 .btn:hover { opacity: 0.9; }
 
@@ -171,6 +192,56 @@ label {
     margin-bottom: 5px; 
     color: #aaa; 
     font-weight: bold;
+}
+
+/* Estilos CSS internos necesarios para la vista */
+/* ... (otros estilos) ... */
+
+/* ==================== MODAL (AJUSTE) ==================== */
+.modal {
+    display: none; 
+    position: fixed; 
+    z-index: 1000; 
+    left: 0; 
+    top: 0; 
+    width: 100%; 
+    height: 100%;
+    /* CORRECCIÓN: Quitamos overflow: auto para que el modal no tenga su propia 
+       barra de desplazamiento a menos que sea necesario forzarla con JS. 
+       Esto ayuda a que el fondo no se rompa */
+    overflow: hidden; 
+    background-color: rgba(0,0,0,0.6); 
+}
+.modal-content {
+    background-color: #2c2c2c; 
+    margin: 10% auto; 
+    padding: 20px; 
+    border: 1px solid #888; 
+    width: 80%;
+    max-width: 600px; 
+    border-radius: 8px; 
+    color: white;
+}
+/* Nuevo: Estilo para el botón de cierre */
+.close-btn {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+.close-btn:hover,
+.close-btn:focus {
+    color: white;
+    text-decoration: none;
+}
+/* CLASE CRÍTICA PARA CORREGIR EL ACHICAMIENTO DE PANTALLA (Si la anterior falló) */
+/* La clase 'modal-open-fix' debe ser definida en tu HTML o en este archivo CSS 
+   para ser utilizada por JavaScript. */
+.modal-open-fix {
+    /* Si el problema persiste con 17px, asegúrate de que esto sea lo único que aplique el overflow */
+    overflow: hidden !important; 
+    /* padding-right: 17px;  */
 }
 
 /* ==================== 5. ALERTAS ==================== */
