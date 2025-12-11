@@ -66,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['venta_action'])) {
 	$estado_venta = $es_finalizar ? 'Finalizada' : 'Pendiente';
 	
 	///$id_venta_existente = (int)($_POST['id_venta_existente'] ?? 0);
-    $id_venta_existente = (int)(isset($_POST['id_venta_existente']) ? $_POST['id_venta_existente'] : 0);
+	$id_venta_existente = (int)(isset($_POST['id_venta_existente']) ? $_POST['id_venta_existente'] : 0);
 	
 	// 1. Obtener y sanitizar datos de la cabecera
 	$id_cliente = (int)$_POST['cliente_id'];
@@ -141,7 +141,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['venta_action'])) {
 					$stmt_stock = $pdo->prepare($sql_stock_update);
 					$stmt_stock->execute([ (float)$item['cant'], $item['cod_prod'] ]);
 				}
-			}
+				
+				// ====================================================================
+				// 🟢 CORRECCIÓN CRÍTICA PARA CUENTA CORRIENTE (LÓGICA CC)
+				// ====================================================================
+				if ($cond_pago === 'CUENTA CORRIENTE' && $id_cliente > 0) {
+					// 1. Calcular el Saldo Pendiente (Deuda)
+					$saldo_deuda = $total_venta - ($pago_efectivo + $pago_transf);
+					
+					// 2. SOLO REGISTRAR MOVIMIENTO CC SI HAY DEUDA PENDIENTE
+					if ($saldo_deuda > 0) {
+						
+						// El monto de la deuda DEBE ser positivo al insertar en 'debe'
+						$monto_deuda_positivo = abs($saldo_deuda);
+						
+						$sql_cc_insert = "
+							INSERT INTO ctacte (id_cliente, movimiento, n_documento, debe, haber, fecha)
+							VALUES (:id_cliente, 'FACTURA', :n_documento, :debe, 0, :fecha_venta)
+						";
+						
+						$stmt_cc_insert = $pdo->prepare($sql_cc_insert);
+						
+						$stmt_cc_insert->execute([
+							':id_cliente' 	=> $id_cliente,
+							':n_documento' 	=> $n_documento,
+							':debe' 		=> $monto_deuda_positivo, // ⬅️ ¡CORREGIDO! Valor positivo en DEBE
+							':fecha_venta' 	=> $fecha_venta
+						]);
+					}
+					// Nota: Si se paga algo en Efectivo/Transf., esos pagos no se registran en CC,
+					// sino que reducen el saldo de la factura inicial. Si el pago es 0, toda la
+					// venta va a CC. El JS ya fuerza pago a 0 en CC.
+				}
+				// ====================================================================
+				
+			} // Fin if ($es_finalizar)
 
 
 			$pdo->commit(); // === CONFIRMA LA TRANSACCIÓN ===
@@ -180,7 +214,7 @@ if (isset($_SESSION['ticket_a_imprimir_doc'])) {
 <html lang="es">
 <head>
 	<meta charset="UTF-8">
-	<title>Nueva Venta | Mi Negocio POS</title>
+	<title>Nueva Venta | Electricidad Lucyk</title>
 	<link rel="stylesheet" href="../css/style.css"> 
 	<style>
 		/* Estilos CSS internos necesarios para la vista */
@@ -206,6 +240,58 @@ if (isset($_SESSION['ticket_a_imprimir_doc'])) {
 		/* CLASE CRÍTICA PARA CORREGIR EL ACHICAMIENTO DE PANTALLA */
 		.modal-open-fix {
 			overflow: hidden !important; 
+		}
+		/* --- ESTILOS CRÍTICOS PARA VISTA DE TICKET --- */
+		#ticketModal body {
+			font-family: 'Courier New', monospace;
+			font-size: 13px; 
+			line-height: 1.2;
+			padding: 5px 0;
+			margin: 0;
+			width: 100%; /* Asegurar que se adapte al modal */
+			background: #2c2c2c; /* Fondo del modal */
+			color: white; /* Color del texto del modal (aunque la vista previa es blanca) */
+		}
+
+		/* Aplicar el estilo de ticket solo al contenedor interno blanco */
+		#ticket-vista-previa { 
+			background-color: white !important; 
+			color: black !important;
+		}
+
+		/* Resetear estilos para el contenido del ticket insertado */
+		#ticket-vista-previa .center { text-align: center; } 
+		#ticket-vista-previa .right { text-align: right; }
+		/* Usamos color negro para el ticket */
+		#ticket-vista-previa p, #ticket-vista-previa h3 { color: black !important; }
+
+		/* Separador: CRÍTICO: Debe ser guiones/puntos NEGROS */
+		#ticket-vista-previa .sep { 
+			border-top: 1px dashed black; /* Asegurar color negro */
+			margin: 5px 0; 
+			height: 1px; 
+		} 
+
+		/* Líneas de Totales y Productos */
+		#ticket-vista-previa .line { 
+			display: flex; 
+			justify-content: space-between; 
+			margin: 1px 0; 
+			width: 100%; /* Asegurar que ocupe todo el ancho */
+		}
+
+		/* Estilos de impresión (para la ventana de impresión separada) */
+		@media print {
+			/* ... Asegúrate de mantener aquí los estilos @media print que eliminaste de ticket_generator.php ... */
+			
+			body { 
+				padding: 0 !important; 
+				margin: 0 !important; 
+				width: 80mm !important; /* Si tu impresora es de 80mm */
+			}
+			.no-print { display: none !important; }
+			.sep { border-top: 1px dashed #000; }
+			/* etc. */
 		}
 	</style>
 </head>
@@ -288,8 +374,8 @@ if (isset($_SESSION['ticket_a_imprimir_doc'])) {
 
 					<label for="cond_pago">Condición de Pago</label>
 					<select id="cond_pago" name="cond_pago" class="input-field" required>
-						<option value="Contado" selected>Contado</option>
-						<option value="Cuenta Corriente">Cuenta Corriente</option>
+						<option value="CONTADO" selected>CONTADO</option>
+						<option value="CUENTA CORRIENTE">CUENTA CORRIENTE</option>
 					</select>
 
 					<div id="contenedor_pagos"> 
@@ -324,7 +410,7 @@ if (isset($_SESSION['ticket_a_imprimir_doc'])) {
 					<input type="hidden" name="venta_action" id="venta_action_input" value="Finalizar">
 					
 					<input type="hidden" name="id_venta_existente" id="id_venta_existente_input" value="0">
-											
+									
 				</form>
 
 				<button type="button" class="btn btn-yellow" style="width: 100%; margin-top: 10px;" id="btnVerPendientes">
@@ -382,7 +468,7 @@ if (isset($_SESSION['ticket_a_imprimir_doc'])) {
 			totalVentaInputHidden.value = totalVenta.toFixed(2); 
 
 			// 2. LÓGICA DE CONDICIÓN DE PAGO
-			if (selectCondPago.value === 'Cuenta Corriente') {
+			if (selectCondPago.value === 'CUENTA CORRIENTE') {
 				cambioSaldoStrong.textContent = 'Cta. Cte.';
 				cambioSaldoStrong.style.color = '#00bcd4'; 
 				
@@ -472,7 +558,7 @@ if (isset($_SESSION['ticket_a_imprimir_doc'])) {
 		pagoTransfInput.addEventListener('input', calcularTotales);
 		
 		selectCondPago.addEventListener('change', function() {
-			if (this.value === 'Cuenta Corriente') {
+			if (this.value === 'CUENTA CORRIENTE') {
 				contenedorPagos.style.display = 'none'; 
 				pagoEfectivoInput.value = '0.00'; 
 				pagoTransfInput.value = '0.00'; 
@@ -661,120 +747,199 @@ if (isset($_SESSION['ticket_a_imprimir_doc'])) {
 			const condPago = document.getElementById('cond_pago').value;
 			const totalVenta = parseFloat(document.getElementById('total_venta_input').value);
 			
-			if (condPago === 'Contado') {
+			if (condPago === 'CONTADO') {
 				const pagoEfectivo = parseFloat(document.getElementById('pago_efectivo').value) || 0;
 				const pagoTransf = parseFloat(document.getElementById('pago_transf').value) || 0;
 				const totalPagado = pagoEfectivo + pagoTransf;
 				
 				if (totalPagado < totalVenta) {
-					alert(`El pago ($${totalPagado.toFixed(2)}) es menor al total de la venta ($${totalVenta.toFixed(2)}). Por favor, ingrese el monto completo.`);
+					alert("El pago en CONTADO no cubre el total de la venta.");
+					e.preventDefault();
+					return;
+				}
+			} else if (condPago === 'CUENTA CORRIENTE') {
+				// Para CC, debe tener un cliente asignado que no sea "Venta Genérica" (id_cliente = 0)
+				const idCliente = document.getElementById('cliente_id_hidden').value;
+				if (idCliente === '0') {
+					alert("Para registrar una venta a CUENTA CORRIENTE debe seleccionar un cliente específico.");
 					e.preventDefault();
 					return;
 				}
 			}
+			// Continuar con el envío
+		});
+		
+		// Eventos para botones de acción (Finalizar vs. Pendiente)
+		document.getElementById('btnFinalizarVenta').addEventListener('click', function(e) {
+			document.getElementById('venta_action_input').value = 'Finalizar';
+			// El form se envía solo, solo aseguramos el valor
 		});
 
-		// Manejadores para el botón de "Guardar como Pendiente"
 		document.getElementById('btnGuardarPendiente').addEventListener('click', function(e) {
-			// Cambiar el valor del campo oculto y enviar
 			document.getElementById('venta_action_input').value = 'Pendiente';
 			document.getElementById('formVenta').submit();
 		});
+
+		// ===========================================
+		// 5. MODALES (Ventas Pendientes y Ticket)
+		// ===========================================
 		
-		// Asegurar que el botón de finalizar mantenga el valor correcto
-		document.getElementById('btnFinalizarVenta').addEventListener('click', function(e) {
-			document.getElementById('venta_action_input').value = 'Finalizar';
+		// Lógica para el Modal de Ticket (si hay uno pendiente de imprimir)
+		const ticketModal = document.getElementById('ticketModal');
+		const ticketVistaPrevia = document.getElementById('ticket-vista-previa');
+
+		function mostrarModalTicket(n_documento) {
+			const xhr = new XMLHttpRequest();
+			// ⚠️ Asegúrate que la ruta al archivo ticket_generator.php sea correcta
+			xhr.open('GET', '../ajax/ticket_generator.php?n_documento=' + n_documento, true); 
+			xhr.onload = function() {
+				if (this.status == 200) {
+					ticketVistaPrevia.innerHTML = this.responseText;
+					ticketModal.style.display = 'block';
+				} else {
+					document.getElementById('errorTicket').style.display = 'block';
+					ticketVistaPrevia.innerHTML = 'Error al cargar el ticket.';
+				}
+			};
+			xhr.send();
+		}
+		
+		function cerrarModalTicket() {
+			ticketModal.style.display = 'none';
+			document.getElementById('errorTicket').style.display = 'none';
+		}
+		
+		document.getElementById('btnImprimirTicket').addEventListener('click', function() {
+			const contenidoTicket = ticketVistaPrevia.innerHTML;
+			
+			// Crear una ventana de impresión simple (Pop-up)
+			const ventanaImpresion = window.open('', 'Print-Window');
+			
+			// Usamos el mismo estilo que está definido en el head de ventas.php para que imprima bien
+			ventanaImpresion.document.write(`
+				<html>
+				<head>
+					<title>Ticket de Venta</title>
+					<style>
+						${document.head.querySelector('style').innerHTML} 
+					</style>
+				</head>
+				<body style="width: 80mm; font-family: 'Courier New', monospace; font-size: 13px; color: black; background: white; margin: 0; padding: 0;">
+					<div id="ticket-vista-previa" style="background-color: white !important; color: black !important; padding: 0;">
+						${contenidoTicket}
+					</div>
+					<script>
+						// Pequeño delay para asegurar que el contenido se cargue
+						setTimeout(() => {
+							window.print();
+							window.close();
+						}, 500);
+					</script>
+				</body>
+				</html>
+			`);
+			ventanaImpresion.document.close();
 		});
 
 
-		// ===========================================
-		// 5. MODAL DEL TICKET Y PENDIENTES
-		// ===========================================
-		
-		const ticketModal = document.getElementById('ticketModal');
+		// Ejecutar la lógica de ticket si hay un documento pendiente
+		const docAImprimir = <?php echo json_encode($ticket_doc_a_imprimir); ?>;
+		if (docAImprimir !== null) {
+			mostrarModalTicket(docAImprimir);
+		}
+
+
+		// Lógica para el Modal de Ventas Pendientes
 		const pendientesModal = document.getElementById('pendientesModal');
-		const body = document.body;
-		const ticketVistaPrevia = document.getElementById('ticket-vista-previa');
-		const btnImprimirTicket = document.getElementById('btnImprimirTicket');
-		const errorTicket = document.getElementById('errorTicket');
-		const documentoAImprimir = <?php echo json_encode($ticket_doc_a_imprimir); ?>;
-		
-		
-		// --- Funciones de control de Modal de Ticket ---
-		
-		function abrirModalTicket() {
-			ticketModal.style.display = 'block';
-			body.classList.add('modal-open-fix'); 
-		}
+		const listaPendientesDiv = document.getElementById('listaPendientes');
 
-		function cerrarModalTicket() {
-			ticketModal.style.display = 'none';
-			body.classList.remove('modal-open-fix');
+		document.getElementById('btnVerPendientes').addEventListener('click', function() {
+			cargarVentasPendientes();
+			pendientesModal.style.display = 'block';
+		});
+
+		function cerrarModalPendientes() {
+			pendientesModal.style.display = 'none';
 		}
 		
-		window.cerrarModalTicket = cerrarModalTicket; 
-
-
-		function cargarVistaPreviaTicket(n_documento) {
-			errorTicket.style.display = 'none';
-			ticketVistaPrevia.innerHTML = 'Cargando vista previa...';
-			abrirModalTicket();
-
-			const xhr = new XMLHttpRequest();
-			// Ruta ajustada a 'vista_previa_ticket.php'
-			xhr.open('GET', 'vista_previa_ticket.php?n_documento=' + n_documento, true); 
+		function cargarVentasPendientes() {
+			listaPendientesDiv.innerHTML = 'Cargando ventas pendientes...';
 			
+			const xhr = new XMLHttpRequest();
+			// ⚠️ Asegúrate que la ruta al archivo ajax/obtener_pendientes.php sea correcta
+			xhr.open('GET', '../ajax/obtener_pendientes.php', true);
 			xhr.onload = function() {
-				if (this.status === 200) {
-					ticketVistaPrevia.innerHTML = this.responseText;
-					// Esto permite que el botón Imprimir sepa qué imprimir
-					btnImprimirTicket.onclick = function() {
-						const iframe = ticketVistaPrevia.querySelector('iframe');
-						if (iframe) {
-							iframe.contentWindow.print();
-						} else {
-							window.print(); // Si no es un iframe, intenta imprimir la vista de ticket directamente
-						}
-					};
+				if (this.status == 200) {
+					listaPendientesDiv.innerHTML = this.responseText;
+					
+					// Adjuntar eventos de Cargar/Eliminar
+					listaPendientesDiv.querySelectorAll('.btn-cargar-pendiente').forEach(btn => {
+						btn.addEventListener('click', function() {
+							const idVenta = this.dataset.id;
+							cargarVentaEnCarrito(idVenta);
+							cerrarModalPendientes();
+						});
+					});
+					
+					// Pendiente: Lógica para el botón de eliminar pendiente
 				} else {
-					ticketVistaPrevia.innerHTML = 'Error al cargar el ticket. (Status: ' + this.status + ')';
-					errorTicket.style.display = 'block';
+					listaPendientesDiv.innerHTML = 'Error al cargar las ventas pendientes.';
 				}
 			};
-			xhr.onerror = function() {
-				ticketVistaPrevia.innerHTML = 'Error de red al intentar cargar el ticket.';
-				errorTicket.style.display = 'block';
+			xhr.send();
+		}
+		
+		function cargarVentaEnCarrito(idVenta) {
+			// ⚠️ Se necesita un archivo AJAX: ajax/cargar_venta.php
+			const xhr = new XMLHttpRequest();
+			xhr.open('GET', '../ajax/cargar_venta.php?id=' + idVenta, true);
+			xhr.onload = function() {
+				if (this.status == 200) {
+					try {
+						const data = JSON.parse(this.responseText);
+						if (data.error) {
+							alert("Error al cargar la venta: " + data.error);
+							return;
+						}
+						
+						// Reiniciar el formulario
+						document.getElementById('formVenta').reset(); 
+						carrito = [];
+						
+						// Cargar Cabecera
+						document.getElementById('id_venta_existente_input').value = data.cabecera.id;
+						document.getElementById('n_documento').value = data.cabecera.n_documento;
+						
+						// Cargar Cliente
+						// Aquí deberías buscar en clientesData si tienes la función setClientePorId, o simplemente setear los datos:
+						nombreClienteDisplay.textContent = data.cabecera.nombre_cliente || 'Venta Genérica';
+						clienteIdHidden.value = data.cabecera.id_cliente;
+						numDocumentoDisplay.value = data.cabecera.cuit_cliente || '';
+
+						// Cargar Detalle
+						carrito = data.detalle.map(item => ({
+							cod_prod: item.cod_prod,
+							descripcion: item.descripcion,
+							p_unit: parseFloat(item.p_unit),
+							cant: parseFloat(item.cant),
+							total: parseFloat(item.total),
+							stock_disponible: 99999 // Si no tienes el stock real en este punto, pon un valor alto
+						}));
+						
+						// Renderizar
+						renderizarCarrito();
+						alert(`Venta N° ${data.cabecera.n_documento} cargada para finalizar.`);
+						
+					} catch (e) {
+						alert("Error al procesar la data de la venta: " + e.message);
+						console.error(e);
+					}
+				} else {
+					alert('Error al obtener los detalles de la venta (HTTP ' + this.status + ').');
+				}
 			};
 			xhr.send();
 		}
 
-		// Lógica para mostrar el ticket automáticamente después de la redirección POST/GET
-		if (documentoAImprimir !== null) {
-			cargarVistaPreviaTicket(documentoAImprimir);
-		}
-		
-		
-		// --- Funciones de control de Modal de Pendientes ---
-		
-		function cerrarModalPendientes() {
-			pendientesModal.style.display = 'none';
-			body.classList.remove('modal-open-fix');
-		}
-		
-		window.cerrarModalPendientes = cerrarModalPendientes; 
-
-
-		document.getElementById('btnVerPendientes').addEventListener('click', function() {
-			pendientesModal.style.display = 'block';
-			body.classList.add('modal-open-fix');
-			
-			// AJAX para cargar la lista de ventas pendientes (Implementación pendiente)
-			document.getElementById('listaPendientes').innerHTML = 'Ventas pendientes cargadas (AJAX pendiente).';
-			
-		});
-		
-		// Inicializar la visualización de totales al cargar
-		calcularTotales();
-
-	}); 
+	});
 </script>

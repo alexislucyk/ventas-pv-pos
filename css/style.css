@@ -165,6 +165,7 @@ h1 {
 .btn-warning { background-color: #ff9800; }
 .btn-yellow { background-color: #b0b30c; }
 .btn-green { background-color: #159455; }
+.btn-blue { background-color: #3c80da; }
 
 .btn:hover { opacity: 0.9; }
 
@@ -194,8 +195,14 @@ label {
     font-weight: bold;
 }
 
-/* Estilos CSS internos necesarios para la vista */
-/* ... (otros estilos) ... */
+.saldo-negativo { 
+    color: red; 
+    font-weight: bold; 
+} 
+.saldo-positivo { 
+    color: green; 
+    font-weight: bold; 
+}
 
 /* ==================== MODAL (AJUSTE) ==================== */
 .modal {
