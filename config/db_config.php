@@ -1,6 +1,6 @@
 <?php
 // Datos de conexión
-$host = 'localhost';
+$host = '192.168.7.45';
 $db   = 'ventas'; // Asegúrate de cambiar esto por el nombre real de tu DB
 $user = 'root';      // Usuario de la base de datos
 $pass = 'isidoro9';          // Contraseña (usa una en producción)

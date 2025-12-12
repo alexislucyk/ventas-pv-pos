@@ -35,6 +35,11 @@ body {
     text-align: center;
     margin-bottom: 30px;
 }
+.sidebar .inicio {
+    color: #00bcd4;
+    text-align: center;
+    margin-bottom: 30px;
+}
 /* Estilo para los títulos de sección (Maestros, Transacciones, Informes) */
 .sidebar h4 {
     color: #f0f0f0; /* Color blanco para contraste */

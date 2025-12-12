@@ -87,32 +87,7 @@ $rol = htmlspecialchars($_SESSION['usuario_rol']);
 <?php include 'pages/sidebar.php'; ?>
 
 <div class="content">
-    <h1>Dashboard Principal</h1>
-
-    <div class="card" style="border-left: 5px solid #00bcd4;">
-        <h2 style="color: #00bcd4; margin-top: 0;">🪙 Cotización del Dólar en Argentina (Tiempo Real)</h2>
-        <div style="display: flex; justify-content: space-around; text-align: center;">
-            
-            <div style="padding: 10px; border-right: 1px solid #444; flex-grow: 1;">
-                <h3 style="margin: 0 0 5px 0; color: #aaa;">Oficial</h3>
-                <p style="margin: 0;">Compra: <strong style="color: #4CAF50;">$<?php echo $valores_dolar['oficial_compra']; ?></strong></p>
-                <p style="margin: 0;">Venta: <strong style="color: #f44336;">$<?php echo $valores_dolar['oficial_venta']; ?></strong></p>
-            </div>
-            
-            <div style="padding: 10px; flex-grow: 1;">
-                <h3 style="margin: 0 0 5px 0; color: #aaa;">Blue (Informal)</h3>
-                <p style="margin: 0;">Compra: <strong style="color: #4CAF50;">$<?php echo $valores_dolar['blue_compra']; ?></strong></p>
-                <p style="margin: 0;">Venta: <strong style="color: #f44336;">$<?php echo $valores_dolar['blue_venta']; ?></strong></p>
-            </div>
-        </div>
-    </div>
     
-    <div class="card">
-        <h2>Resumen de Operaciones</h2>
-        <p>Aquí se mostrarán los indicadores clave de tu negocio (ej. Ventas del día, Stock crítico, Cuentas por Cobrar).</p>
-    </div>
-
-    <p>Ahora puedes hacer clic en **"Productos"** para empezar a crear tu primera tabla de gestión.</p>
 </div>
 
 </body>
