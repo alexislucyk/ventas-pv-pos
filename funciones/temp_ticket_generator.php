@@ -49,7 +49,7 @@
             $subtotal = $total_venta; 
             $total_pagado = (float)$venta['pago_efectivo'] + (float)$venta['pago_transf'];
             $cambio_saldo = $total_pagado - $total_venta;
-            $nombre_tienda = "Electricidad Lucyk & Creaciones YAU"; 
+            $nombre_tienda = "Electricidad Lucyk"; 
             
             // --- 4. GENERACIÓN DEL HTML (Puro Contenido) ---
             

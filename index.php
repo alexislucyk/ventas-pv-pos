@@ -83,7 +83,7 @@ $rol = htmlspecialchars($_SESSION['usuario_rol']);
     <link rel="stylesheet" href="css\style.css">
 </head>
 <body>
-
+<button id="menuToggle" aria-label="Abrir Menú">☰ Menú</button>
 <?php include 'pages/sidebar.php'; ?>
 
 <div class="content">

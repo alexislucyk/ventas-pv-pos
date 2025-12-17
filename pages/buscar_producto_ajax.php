@@ -23,7 +23,8 @@ try {
     $sql = "SELECT cod_prod, descripcion, p_venta, stock 
             FROM productos 
             WHERE cod_prod LIKE ? OR descripcion LIKE ?
-            LIMIT 10";
+            ORDER BY descripcion
+            LIMIT 50";
 
     $stmt = $pdo->prepare($sql);
 

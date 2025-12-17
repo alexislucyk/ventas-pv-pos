@@ -69,13 +69,19 @@ if (empty($ventas_pendientes)) {
                 }
                 ?>
             </td>
-            <td><?php echo date('d/m H:i', strtotime($venta['fecha_venta'])); ?></td>
+            <td><?php echo date('d/m', strtotime($venta['fecha_venta'])); ?></td>
             <td style="text-align: right;">$<?php echo number_format($venta['total_venta'], 2, ',', '.'); ?></td>
             <td>
-                <button type="button" class="btn btn-info btn-sm btn-reanudar-venta" 
-                        data-venta-id="<?php echo htmlspecialchars($venta['id_venta']); ?>">
+                <?php
+                // CORRECCIÓN: Usar concatenación para asegurar que el número de documento se pasa como argumento JS
+                echo "<button 
+                        type='button' 
+                        class='btn btn-green btn-sm btn-reanudar-venta' 
+                        onclick='reanudarVenta(" . $venta['n_documento'] . ")' 
+                        data-venta-id='" . htmlspecialchars($venta['id_venta']) . "'>
                     Reanudar
-                </button>
+                </button>";
+                ?>
             </td>
         </tr>
         <?php endforeach; ?>

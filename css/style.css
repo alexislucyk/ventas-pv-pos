@@ -16,18 +16,28 @@ body {
 }
 
 /* ==================== 2. SIDEBAR (MENÚ) ==================== */
+/* --- Estilos base (Escritorio o mayor a 1366px) --- */
 .sidebar {
-    background-color: #2c2c2c;
-    width: 250px;
-    position: fixed; 
-    left: 10px; /* Colocamos el sidebar en la posición 10px (para el padding que tenía el body) */
-    top: 10px; /* Colocamos el sidebar en la posición 10px */
-    /* CORRECCIÓN: Ajustamos la altura para que ocupe todo el espacio disponible */
-    height: calc(100vh - 20px); /* 100% de la altura de la ventana menos 10px arriba y 10px abajo */
-    border-radius: 8px;
+    height: 100%;
+    width: 250px; /* Ancho fijo para escritorio */
+    position: fixed;
+    top: 0;
+    left: 0;
+    background-color: #1a1a1a;
     padding-top: 20px;
-    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.5);
-    z-index: 50; /* Aseguramos que el menú siempre esté visible */
+    z-index: 900; /* Alto z-index para estar sobre el contenido */
+    overflow-y: auto; /* Permite scroll vertical si el contenido es muy largo */
+}
+
+/* El contenido principal debe tener un margen para no quedar debajo del sidebar */
+.content {
+    margin-left: 270px; /* 250px de sidebar + 20px de padding */
+    padding: 20px;
+}
+
+/* Botón de hamburguesa debe estar oculto en escritorio */
+#menuToggle {
+    display:none;
 }
 
 .sidebar h3 {
@@ -49,6 +59,7 @@ body {
     padding-left: 15px; 
     border-bottom: 1px solid #383838; /* Línea de separación sutil */
     padding-bottom: 5px;
+    overflow-y: auto;
 }
 .sidebar p {
     padding: 0 20px;
@@ -328,4 +339,95 @@ th {
 
 .resultado-cliente-item:hover {
     background-color: #383838; /* Color de fondo al pasar el ratón (similar al hover del sidebar) */
+}
+
+/* ================================================= */
+/* CONFIGURACIÓN BASE (Móvil / 1366px o Menos) */
+/* Estas reglas son las que se aplican por defecto */
+/* ================================================= */
+
+/* Hacer que la barra lateral colapse o se oculte en pantallas pequeñas si es necesario */
+/* (Asegúrate de que tu sidebar.php maneje esto con JavaScript o CSS) */
+
+/* 1. La VENTA GRID (CRÍTICA) */
+/* Por defecto (en 1366px o menos), las columnas se apilan. */
+.venta-grid {
+    display: block; /* Vuelve a un flujo normal (apilado) */
+    width: 100%;
+    /* Eliminar el gap que no tiene sentido apilado */
+    gap: 0; 
+}
+
+/* 2. CARD */
+/* Asegurar que las tarjetas tomen todo el ancho al estar apiladas */
+.card {
+    margin-bottom: 20px; /* Añadir espacio entre tarjetas al apilar */
+}
+
+
+/* ================================================= */
+/* MEDIA QUERY: Escritorio (Desde 1367px hacia arriba) */
+/* ================================================= */
+
+@media (min-width: 1367px) {
+    
+    /* 1. Restaurar el GRID de dos columnas */
+    .venta-grid {
+        display: grid;
+        /* Define la proporción deseada (2fr para el carrito, 1fr para el pago) */
+        grid-template-columns: 2fr 1fr; 
+        gap: 20px;
+    }
+    
+    /* 2. Asegurar el contenedor principal */
+    .content {
+        padding: 20px;
+        /* Asegura que no se desborde */
+        overflow-x: hidden; 
+    }
+    
+    /* Si tienes un menú lateral fijo, asegúrate de que el content tenga el margen correcto */
+    .content {
+        /* Ejemplo si tu sidebar ocupa 250px */
+        margin-left: 250px; 
+    }
+}
+/* ================================================= */
+/* MEDIA QUERY: Resoluciones pequeñas (1366px o menos) */
+/* ================================================= */
+
+@media (max-width: 1366px) {
+    
+    /* A. Ocultar el Sidebar por defecto y hacerlo 'deslizable' */
+    .sidebar {
+        width: 0; /* Lo ocultamos por defecto en móvil */
+        transition: width 0.3s; /* Transición para un efecto de deslizamiento suave */
+        /* Importante: Mantenemos height: 100% y position: fixed */
+    }
+
+    /* B. Clase activa para mostrar el menú (se añade con JavaScript) */
+    .sidebar.active {
+        width: 250px; /* Al activar, mostramos el ancho completo */
+    }
+
+    /* C. El contenido principal ocupa todo el ancho */
+    .content {
+        margin-left: 0; /* Quitamos el margen, el contenido ocupa 100% */
+        /* El sidebar aparecerá superpuesto */
+    }
+
+    /* D. Mostrar el botón de hamburguesa */
+    #menuToggle {
+        display: block; /* Hacemos visible el botón en la esquina */
+        position: fixed;
+        top: 15px;
+        left: 15px;
+        z-index: 1000;
+        background: #333;
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        cursor: pointer;
+        border-radius: 5px;
+    }
 }

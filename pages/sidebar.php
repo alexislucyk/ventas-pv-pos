@@ -22,14 +22,17 @@
 
 	<h4>Transacciones</h4>
 	<a href="../../pos/pages/ventas.php">💰 Nueva Venta</a>
-	<a href="#">📝 Registrar Compra</a>
+	<a href="../../pos/pages/compras.php">📝 Registrar Compra</a>
 	<a href="../../pos/pages/pagos_ctacte.php">💳 Pagos Cta. Cte.</a>
 
 	<hr>
 
 	<h4>Informes</h4>
 	<a href="../../pos/pages/resumen_ventas.php">Resumen de ventas</a>
-	<a href="../../pos/pages/cuentas_corrientes.php">Resumen de Cta.Cte</a>
+	<a href="../../pos/pages/cuentas_corrientes.php">Cta.Cte Clientes</a>
+	<a href="../../pos/pages/ctacte_proveedores.php">Cta.Cte Proveedores</a>
+	<a href="../../pos/pages/reportes_inventario.php">Reporte de Inventario</a>
+	<a href="../../pos/pages/reportes_financieros.php">Reporte Financieros</a>
 	<a href="#">✂️ Corte de Caja</a>
 
 	<hr>

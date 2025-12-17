@@ -17,7 +17,7 @@ if (!isset($_GET['n_documento']) || empty($_GET['n_documento'])) {
 $n_documento = (int)$_GET['n_documento'];
 
 // CAMBIO CLAVE: Pasar la variable $pdo a la función
-$html_ticket = generar_html_ticket($pdo, $n_documento); 
+$html_ticket = generar_html_ticket_contenido($pdo, $n_documento); 
 
 echo $html_ticket;
 
