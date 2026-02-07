@@ -22,7 +22,8 @@
 
 	<h4>Transacciones</h4>
 	<a href="../../pos/pages/ventas.php">💰 Nueva Venta</a>
-	<a href="../../pos/pages/compras.php">📝 Registrar Compra</a>
+	<a href="../../pos/pages/anulaciones.php">Anulaciones</a>
+	<a href="../../pos/pages/compras.php">📝 Compras</a>
 	<a href="../../pos/pages/pagos_ctacte.php">💳 Pagos Cta. Cte.</a>
 
 	<hr>

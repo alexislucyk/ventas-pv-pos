@@ -7,68 +7,44 @@ if (!isset($_SESSION['usuario_id'])) {
     exit();
 }
 
-// --- LÓGICA PARA OBTENER EL VALOR DEL DÓLAR (cURL y sintaxis antigua) ---
-$valores_dolar = array(
-    'oficial_compra' => 'N/D',
-    'oficial_venta' => 'N/D',
-    'blue_compra' => 'N/D',
-    'blue_venta' => 'N/D',
-);
-$api_url = 'https://www.dolarsi.com/api/api.php?type=dolar';
+date_default_timezone_set('America/Argentina/Buenos_Aires');
+// Obtener la fecha actual
+$hoy = date('Y-m-d');
+require 'config/db_config.php';
+try {
+    // 1. Total Contado y Transferencias (Línea 20)
+    $sql_efectivo = "SELECT SUM(total_venta) as total FROM ventas 
+                     WHERE fecha_venta = ? 
+                     AND estado != 'Anulada' 
+                     AND (cond_pago = 'Contado' OR cond_pago = 'Transferencia')";
+    
+    $stmt_efectivo = $pdo->prepare($sql_efectivo);
+    $stmt_efectivo->execute(array($hoy));
+    $res_efectivo = $stmt_efectivo->fetch(PDO::FETCH_ASSOC);
+    $total_contado = ($res_efectivo && $res_efectivo['total'] !== null) ? $res_efectivo['total'] : 0;
 
-// Verificar si cURL está habilitado antes de usarlo
-if (function_exists('curl_init')) {
-    $ch = curl_init(); 
+    // 2. Total Cuenta Corriente (Línea 28)
+    $sql_ctacte = "SELECT SUM(total_venta) as total FROM ventas 
+                   WHERE fecha_venta = ? 
+                   AND estado != 'Anulada' 
+                   AND cond_pago = 'Cuenta Corriente'";
+    
+    $stmt_ctacte = $pdo->prepare($sql_ctacte);
+    $stmt_ctacte->execute(array($hoy));
+    $res_ctacte = $stmt_ctacte->fetch(PDO::FETCH_ASSOC);
+    $total_ctacte = ($res_ctacte && $res_ctacte['total'] !== null) ? $res_ctacte['total'] : 0;
 
-    // 1. Configurar cURL
-    curl_setopt($ch, CURLOPT_URL, $api_url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    // IMPORTANTE: En PHP antiguo, a menudo es necesario deshabilitar la verificación SSL
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); 
-    curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+    // 3. Cantidad de ventas (Línea 33 - CORREGIDA)
+    $sql_cant = "SELECT COUNT(*) as cantidad FROM ventas WHERE fecha_venta = ? AND estado != 'Anulada'";
+    $stmt_cant = $pdo->prepare($sql_cant);
+    $stmt_cant->execute(array($hoy));
+    $res_cant = $stmt_cant->fetch(PDO::FETCH_ASSOC);
+    // Cambiamos el ?? 0 por un operador ternario compatible:
+    $cant_ventas = ($res_cant && isset($res_cant['cantidad'])) ? $res_cant['cantidad'] : 0;
 
-    $json_data = curl_exec($ch);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curl_error = curl_error($ch);
-    curl_close($ch);
-
-    if ($http_code === 200 && $json_data !== false) {
-        $data = json_decode($json_data, true);
-
-        if ($data) {
-            foreach ($data as $item) {
-                
-                // SINTAXIS CORREGIDA: Usamos isset() con el operador ternario
-                $nombre = isset($item['casa']['nombre']) ? $item['casa']['nombre'] : null;
-                $compra = isset($item['casa']['compra']) ? $item['casa']['compra'] : 'N/D';
-                $venta = isset($item['casa']['venta']) ? $item['casa']['venta'] : 'N/D';
-                
-                // Limpiar valores (la API a menudo usa , como decimal)
-                // Se usa str_replace para reemplazar el punto y la coma por un punto para floatval
-                $compra_float = (float)str_replace(',', '.', str_replace('.', '', $compra));
-                $venta_float = (float)str_replace(',', '.', str_replace('.', '', $venta));
-                
-                if ($nombre === 'Dolar Oficial') {
-                    $valores_dolar['oficial_compra'] = number_format($compra_float, 2, ',', '.');
-                    $valores_dolar['oficial_venta']  = number_format($venta_float, 2, ',', '.');
-                } elseif ($nombre === 'Dolar Blue') {
-                    $valores_dolar['blue_compra'] = number_format($compra_float, 2, ',', '.');
-                    $valores_dolar['blue_venta']  = number_format($venta_float, 2, ',', '.');
-                }
-            }
-        }
-    } else {
-        // En caso de error de cURL o HTTP
-        error_log("Fallo al consultar API: HTTP {$http_code} | Error cURL: {$curl_error}");
-    }
-} else {
-    // FALLBACK con file_get_contents si cURL no está habilitado
-    // Este método es menos robusto, pero puede funcionar si la API está accesible.
-    $json_data = @file_get_contents($api_url);
-    // (La lógica de parsing con file_get_contents requeriría la misma revisión de sintaxis)
+} catch (PDOException $e) {
+    echo "Error en el Dashboard: " . $e->getMessage();
 }
-// ----------------------------------------------
-
 // Datos de la sesión para mostrar
 $nombre_usuario = htmlspecialchars($_SESSION['usuario_nombre']);
 $rol = htmlspecialchars($_SESSION['usuario_rol']);
@@ -87,7 +63,33 @@ $rol = htmlspecialchars($_SESSION['usuario_rol']);
 <?php include 'pages/sidebar.php'; ?>
 
 <div class="content">
+    <div class="dashboard-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-top: 20px;">
     
+        <div class="card" style="border-left: 5px solid #4CAF50;">
+            <h3 style="color: #666; font-size: 0.9em; margin-bottom: 10px;">EFECTIVO / TRANSFERENCIAS (HOY)</h3>
+            <p style="font-size: 1.8em; font-weight: bold; color: #2e7d32;">
+                $<?php echo number_format($total_contado, 2, ',', '.'); ?>
+            </p>
+            <span style="font-size: 0.8em; color: #888;">Dinero ingresado hoy</span>
+        </div>
+
+        <div class="card" style="border-left: 5px solid #FF9800;">
+            <h3 style="color: #666; font-size: 0.9em; margin-bottom: 10px;">CUENTA CORRIENTE (HOY)</h3>
+            <p style="font-size: 1.8em; font-weight: bold; color: #ef6c00;">
+                $<?php echo number_format($total_ctacte, 2, ',', '.'); ?>
+            </p>
+            <span style="font-size: 0.8em; color: #888;">Total facturado al fiado</span>
+        </div>
+
+        <div class="card" style="border-left: 5px solid #2196F3;">
+            <h3 style="color: #666; font-size: 0.9em; margin-bottom: 10px;">OPERACIONES DEL DÍA</h3>
+            <p style="font-size: 1.8em; font-weight: bold; color: #1565c0;">
+                <?php echo $cant_ventas; ?> Ventas
+            </p>
+            <span style="font-size: 0.8em; color: #888;">Total de tickets emitidos</span>
+        </div>
+
+    </div>
 </div>
 
 </body>

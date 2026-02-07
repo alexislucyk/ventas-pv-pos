@@ -20,7 +20,7 @@ $param_busqueda = '%' . $busqueda . '%';
 
 try {
     // 4. CONSULTA SQL CON SENTENCIA PREPARADA
-    $sql = "SELECT cod_prod, descripcion, p_venta, stock 
+    $sql = "SELECT cod_prod, descripcion, p_compra, p_venta, stock 
             FROM productos 
             WHERE cod_prod LIKE ? OR descripcion LIKE ?
             ORDER BY descripcion

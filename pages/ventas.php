@@ -1,4 +1,5 @@
 <?php
+// pages/ventas.php
 session_start();
 // La zona horaria debe ser la misma que la base de datos
 date_default_timezone_set('America/Argentina/Buenos_Aires');
@@ -117,17 +118,21 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                 }
 
                 // --- C) Insertar Detalle ---
-                $sql_detalle = "INSERT INTO ventas_detalle (cod_prod, descripcion, cant, p_unit, total, n_documento, fecha)
-                                        VALUES (?, ?, ?, ?, ?, ?, ?)";
+                $sql_detalle = "INSERT INTO ventas_detalle (cod_prod, descripcion, cant, p_unit, p_costo_venta, total, n_documento, fecha)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
                 foreach ($detalle_productos as $item) {
                     $stmt_detalle = $pdo->prepare($sql_detalle);
+
+                    // Capturamos el costo que viene del JSON, si no existe ponemos 0
+                    $costo_a_guardar = isset($item['p_costo']) ? (float)$item['p_costo'] : 0.00;
 
                     $stmt_detalle->execute([
                         $item['cod_prod'],
                         $item['descripcion'],
                         $item['cant'],
                         $item['p_unit'],
+                        $costo_a_guardar, // <--- VALOR PARA p_costo_venta
                         $item['total'],
                         $n_documento,
                         $fecha_venta // Usamos la misma fecha de cabecera
@@ -242,7 +247,7 @@ if (isset($_SESSION['ticket_a_imprimir_doc'])) {
                             <th>Código</th>
                             <th>Descripción</th>
                             <th class="text-right">Precio</th>
-                            <th style="width: 10%;">Cant.</th>
+                            <th style="width: 15%;">Cant.</th>
                             <th class="text-right">Subtotal</th>
                             <th>Acción</th>
                         </tr>

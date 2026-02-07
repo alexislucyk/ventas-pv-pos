@@ -1,7 +1,4 @@
-// Este código asume que tienes acceso a las variables globales:
-// const clientesData; 
-// const ticketDocImprimir;
-// que se definieron justo antes de incluir este archivo JS.
+// js/ventas.js
 
 // =========================================================================
 // ************ VARIABLES Y FUNCIONES GLOBALES (ACCESIBLES) ************
@@ -140,6 +137,7 @@ function reanudarVenta(n_documento) {
                 cod_prod: item.cod_prod,
                 descripcion: item.descripcion,
                 p_unit: parseFloat(item.p_unit),
+                p_costo: parseFloat(item.p_costo_venta), // <--- AGREGA ESTA LÍNEA (asegúrate que el AJAX devuelva p_costo_venta)
                 cant: parseFloat(item.cant),
                 total: parseFloat(item.total),
             }));
@@ -306,6 +304,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         cod_prod: producto.cod_prod,
                         descripcion: producto.descripcion,
                         p_unit: parseFloat(producto.p_venta),
+                        p_costo: parseFloat(producto.p_compra), // <--- AGREGA ESTA LÍNEA
                         cant: 1,
                         total: parseFloat(producto.p_venta),
                         stock_disponible: parseInt(producto.stock)
