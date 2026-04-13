@@ -1,141 +1,261 @@
 <?php
-	date_default_timezone_set('America/Argentina/Buenos_Aires'); 
-	session_start();
-	if (!isset($_SESSION['usuario_id'])) {
-		header('Location: login.php');
-		exit();
-	}
-	require '../config/db_config.php'; // Asegúrate de que $pdo esté disponible
+include 'infosesion.php';
+date_default_timezone_set('America/Argentina/Buenos_Aires');
+require '../config/db_config.php'; 
 
-	// Cargar todas las ventas para la tabla
-	try {
-		$sql_ventas = "SELECT 
-							v.id AS id_venta,
-							v.n_documento,
-							v.fecha_venta,
-							v.total_venta,
-							CONCAT(c.apellido, ', ', c.nombre) AS nombre_cliente
-						FROM ventas v
-						LEFT JOIN clientes c ON v.id_cliente = c.id
-						ORDER BY v.n_documento DESC";
-		$stmt_ventas = $pdo->query($sql_ventas);
-		$ventas = $stmt_ventas->fetchAll(PDO::FETCH_ASSOC);
-	} catch (Exception $e) {
-		error_log("Error al cargar ventas: " . $e->getMessage());
-		$ventas = [];
-	}
+// Capturar fechas del filtro (por defecto: hoy)
+$fecha_inicio = isset($_GET['fecha_inicio']) ? $_GET['fecha_inicio'] : date('Y-m-d');
+$fecha_fin = isset($_GET['fecha_fin']) ? $_GET['fecha_fin'] : date('Y-m-d');
+
+try {
+    // 1. Consulta de Totales Cobrados
+    $sql_resumen = "SELECT 
+                        SUM(COALESCE(pago_efectivo, 0)) as efectivo, 
+                        SUM(COALESCE(pago_transf, 0)) as transferencia
+                    FROM ventas 
+                    WHERE estado = 'Finalizada' 
+                    AND DATE(fecha_venta) BETWEEN :inicio AND :fin";
+    
+    $stmt_res = $pdo->prepare($sql_resumen);
+    $stmt_res->execute([':inicio' => $fecha_inicio, ':fin' => $fecha_fin]);
+    $resumen = $stmt_res->fetch(PDO::FETCH_ASSOC);
+    $total_contado_periodo = (isset($resumen['efectivo']) ? $resumen['efectivo'] : 0) + (isset($resumen['transferencia']) ? $resumen['transferencia'] : 0);
+
+    // 2. Consulta de Deuda Global (Saldo de todos los clientes)
+    $sql_total_deuda = "SELECT SUM(saldo_cliente) as total_deuda 
+                        FROM (
+                            SELECT (SUM(debe) - SUM(haber)) as saldo_cliente 
+                            FROM ctacte 
+                            GROUP BY id_cliente
+                        ) as subconsulta 
+                        WHERE saldo_cliente > 0";
+    $res_deuda = $pdo->query($sql_total_deuda)->fetch(PDO::FETCH_ASSOC);
+    $saldo_total_por_cobrar = isset($res_deuda['total_deuda']) ? $res_deuda['total_deuda'] : 0;
+
+    // 3. Sumar ventas en Cta. Cte. del periodo seleccionado
+    $sql_ctacte_periodo = "SELECT SUM(total_venta) as total_ctacte 
+                           FROM ventas 
+                           WHERE estado = 'Finalizada' 
+                           AND cond_pago = 'CUENTA CORRIENTE'
+                           AND DATE(fecha_venta) BETWEEN :inicio AND :fin";
+    $stmt_ctacte = $pdo->prepare($sql_ctacte_periodo);
+    $stmt_ctacte->execute([':inicio' => $fecha_inicio, ':fin' => $fecha_fin]);
+    $res_ctacte = $stmt_ctacte->fetch(PDO::FETCH_ASSOC);
+    $total_ctacte = isset($res_ctacte['total_ctacte']) ? $res_ctacte['total_ctacte'] : 0;
+
+    // 4. Listado de ventas para la tabla
+    $sql_ventas = "SELECT v.id AS id_venta, v.n_documento, v.fecha_venta, v.total_venta, 
+                        v.estado, v.cond_pago,
+                        CONCAT(c.apellido, ', ', c.nombre) AS nombre_cliente
+                    FROM ventas v
+                    LEFT JOIN clientes c ON v.id_cliente = c.id
+                    WHERE DATE(v.fecha_venta) BETWEEN :inicio AND :fin
+                    ORDER BY v.n_documento DESC";
+    
+    $stmt_ventas = $pdo->prepare($sql_ventas);
+    $stmt_ventas->execute([':inicio' => $fecha_inicio, ':fin' => $fecha_fin]);
+    $ventas = $stmt_ventas->fetchAll(PDO::FETCH_ASSOC);
+
+} catch (PDOException $e) {
+    echo "<div style='background:red; color:white; padding:10px;'>Error en SQL: " . $e->getMessage() . "</div>";
+    $ventas = [];
+}
 ?>
 
 <!DOCTYPE html>
 <html lang="es">
 <head>
-	<meta charset="UTF-8">
-	<title>Resumen de Ventas</title>
-	<link rel="stylesheet" href="../css/style.css"> 
-	<link rel="stylesheet" href="../css/ticket_print.css">
-	<style>
-		.btn-action { margin-right: 5px; padding: 5px 10px; cursor: pointer; }
-		.modal {
-			display: none; position: fixed; z-index: 1000; left: 0; top: 0; 
-			width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.8);
-		}
-		.modal-content-lg {
-			background-color: #333; margin: 5% auto; padding: 20px; border: 1px solid #888; 
-			width: 80%; max-width: 900px; color: white;
-		}
-		.close-button { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
-		#detalleBody { min-height: 100px; }
-	</style>
+    <meta charset="UTF-8">
+    <title>Resumen de Ventas | Electricidad Lucyk</title>
+    <link rel="stylesheet" href="../css/style.css?v=<?php echo time(); ?>"> 
+    <link rel="stylesheet" href="../css/ticket_print.css">
+    <style>
+        /* Estilos base para la página */
+        .btn-action { margin-right: 5px; padding: 5px 10px; cursor: pointer; border-radius: 4px; border: none; }
+        .text-right { text-align: right; }
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        .badge-warning { background: #f1c40f; color: #000; }
+        .badge-success { background: #2ecc71; color: #fff; }
+
+        /* MODAL REFORZADO: Solución a la línea celeste */
+        .modal {
+            display: none; 
+            position: fixed; 
+            z-index: 99999 !important; /* Por encima de todo */
+            left: 0; 
+            top: 0; 
+            width: 100%; 
+            height: 100%; 
+            overflow: auto; 
+            background-color: rgba(0, 0, 0, 0.95) !important; /* Fondo casi negro opaco */
+            backdrop-filter: blur(10px); /* Desenfoque del fondo */
+        }
+
+        .modal-content-lg {
+            background-color: #1a1a1a !important; /* Fondo sólido para bloquear el fondo */
+            margin: 5% auto; 
+            padding: 25px; 
+            border: 1px solid #3498db; 
+            border-radius: 12px;
+            width: 85%; 
+            max-width: 900px; 
+            color: white;
+            position: relative;
+            box-shadow: 0 10px 50px rgba(0,0,0,1);
+        }
+
+        .close-button { color: #f1c40f; float: right; font-size: 30px; font-weight: bold; cursor: pointer; line-height: 20px; }
+        .close-button:hover { color: #fff; }
+        
+        #detalleBody { min-height: 150px; padding-top: 20px; color: #eee; }
+
+        /* Estilos de formulario */
+        .form-control { padding: 8px; border-radius: 5px; border: 1px solid #555; background: #444; color: white; }
+        .btn-secondary { background-color: #7f8c8d; color: white; padding: 8px 15px; border-radius: 5px; text-decoration: none; }
+    </style>
 </head>
 <body>
-	<?php include 'sidebar.php'; ?>
-	<div class="content">
-		<h1>📊 Resumen Histórico de Ventas</h1>
-		
-		<div class="card">
-			<table id="tablaVentas" style="width: 100%;">
-				<thead>
-					<tr>
-						<th>N° Doc.</th>
-						<th>Fecha</th>
-						<th>Cliente</th>
-						<th>Total</th>
-						<th>Acciones</th>
-					</tr>
-				</thead>
-				<tbody>
-					<?php foreach ($ventas as $venta): ?>
-						<tr>
-							<td><?php echo htmlspecialchars($venta['n_documento']); ?></td>
-							<td><?php echo date('d/m/Y', strtotime($venta['fecha_venta'])); ?></td>
-							<td><?php echo htmlspecialchars($venta['nombre_cliente'] ?: 'Público General'); ?></td>
-							<td class="text-right">$<?php echo number_format($venta['total_venta'], 2, ',', '.'); ?></td>
-							<td>
-								<button class="btn btn-primary btn-action" onclick="mostrarDetalle(<?php echo $venta['n_documento']; ?>)">Detalle</button>
-								<button class="btn btn-success btn-action" onclick="imprimirTicket(<?php echo $venta['n_documento']; ?>)">Reimprimir</button>
-							</td>
-						</tr>
-					<?php endforeach; ?>
-				</tbody>
-			</table>
-		</div>
-	</div>
+    <?php include 'sidebar.php'; ?>
+    <div class="content">
+        <h1>📊 Resumen Histórico de Ventas</h1>
 
-	<div id="detalleModal" class="modal">
-		<div class="modal-content-lg">
-			<span class="close-button" onclick="document.getElementById('detalleModal').style.display='none';">&times;</span>
-			<h2>Detalle de Venta #<span id="detalleNdocumento"></span></h2>
-			
-			<div id="detalleBody">
-			</div>
-			
-			<button class="btn btn-success" onclick="imprimirTicket(document.getElementById('detalleNdocumento').textContent)" style="margin-top: 20px;">
-				🖨️ Reimprimir desde Detalle
-			</button>
-		</div>
-	</div>
+        <div class="card" style="margin-bottom: 20px; padding: 15px;">
+            <form method="GET" style="display: flex; gap: 15px; align-items: flex-end;">
+                <div>
+                    <label>Desde:</label>
+                    <input type="date" name="fecha_inicio" value="<?php echo $fecha_inicio; ?>" class="form-control">
+                </div>
+                <div>
+                    <label>Hasta:</label>
+                    <input type="date" name="fecha_fin" value="<?php echo $fecha_fin; ?>" class="form-control">
+                </div>
+                <button type="submit" class="btn btn-primary">🔍 Filtrar</button>
+                <a href="resumen_ventas.php" class="btn btn-secondary">🔄 Limpiar</a>
+            </form>
+        </div>
+
+        <div class="resumen-container">
+            <div class="widget widget-contado">
+                <h3>💰 Ventas Cobradas</h3>
+                <p>$<?php echo number_format($total_contado_periodo, 2, ',', '.'); ?></p>
+                <small>Efectivo + Transferencia</small>
+            </div>
+
+            <div class="widget widget-ctacte">
+                <h3>⏳ Ventas en Cta. Cte.</h3>
+                <p>$<?php echo number_format($total_ctacte, 2, ',', '.'); ?></p>
+                <small>Pendientes del periodo</small>
+            </div>
+
+            <div class="widget widget-ctacte" style="background: linear-gradient(135deg, #e74c3c, #c0392b);">
+                <h3>📉 Total Cuentas por Cobrar</h3>
+                <p>$<?php echo number_format($saldo_total_por_cobrar, 2, ',', '.'); ?></p>
+                <small>Deuda global acumulada</small>
+            </div>
+        </div>
+        
+        <div class="card">
+            <table id="tablaVentas" style="width: 100%;">
+                <thead>
+                    <tr>
+                        <th>N° Doc.</th>
+                        <th>Fecha</th>
+                        <th>Cliente</th>
+                        <th>Condición</th> 
+                        <th>Total</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (count($ventas) > 0): ?>
+                        <?php foreach ($ventas as $venta): ?>
+                            <tr>
+                                <td><?php echo htmlspecialchars($venta['n_documento']); ?></td>
+                                <td><?php echo date('d/m/Y', strtotime($venta['fecha_venta'])); ?></td>
+                                <td>
+                                    <?php echo htmlspecialchars($venta['nombre_cliente'] ? $venta['nombre_cliente'] : 'Público General'); ?>
+                                </td>
+                                <td>
+                                    <?php 
+                                    if ($venta['cond_pago'] == 'CUENTA CORRIENTE') {
+                                        echo '<span class="badge badge-warning">⏳ Cta. Cte.</span>';
+                                    } else {
+                                        echo '<span class="badge badge-success">💵 Contado</span>';
+                                    }
+                                    ?>
+                                </td>
+                                <td class="text-right"><strong>$<?php echo number_format($venta['total_venta'], 2, ',', '.'); ?></strong></td>
+                                <td>
+                                    <button class="btn btn-primary btn-action" onclick="mostrarDetalle(<?php echo $venta['n_documento']; ?>)">Detalle</button>
+                                    <button class="btn btn-success btn-action" onclick="imprimirTicket(<?php echo $venta['n_documento']; ?>)">Ticket</button>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <tr><td colspan="6" style="text-align:center;">No se encontraron ventas en este rango.</td></tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="detalleModal" class="modal">
+        <div class="modal-content-lg">
+            <span class="close-button" onclick="cerrarModal()">&times;</span>
+            <h2 style="border-bottom: 2px solid #3498db; padding-bottom: 10px;">Detalle de Venta #<span id="detalleNdocumento"></span></h2>
+            
+            <div id="detalleBody">
+                </div>
+            
+            <div style="text-align: right; margin-top: 25px; border-top: 1px solid #444; padding-top: 15px;">
+                <button class="btn btn-success" onclick="imprimirTicket(document.getElementById('detalleNdocumento').textContent)">
+                    🖨️ Reimprimir Ticket
+                </button>
+                <button class="btn btn-secondary" onclick="cerrarModal()" style="margin-left: 10px;">Cerrar</button>
+            </div>
+        </div>
+    </div>
 
 <script>
-	const detalleModal = document.getElementById('detalleModal');
-	const detalleBody = document.getElementById('detalleBody');
-	const detalleNdocumento = document.getElementById('detalleNdocumento');
-	
-	// Muestra el detalle de la venta en un modal
-	function mostrarDetalle(nDocumento) {
-		detalleNdocumento.textContent = nDocumento;
-		detalleBody.innerHTML = 'Cargando detalle...';
-		detalleModal.style.display = 'block';
+    const detalleModal = document.getElementById('detalleModal');
+    const detalleBody = document.getElementById('detalleBody');
+    const detalleNdocumento = document.getElementById('detalleNdocumento');
+    
+    function mostrarDetalle(nDocumento) {
+        detalleNdocumento.textContent = nDocumento;
+        detalleBody.innerHTML = '<div style="text-align:center; padding:20px;"><p>Cargando información del sistema...</p></div>';
+        detalleModal.style.display = 'block';
 
-		// Ruta AJAX para obtener el detalle (asumiendo 3 niveles arriba: ../../pos/ajax/...)
-		fetch('../../pos/ajax/obtener_detalle_venta.php?n_documento=' + nDocumento)
-			.then(response => {
-				if (!response.ok) throw new Error('Error al cargar la respuesta.');
-				return response.text();
-			})
-			.then(html => {
-				detalleBody.innerHTML = html;
-			})
-			.catch(error => {
-				console.error('Fetch Error:', error);
-				detalleBody.innerHTML = '<p style="color: red;">❌ Error al cargar el detalle de la venta.</p>';
-			});
-	}
+        // AJUSTE DE RUTA: Si resumen_ventas.php está en /pages/, la carpeta ajax está un nivel arriba.
+        fetch('../ajax/obtener_detalle_venta.php?n_documento=' + nDocumento)
+            .then(response => {
+                if (!response.ok) throw new Error('No se encontró el archivo de detalle.');
+                return response.text();
+            })
+            .then(html => {
+                detalleBody.innerHTML = html;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                detalleBody.innerHTML = '<p style="color: #e74c3c; text-align:center;">❌ Error al cargar los datos. Verifique que el archivo obtener_detalle_venta.php exista en la carpeta ajax.</p>';
+            });
+    }
 
-	// Función para Reimprimir (Abre una nueva ventana/pestaña con el ticket)
-	function imprimirTicket(nDocumento) {
-		// ⚠️ RUTA CRÍTICA: Debe coincidir con la ubicación de tu proyecto.
-		// Asumiendo que /pos/ es el directorio raíz.
-		const url = '/pos/pages/vista_previa_ticket.php?n_documento=' + nDocumento;
-		
-		// Abrir en una nueva ventana con tamaño de ticket, la cual se encargará de forzar la impresión
-		window.open(url, '_blank', 'width=350,height=600,scrollbars=yes,resizable=yes');
-		
-		// Si la función se llama desde el modal de detalle, ciérralo
-		const detalleModal = document.getElementById('detalleModal');
-		if(detalleModal && detalleModal.style.display === 'block') {
-			detalleModal.style.display='none';
-		}
-	}
+    function cerrarModal() {
+        detalleModal.style.display = 'none';
+    }
+
+    function imprimirTicket(nDocumento) {
+        const url = 'vista_previa_ticket.php?n_documento=' + nDocumento;
+        window.open(url, '_blank', 'width=400,height=700,scrollbars=yes');
+    }
+
+    // Cerrar si hace clic fuera del cuadro blanco
+    window.onclick = function(event) {
+        if (event.target == detalleModal) {
+            cerrarModal();
+        }
+    }
 </script>
 </body>
 </html>

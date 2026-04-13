@@ -1,8 +1,8 @@
 <?php
-// 1. CORRECCIÓN: Zona Horaria
-date_default_timezone_set('America/Argentina/Buenos_Aires'); 
+include 'infosesion.php';
+date_default_timezone_set('America/Argentina/Buenos_Aires');
 // obtener_venta_detalle_ajax.php
-session_start();
+//session_start();
 header('Content-Type: application/json'); // Indicamos que la respuesta es JSON
 
 // 1. Control de Conexión y Sesión

@@ -1,10 +1,6 @@
 <?php
+include 'infosesion.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
-session_start();
-if (!isset($_SESSION['usuario_id'])) {
-    header('Location: login.php');
-    exit();
-}
 require '../config/db_config.php'; // Asegúrate que el path sea correcto
 
 // Opcional: Manejo de mensajes de éxito/error después del POST

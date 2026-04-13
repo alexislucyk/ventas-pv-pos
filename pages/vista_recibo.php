@@ -1,11 +1,7 @@
 <?php
 // pages/vista_recibo.php
+include 'infosesion.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
-session_start();
-if (!isset($_SESSION['usuario_id'])) {
-    header('Location: login.php');
-    exit();
-}
 require '../config/db_config.php'; // Asegúrate que el path sea correcto
 
 // 1. Obtener ID del Movimiento (Recibo)

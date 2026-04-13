@@ -1,260 +1,174 @@
 <?php
-session_start();
-date_default_timezone_set('America/Argentina/Buenos_Aires'); 
-
-if (!isset($_SESSION['usuario_id'])) {
-    header('Location: login.php'); 
-    exit();
-}
+include 'infosesion.php';
+// VALIDACIÓN CRÍTICA:
+require_once '../config/validar_permisos.php';
+restringirPagina('developer'); // Solo desarrolladores pueden acceder a este reporte financiero avanzado
+date_default_timezone_set('America/Argentina/Buenos_Aires');
 
 require '../config/db_config.php'; 
 
-$fecha_inicio = isset($_GET['fecha_inicio']) ? htmlspecialchars($_GET['fecha_inicio']) : date('Y-m-01');
-$fecha_fin = isset($_GET['fecha_fin']) ? htmlspecialchars($_GET['fecha_fin']) : date('Y-m-d');
+$fecha_inicio = isset($_GET['fecha_inicio']) ? $_GET['fecha_inicio'] : date('Y-m-01');
+$fecha_fin = isset($_GET['fecha_fin']) ? $_GET['fecha_fin'] : date('Y-m-d');
+$fecha_fin_inclusive = $fecha_fin . ' 23:59:59';
+
 $reporte_utilidad = [];
-$total_ingresos = 0;
-$total_costos = 0;
-$total_utilidad = 0;
+$total_ingresos_ventas = 0;
+$total_costos_cmv = 0;
 $mensaje_error = '';
 
-// -----------------------------------------------------
-// 1. LÓGICA: REPORTE DE UTILIDAD BRUTA (Ventas - Costo)
-// -----------------------------------------------------
-try {
-    // Para calcular la utilidad bruta necesitamos:
-    // a) El precio de venta total de cada línea de venta.
-    // b) El costo de la mercadería vendida (CMV). Asumimos que el costo es p_compra.
-    
-    // NOTA IMPORTANTE: Para una venta real, el costo (CMV) debería ser el p_compra 
-    // que estaba vigente en la tabla 'productos' en la FECHA de la venta.
-    // Asumimos que tu tabla 'ventas_detalle' registra el costo histórico de cada producto
-    // en el momento de la venta (p_costo_venta o similar).
-    
-    // SI TU TABLA ventas_detalle NO REGISTRA EL COSTO HISTÓRICO, este cálculo será INEXACTO.
-    // Usaremos un campo supuesto: 'costo_cmv' en ventas_detalle. Si tienes otro nombre, ajústalo.
+// Resumen de Caja Real
+$caja_real = [
+    'ventas_contado' => 0,
+    'cobros_ctacte' => 0,
+    'pagos_proveedores' => 0,
+    'total_entrada' => 0,
+    'neto_caja' => 0
+];
 
-    // =========================================================================
-    // 🛑 CORRECCIÓN APLICADA AQUÍ: Se cambió 'vd.costo_cmv' por 'vd.p_costo_venta'
-    // =========================================================================
+try {
+    // 1. UTILIDAD BRUTA (Ventas - Costo Histórico)
     $sql_utilidad = "
         SELECT 
             vd.cod_prod,
             vd.descripcion,
-            SUM(vd.total_linea) AS total_venta,
-            SUM(vd.cant * vd.p_costo_venta) AS total_costo, /* ¡CORREGIDO! Usando p_costo_venta */
-            (SUM(vd.total_linea) - SUM(vd.cant * vd.p_costo_venta)) AS utilidad_bruta_linea
-        FROM 
-            ventas_detalle vd
-        JOIN 
-            ventas v ON vd.n_documento = v.n_documento
-        WHERE 
-            v.fecha_venta BETWEEN :fecha_inicio AND :fecha_fin_inclusive
-        GROUP BY 
-            vd.cod_prod, vd.descripcion
-        ORDER BY 
-            utilidad_bruta_linea DESC";
-    
-    // =========================================================================
+            SUM(vd.total) AS total_venta,
+            SUM(vd.cant * vd.p_costo_venta) AS total_costo,
+            (SUM(vd.total) - SUM(vd.cant * vd.p_costo_venta)) AS utilidad_bruta_linea
+        FROM ventas_detalle vd
+        JOIN ventas v ON vd.n_documento = v.n_documento
+        WHERE v.fecha_venta BETWEEN :f1 AND :f2
+          AND v.estado = 'Finalizada'
+        GROUP BY vd.cod_prod, vd.descripcion
+        ORDER BY utilidad_bruta_linea DESC";
 
-    $stmt_utilidad = $pdo->prepare($sql_utilidad);
-    
-    // Ajuste de fecha fin para incluir todo el día
-    $fecha_fin_inclusive = $fecha_fin . ' 23:59:59'; 
-    
-    $stmt_utilidad->execute([
-        ':fecha_inicio' => $fecha_inicio,
-        ':fecha_fin_inclusive' => $fecha_fin_inclusive
-    ]);
-    
-    $reporte_utilidad = $stmt_utilidad->fetchAll(PDO::FETCH_ASSOC);
+    $stmt = $pdo->prepare($sql_utilidad);
+    $stmt->execute([':f1' => $fecha_inicio, ':f2' => $fecha_fin_inclusive]);
+    $reporte_utilidad = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Calcular Totales Globales
     foreach ($reporte_utilidad as $item) {
-        $total_ingresos += (float)$item['total_venta'];
-        $total_costos += (float)$item['total_costo'];
+        $total_ingresos_ventas += (float)$item['total_venta'];
+        $total_costos_cmv += (float)$item['total_costo'];
     }
-    $total_utilidad = $total_ingresos - $total_costos;
 
-} catch (Exception $e) {
-    error_log("Error al generar Reporte de Utilidad Bruta: " . $e->getMessage());
-    $mensaje_error = "❌ Error: No se pudo generar el reporte de utilidad. Revise la estructura de la tabla 'ventas_detalle' y el campo 'p_costo_venta'.";
-}
-// -----------------------------------------------------
-// 2. LÓGICA: REPORTE DE FLUJO DE EFECTIVO (Flujo de Cobros y Pagos)
-// -----------------------------------------------------
-
-// NOTA: Para este reporte, se asume que las tablas ctacte_clientes y ctacte_proveedores 
-// registran movimientos de 'PAGO' y 'COBRO' respectivamente.
-$reporte_flujo = [
-    'cobros' => 0, 
-    'pagos' => 0,
-    'neto' => 0
-];
-
-try {
-    // A) Cobros (Entradas - Columna DEBE en Cta. Cte. Clientes, donde se registran los pagos)
-    $sql_cobros = "
-        SELECT 
-            SUM(debe) AS total_cobros 
-        FROM 
-            ctacte_clientes
-        WHERE 
-            movimiento LIKE 'COBRO%' AND fecha BETWEEN :f_ini AND :f_fin_inc";
+    // 2. FLUJO DE CAJA (Dinero Tangible)
     
+    // A) Ventas al contado (Efectivo + Transferencia en el momento)
+    $sql_contado = "SELECT SUM(pago_efectivo + pago_transf) FROM ventas 
+                    WHERE fecha_venta BETWEEN :f1 AND :f2 AND estado = 'Finalizada'";
+    $stmt_contado = $pdo->prepare($sql_contado);
+    $stmt_contado->execute([':f1' => $fecha_inicio, ':f2' => $fecha_fin_inclusive]);
+    $caja_real['ventas_contado'] = (float)$stmt_contado->fetchColumn() ?: 0;
+
+    // B) Cobros de Cuentas Corrientes (Clientes pagando deudas)
+    // En tu tabla 'ctacte', el dinero que ENTRA es lo que se registra en HABER
+    $sql_cobros = "SELECT SUM(haber) FROM ctacte 
+                   WHERE movimiento LIKE 'PAGO%' AND fecha BETWEEN :f1 AND :f2";
     $stmt_cobros = $pdo->prepare($sql_cobros);
-    $stmt_cobros->execute([':f_ini' => $fecha_inicio, ':f_fin_inc' => $fecha_fin_inclusive]);
-    $reporte_flujo['cobros'] = (float)$stmt_cobros->fetchColumn() ?: 0;
-    
-    // B) Pagos (Salidas - Columna DEBE en Cta. Cte. Proveedores, donde se registran los pagos)
-    $sql_pagos = "
-        SELECT 
-            SUM(debe) AS total_pagos 
-        FROM 
-            ctacte_proveedores
-        WHERE 
-            movimiento LIKE 'PAGO%' AND fecha BETWEEN :f_ini AND :f_fin_inc";
+    $stmt_cobros->execute([':f1' => $fecha_inicio, ':f2' => $fecha_fin_inclusive]);
+    $caja_real['cobros_ctacte'] = (float)$stmt_cobros->fetchColumn() ?: 0;
 
+    // C) Pagos a Proveedores
+    $sql_pagos = "SELECT SUM(debe) FROM ctacte_proveedores 
+                  WHERE movimiento LIKE 'PAGO%' AND fecha BETWEEN :f1 AND :f2";
     $stmt_pagos = $pdo->prepare($sql_pagos);
-    $stmt_pagos->execute([':f_ini' => $fecha_inicio, ':f_fin_inc' => $fecha_fin_inclusive]);
-    $reporte_flujo['pagos'] = (float)$stmt_pagos->fetchColumn() ?: 0;
-    
-    $reporte_flujo['neto'] = $reporte_flujo['cobros'] - $reporte_flujo['pagos'];
-    
+    $stmt_pagos->execute([':f1' => $fecha_inicio, ':f2' => $fecha_fin_inclusive]);
+    $caja_real['pagos_proveedores'] = (float)$stmt_pagos->fetchColumn() ?: 0;
+
+    // Cálculos Finales de Caja
+    $caja_real['total_entrada'] = $caja_real['ventas_contado'] + $caja_real['cobros_ctacte'];
+    $caja_real['neto_caja'] = $caja_real['total_entrada'] - $caja_real['pagos_proveedores'];
+
 } catch (Exception $e) {
-    error_log("Error al generar Reporte de Flujo: " . $e->getMessage());
-    // Se mantiene el flujo de utilidad, este es un error secundario.
+    $mensaje_error = "❌ Error: " . $e->getMessage();
 }
-
-
 ?>
 
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reportes Financieros</title>
-    <link rel="stylesheet" href="../css/style.css"> 
+    <title>Reportes | Electricidad Lucyk</title>
+    <link rel="stylesheet" href="../css/style.css">
     <style>
-        .reporte-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
-        .totales-utilidad { font-size: 1.2em; padding: 15px; border-radius: 8px; margin-top: 15px; }
-        .flujo-caja-resumen { padding: 15px; border-radius: 8px; }
-        .flujo-entrada { color: #4CAF50; } /* Verde para entradas */
-        .flujo-salida { color: #F44336; } /* Rojo para salidas */
-        .flujo-neto { font-weight: bold; font-size: 1.5em; }
-        .flujo-positivo { color: #4CAF50; }
-        .flujo-negativo { color: #F44336; }
-        .flujo-cero { color: #aaa; }
+        .reporte-container { display: flex; flex-wrap: wrap; gap: 20px; }
+        .col-main { flex: 2; min-width: 600px; }
+        .col-side { flex: 1; min-width: 300px; }
+        .card-stats { padding: 20px; border-radius: 10px; background: #1a1a1a; border-left: 5px solid #007bff; margin-bottom: 15px; }
+        .text-success { color: #2ecc71; }
+        .text-danger { color: #e74c3c; }
+        .text-info { color: #3498db; }
+        .big-number { font-size: 1.8em; font-weight: bold; display: block; margin-top: 10px; }
     </style>
 </head>
 <body>
-
-    <button id="menuToggle" aria-label="Abrir Menú">☰ Menú</button>
-    <?php include 'sidebar.php'; ?> 
-    <?php include 'infosesion.php'; ?> 
+    <?php include 'sidebar.php'; ?>
     
     <div class="content">
-        <h1>📈 Reportes Financieros y Rentabilidad</h1>
-        
-        <?php if (!empty($mensaje_error)): ?>
-            <div class="alert alert-error"><?php echo $mensaje_error; ?></div>
-        <?php endif; ?>
+        <h1>📈 Análisis Financiero</h1>
 
-        <div class="card" style="margin-bottom: 20px;">
-            <form method="GET" action="reportes_financieros.php" style="display: flex; gap: 15px; align-items: flex-end;">
-                <div>
-                    <label for="fecha_inicio">Fecha Inicio</label>
-                    <input type="date" name="fecha_inicio" id="fecha_inicio" class="input-field" value="<?php echo htmlspecialchars($fecha_inicio); ?>" required>
-                </div>
-                <div>
-                    <label for="fecha_fin">Fecha Fin</label>
-                    <input type="date" name="fecha_fin" id="fecha_fin" class="input-field" value="<?php echo htmlspecialchars($fecha_fin); ?>" required>
-                </div>
-                <button type="submit" class="btn btn-primary">Generar Reportes</button>
+        <div class="card" style="margin-bottom: 25px;">
+            <form method="GET" style="display: flex; gap: 20px; align-items: center;">
+                <input type="date" name="fecha_inicio" class="input-field" value="<?php echo $fecha_inicio; ?>">
+                <input type="date" name="fecha_fin" class="input-field" value="<?php echo $fecha_fin; ?>">
+                <button type="submit" class="btn btn-primary">Actualizar Informe</button>
             </form>
         </div>
-        
-        <div class="reporte-grid">
-            
-            <div class="card">
-                <h2>1. Utilidad Bruta por Producto 
 
-[Image of formula for Gross Profit]
-</h2>
-                <small>Periodo: <?php echo date('d/m/Y', strtotime($fecha_inicio)); ?> al <?php echo date('d/m/Y', strtotime($fecha_fin)); ?></small>
-                
-                <table style="width: 100%; margin-top: 15px;">
-                    <thead>
-                        <tr>
-                            <th style="width: 10%;">Código</th>
-                            <th>Descripción</th>
-                            <th class="text-right" style="width: 18%;">Ventas Netas ($)</th>
-                            <th class="text-right" style="width: 18%;">Costo CMV ($)</th>
-                            <th class="text-right" style="width: 18%;">Utilidad Bruta ($)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (empty($reporte_utilidad)): ?>
-                            <tr><td colspan="5" class="text-center">No hay ventas registradas en el periodo seleccionado.</td></tr>
-                        <?php else: ?>
-                            <?php foreach ($reporte_utilidad as $item): ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars($item['cod_prod']); ?></td>
-                                    <td><?php echo htmlspecialchars($item['descripcion']); ?></td>
-                                    <td class="text-right">$<?php echo number_format($item['total_venta'], 2, ',', '.'); ?></td>
-                                    <td class="text-right">$<?php echo number_format($item['total_costo'], 2, ',', '.'); ?></td>
-                                    <td class="text-right">$<?php echo number_format($item['utilidad_bruta_linea'], 2, ',', '.'); ?></td>
-                                </tr>
+        <div class="reporte-container">
+            <div class="col-main">
+                <div class="card">
+                    <h2>Rentabilidad por Producto</h2>
+                    <table class="table-full">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th class="text-right">Venta</th>
+                                <th class="text-right">Costo (CMV)</th>
+                                <th class="text-right">Utilidad</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($reporte_utilidad as $i): ?>
+                            <tr>
+                                <td><?php echo htmlspecialchars($i['descripcion']); ?></td>
+                                <td class="text-right">$<?php echo number_format($i['total_venta'], 2); ?></td>
+                                <td class="text-right">$<?php echo number_format($i['total_costo'], 2); ?></td>
+                                <td class="text-right text-success"><strong>$<?php echo number_format($i['utilidad_bruta_linea'], 2); ?></strong></td>
+                            </tr>
                             <?php endforeach; ?>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-                
-                <div class="totales-utilidad" style="background-color: #333;">
-                    <p><strong>TOTAL INGRESOS:</strong> <span class="flujo-entrada">$<?php echo number_format($total_ingresos, 2, ',', '.'); ?></span></p>
-                    <p><strong>TOTAL COSTOS (CMV):</strong> <span class="flujo-salida">$<?php echo number_format($total_costos, 2, ',', '.'); ?></span></p>
-                    <hr>
-                    <p class="flujo-neto">
-                        UTILIDAD BRUTA TOTAL: 
-                        <span class="<?php echo ($total_utilidad >= 0) ? 'flujo-positivo' : 'flujo-negativo'; ?>">
-                            $<?php echo number_format($total_utilidad, 2, ',', '.'); ?>
-                        </span>
-                    </p>
-                </div>
-            </div>
-            
-            <div class="card">
-                <h2>2. Flujo de Efectivo (Cobros y Pagos) 
-
-[Image of Cash Flow Diagram]
-</h2>
-                
-                <div class="flujo-caja-resumen" style="background-color: #333;">
-                    <p>➡️ **Cobros de Clientes (Entrada):** <span class="flujo-entrada" style="float: right;">
-                                $<?php echo number_format($reporte_flujo['cobros'], 2, ',', '.'); ?>
-                            </span>
-                    </p>
-                    <p>⬅️ **Pagos a Proveedores (Salida):** <span class="flujo-salida" style="float: right;">
-                                $<?php echo number_format($reporte_flujo['pagos'], 2, ',', '.'); ?>
-                            </span>
-                    </p>
-                    <hr>
-                    <p class="flujo-neto">
-                        NETO OPERATIVO:
-                        <?php 
-                            $clase_neto = 'flujo-cero';
-                            if ($reporte_flujo['neto'] > 0) $clase_neto = 'flujo-positivo';
-                            if ($reporte_flujo['neto'] < 0) $clase_neto = 'flujo-negativo';
-                        ?>
-                        <span class="<?php echo $clase_neto; ?>" style="float: right;">
-                            $<?php echo number_format($reporte_flujo['neto'], 2, ',', '.'); ?>
-                        </span>
-                    </p>
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
-        </div> </div>
-    
+            <div class="col-side">
+                <div class="card-stats">
+                    <span>Ventas Mostrador (Hoy)</span>
+                    <span class="big-number text-info">$<?php echo number_format($caja_real['ventas_contado'], 2); ?></span>
+                </div>
+                <div class="card-stats">
+                    <span>Cobros de Deudas (Cta. Cte.)</span>
+                    <span class="big-number text-success">$<?php echo number_format($caja_real['cobros_ctacte'], 2); ?></span>
+                </div>
+                <div class="card-stats" style="border-left-color: #e74c3c;">
+                    <span>Pagos a Proveedores</span>
+                    <span class="big-number text-danger">$<?php echo number_format($caja_real['pagos_proveedores'], 2); ?></span>
+                </div>
+                <div class="card" style="background: #222; border: 1px solid #444;">
+                    <h3>Saldo Neto en Caja</h3>
+                    <p class="big-number <?php echo $caja_real['neto_caja'] >= 0 ? 'text-success' : 'text-danger'; ?>">
+                        $<?php echo number_format($caja_real['neto_caja'], 2); ?>
+                    </p>
+                    <small>Este es el dinero real disponible.</small>
+                </div>
+                
+                <div class="card" style="margin-top: 20px; background: #002b36;">
+                    <h3>Ganancia Proyectada</h3>
+                    <p>Utilidad Bruta: <br><strong>$<?php echo number_format($total_ingresos_ventas - $total_costos_cmv, 2); ?></strong></p>
+                    <small>(Incluso lo no cobrado aún)</small>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
-<script src="../js/global.js"></script> 
 </html>

@@ -1,14 +1,13 @@
 <?php
-session_start();
-date_default_timezone_set('America/Argentina/Buenos_Aires'); 
+include 'infosesion.php';
+// VALIDACIÓN CRÍTICA:
+require_once '../config/validar_permisos.php';
+restringirPagina('developer');
+date_default_timezone_set('America/Argentina/Buenos_Aires');
 
 // -----------------------------------------------------
 // 1. CONTROL DE ACCESO Y CONFIGURACIÓN
 // -----------------------------------------------------
-if (!isset($_SESSION['usuario_id'])) {
-    header('Location: login.php'); 
-    exit();
-}
 
 require '../config/db_config.php'; 
 

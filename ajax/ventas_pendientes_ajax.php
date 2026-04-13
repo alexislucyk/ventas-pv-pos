@@ -76,7 +76,7 @@ if (empty($ventas_pendientes)) {
                 // CORRECCIÓN: Usar concatenación para asegurar que el número de documento se pasa como argumento JS
                 echo "<button 
                         type='button' 
-                        class='btn btn-green btn-sm btn-reanudar-venta' 
+                        class='btn btn-success' 
                         onclick='reanudarVenta(" . $venta['n_documento'] . ")' 
                         data-venta-id='" . htmlspecialchars($venta['id_venta']) . "'>
                     Reanudar

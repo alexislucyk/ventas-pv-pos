@@ -1,10 +1,6 @@
 <?php
-session_start();
-// 1. Verificar Sesión de Seguridad
-if (!isset($_SESSION['usuario_id'])) {
-    header('Location: login.php');
-    exit();
-}
+include 'infosesion.php';
+date_default_timezone_set('America/Argentina/Buenos_Aires');
 
 require '../config/db_config.php'; 
 

@@ -1,11 +1,9 @@
 <?php
-session_start();
-date_default_timezone_set('America/Argentina/Buenos_Aires'); 
-
-if (!isset($_SESSION['usuario_id'])) {
-    header('Location: login.php'); 
-    exit();
-}
+include 'infosesion.php';
+// VALIDACIÓN CRÍTICA:
+require_once '../config/validar_permisos.php';
+restringirPagina('developer');
+date_default_timezone_set('America/Argentina/Buenos_Aires');
 
 require '../config/db_config.php'; 
 
@@ -250,6 +248,7 @@ try {
         formPago.addEventListener('submit', function(e) {
             e.preventDefault();
             
+            const btnSubmit = formPago.querySelector('button[type="submit"]');
             const montoPago = parseFloat(inputMontoPago.value);
             const proveedorId = modalProveedorId.value;
             const tipoPago = document.getElementById('tipo_pago').value;
@@ -260,7 +259,10 @@ try {
                 return;
             }
 
-            // Llamada AJAX para registrar el pago (Necesitamos crear 'registrar_pago_proveedor_ajax.php')
+            // --- MEJORA 1: Bloquear el botón para evitar duplicados ---
+            btnSubmit.disabled = true;
+            btnSubmit.textContent = 'Procesando pago...';
+
             const formData = new FormData();
             formData.append('id_proveedor', proveedorId);
             formData.append('monto_pago', montoPago);
@@ -268,20 +270,44 @@ try {
             formData.append('ref_pago', refPago);
 
             const xhrPago = new XMLHttpRequest();
-            xhrPago.open('POST', 'registrar_pago_proveedor_ajax.php', true);
+            xhrPago.open('POST', '../ajax/registrar_pago_proveedor_ajax.php', true);
+            
             xhrPago.onload = function() {
+                // --- MEJORA 2: Restaurar el botón al finalizar ---
+                btnSubmit.disabled = false;
+                btnSubmit.textContent = 'Confirmar Pago';
+
                 if (this.status === 200) {
-                    const response = JSON.parse(this.responseText);
-                    alert(response.mensaje);
-                    
-                    if (response.exito) {
-                        modal.style.display = 'none';
-                        cargarHistorial(proveedorId); // Recargar el historial para ver el nuevo pago
+                    try {
+                        const response = JSON.parse(this.responseText);
+                        
+                        if (response.exito) {
+                            // --- MEJORA 3: Cierre y limpieza total ---
+                            modal.style.display = 'none'; // Cerramos el modal inmediatamente
+                            formPago.reset();             // Limpiamos los campos del formulario
+                            
+                            alert(response.mensaje || "Pago registrado con éxito.");
+                            
+                            // Recargar el historial y actualizar el saldo en la pantalla principal
+                            cargarHistorial(proveedorId); 
+                        } else {
+                            alert('Error: ' + response.mensaje);
+                        }
+                    } catch (err) {
+                        console.error("Error en respuesta:", this.responseText);
+                        alert('Error al procesar la respuesta del servidor.');
                     }
                 } else {
-                    alert('Error de conexión con el servidor al registrar el pago.');
+                    alert('Error de conexión con el servidor.');
                 }
             };
+
+            xhrPago.onerror = function() {
+                btnSubmit.disabled = false;
+                btnSubmit.textContent = 'Confirmar Pago';
+                alert('Error de red al intentar registrar el pago.');
+            };
+
             xhrPago.send(formData);
         });
 
