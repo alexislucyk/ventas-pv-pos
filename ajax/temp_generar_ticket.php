@@ -136,8 +136,10 @@ if ($venta['cond_pago'] === 'CONTADO') {
     $html_output .= formatLine("TRANSFERENCIA:", "$" . number_format($venta['pago_transf'], 2, '.', ','));
 
     $cambio = $total_pagado - $venta['total_venta'];
-    $html_output .= '<div class="sep"></div>';
-    $html_output .= formatLine("CAMBIO/VUELTO:", "$" . number_format($cambio, 2, '.', ','));
+    if ($cambio > 0) {
+        $html_output .= '<div class="sep"></div>';
+        $html_output .= "<div class='line' style='font-weight:bold;'><span>SU VUELTO:</span><span>$" . number_format($cambio, 2, '.', ',') . "</span></div>\n";
+    }
 } elseif ($venta['cond_pago'] === 'CUENTA CORRIENTE') {
     $saldo = $venta['total_venta'] - $total_pagado;
     if ($saldo > 0) {

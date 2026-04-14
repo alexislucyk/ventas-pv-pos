@@ -77,7 +77,7 @@ function tiene_permiso($archivo_buscado) {
         </div>
     </a>
         
-    <div class="user-info" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 15px 5px; width: 100%;">
+    <a href="<?php echo URL_BASE; ?>pages/perfil.php" class="user-info" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 15px 5px; width: 100%; text-decoration: none; border-bottom: 1px solid #333;">
         <i class="fas fa-user-circle" style="color: #00bcd4; font-size: 1.2em;"></i> 
         <div style="display: flex; align-items: baseline; gap: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
             <span style="font-weight: bold; color: #fff; font-size: 0.95em;">
@@ -87,7 +87,7 @@ function tiene_permiso($archivo_buscado) {
                 (<?php echo $rol; ?>)
             </span>
         </div>
-    </div>
+    </a>
 
     <div class="sidebar-menu-container">
         <hr>

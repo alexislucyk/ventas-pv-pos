@@ -24,7 +24,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // 2. Cambiar Estado
+    // 2. Resetear Password (Acción de Developer)
+    if (isset($_POST['reset_pass'])) {
+        $id_u = (int)$_POST['id_usuario'];
+        $pass_nueva = password_hash($_POST['nueva_password'], PASSWORD_BCRYPT);
+        
+        $sql = "UPDATE usuarios SET password_hash = ? WHERE id = ?";
+        $pdo->prepare($sql)->execute([$pass_nueva, $id_u]);
+        $u_nom = $_POST['u_nombre'];
+        $mensaje = "<div class='alert success'>✅ Password de '$u_nom' reseteada con éxito.</div>";
+    }
+
+    // 3. Cambiar Estado
     if (isset($_POST['toggle_estado'])) {
         $id_u = (int)$_POST['id_usuario'];
         $estado_actual = $_POST['estado_actual'];
@@ -204,6 +215,10 @@ $usuarios = $pdo->query("SELECT * FROM usuarios ORDER BY id DESC")->fetchAll(PDO
                                 <button type="submit" name="toggle_estado" class="btn-toggle <?php echo $u['estado']=='ACTIVO'?'btn-off':'btn-on'; ?>">
                                     <?php echo $u['estado']=='ACTIVO'?'DESACTIVAR':'ACTIVAR'; ?>
                                 </button>
+                                <button type="button" class="btn-toggle btn-on" style="background:#f39c12; border-color:#f39c12; color:white;" 
+                                        onclick="resetPassword(<?php echo $u['id']; ?>, '<?php echo $u['usuario']; ?>')">
+                                    <i class="fas fa-key"></i> RESET
+                                </button>
                             </form>
                             <?php else: ?>
                                 <span style="color:#666; font-size:0.8rem; font-style:italic;">Sistema Protegido</span>
@@ -215,5 +230,25 @@ $usuarios = $pdo->query("SELECT * FROM usuarios ORDER BY id DESC")->fetchAll(PDO
             </table>
         </div>
     </div>
+
+    <script>
+    function resetPassword(id, nombre) {
+        const nueva = prompt("Ingrese la nueva contraseña genérica para " + nombre + ":");
+        if (nueva && nueva.length >= 4) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.innerHTML = `
+                <input type="hidden" name="reset_pass" value="1">
+                <input type="hidden" name="id_usuario" value="${id}">
+                <input type="hidden" name="u_nombre" value="${nombre}">
+                <input type="hidden" name="nueva_password" value="${nueva}">
+            `;
+            document.body.appendChild(form);
+            form.submit();
+        } else if (nueva) {
+            alert("La contraseña es muy corta.");
+        }
+    }
+    </script>
 </body>
 </html>

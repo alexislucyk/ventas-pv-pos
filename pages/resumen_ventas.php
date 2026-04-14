@@ -9,9 +9,10 @@ $fecha_fin = isset($_GET['fecha_fin']) ? $_GET['fecha_fin'] : date('Y-m-d');
 
 try {
     // 1. Consulta de Totales Cobrados
+    // Corregimos la lógica: En ventas al contado, el cobro real es el total de la venta.
+    // En ventas a Cta. Cte., el cobro real es solo la entrega parcial (pago_efectivo + pago_transf).
     $sql_resumen = "SELECT 
-                        SUM(COALESCE(pago_efectivo, 0)) as efectivo, 
-                        SUM(COALESCE(pago_transf, 0)) as transferencia
+                        SUM(CASE WHEN cond_pago = 'CONTADO' THEN total_venta ELSE (COALESCE(pago_efectivo, 0) + COALESCE(pago_transf, 0)) END) as total_cobrado
                     FROM ventas 
                     WHERE estado = 'Finalizada' 
                     AND DATE(fecha_venta) BETWEEN :inicio AND :fin";
@@ -19,21 +20,20 @@ try {
     $stmt_res = $pdo->prepare($sql_resumen);
     $stmt_res->execute([':inicio' => $fecha_inicio, ':fin' => $fecha_fin]);
     $resumen = $stmt_res->fetch(PDO::FETCH_ASSOC);
-    $total_contado_periodo = (isset($resumen['efectivo']) ? $resumen['efectivo'] : 0) + (isset($resumen['transferencia']) ? $resumen['transferencia'] : 0);
+    $total_contado_periodo = isset($resumen['total_cobrado']) ? $resumen['total_cobrado'] : 0;
 
-    // 2. Consulta de Deuda Global (Saldo de todos los clientes)
-    $sql_total_deuda = "SELECT SUM(saldo_cliente) as total_deuda 
-                        FROM (
-                            SELECT (SUM(debe) - SUM(haber)) as saldo_cliente 
-                            FROM ctacte 
-                            GROUP BY id_cliente
-                        ) as subconsulta 
-                        WHERE saldo_cliente > 0";
+    // 2. Consulta de Deuda Global (Optimizado: calculamos la diferencia neta total)
+    // Nota: Mostramos solo saldos positivos (deudas de clientes hacia nosotros)
+    $sql_total_deuda = "SELECT SUM(debe) - SUM(haber) as saldo_neto FROM ctacte";
     $res_deuda = $pdo->query($sql_total_deuda)->fetch(PDO::FETCH_ASSOC);
-    $saldo_total_por_cobrar = isset($res_deuda['total_deuda']) ? $res_deuda['total_deuda'] : 0;
+    $saldo_total_por_cobrar = ($res_deuda['saldo_neto'] > 0) ? $res_deuda['saldo_neto'] : 0;
 
-    // 3. Sumar ventas en Cta. Cte. del periodo seleccionado
-    $sql_ctacte_periodo = "SELECT SUM(total_venta) as total_ctacte 
+    /**
+     * 3. Ventas en Cta. Cte. del periodo
+     * IMPORTANTE: Calculamos la deuda real generada (Total menos pagos parciales)
+     * Si una venta de $1000 tuvo entrega de $200, la deuda real en el periodo fue $800.
+     */
+    $sql_ctacte_periodo = "SELECT SUM(total_venta - (pago_efectivo + pago_transf)) as total_ctacte 
                            FROM ventas 
                            WHERE estado = 'Finalizada' 
                            AND cond_pago = 'CUENTA CORRIENTE'
