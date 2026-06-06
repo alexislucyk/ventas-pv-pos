@@ -1,7 +1,6 @@
 <?php
 // pages/procesar_cierre.php
 include 'infosesion.php';
-require '../config/db_config.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -10,10 +9,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // 1. Capturar datos del formulario
         $fecha_cierre = date('Y-m-d H:i:s');
-        $saldo_real_efectivo = (float)$_POST['saldo_real_efectivo'];
-        $fondo_vuelto_manana = (float)$_POST['fondo_vuelto']; // El dinero que queda en el cajón
-        $observaciones = isset($_POST['observaciones']) ? trim($_POST['observaciones']) : '';
-        $usuario = $_SESSION['usuario']; 
+        // PHP Fix: Soporte para decimales con coma en el conteo manual de cierre
+        $saldo_real_efectivo = (float)str_replace(',', '.', $_POST['saldo_real_efectivo'] ?? '0');
+        $fondo_vuelto_manana = (float)str_replace(',', '.', $_POST['fondo_vuelto'] ?? '0');
+        $observaciones = trim($_POST['observaciones'] ?? '');
+        $usuario = $_SESSION['usuario'] ?? 'Sistema'; 
 
         // 2. Recalcular totales del sistema para seguridad
         // Sumamos Ingresos (Efectivo y Mixto) y restamos Egresos que no estén cerrados
@@ -29,14 +29,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute();
         $sistema = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        $ing_efectivo = (float)$sistema['ingresos_efectivo'];
-        $ing_transf = (float)$sistema['ingresos_transf'];
-        $egresos = (float)$sistema['egresos'];
+        $ing_efectivo = (float)($sistema['ingresos_efectivo'] ?? 0);
+        $ing_transf = (float)($sistema['ingresos_transf'] ?? 0);
+        $egresos = (float)($sistema['egresos'] ?? 0);
         
         $saldo_esperado = $ing_efectivo - $egresos;
         
         // 3. Calcular Diferencia
         $diferencia = $saldo_real_efectivo - $saldo_esperado;
+
+        // Validación de seguridad: El fondo reservado no puede ser mayor al dinero real en caja
+        if ($fondo_vuelto_manana > $saldo_real_efectivo) {
+            throw new Exception("El fondo reservado ($fondo_vuelto_manana) no puede ser mayor al efectivo contado ($saldo_real_efectivo).");
+        }
 
         // 4. Insertar en la tabla cierres_caja
         $sql_ins = "INSERT INTO cierres_caja 
@@ -57,14 +62,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
 
         // 5. Marcar movimientos actuales como "CERRADOS"
-        $sql_update = "UPDATE movimiento SET cerrado = 1 WHERE cerrado = 0";
+        $sql_update = "UPDATE movimientos SET cerrado = 1 WHERE cerrado = 0";
         $pdo->prepare($sql_update)->execute();
 
         // 6. GENERAR EL FONDO INICIAL PARA EL DÍA SIGUIENTE
         // Este movimiento aparecerá mañana en el dashboard como el primer ingreso
         if ($fondo_vuelto_manana > 0) {
             $mañana = date('Y-m-d 07:00:00', strtotime('+1 day'));
-            $sql_fondo = "INSERT INTO movimiento (tipo, monto, metodo_pago, detalle, fecha, cerrado) 
+            $sql_fondo = "INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, cerrado) 
                           VALUES ('INGRESO', ?, 'EFECTIVO', 'FONDO INICIAL (VUELTO)', ?, 0)";
             $pdo->prepare($sql_fondo)->execute([$fondo_vuelto_manana, $mañana]);
         }

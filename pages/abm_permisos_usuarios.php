@@ -9,6 +9,7 @@ if ($_SESSION['usuario_rol'] !== 'developer') {
 }
 
 $id_seleccionado = isset($_GET['u']) ? (int)$_GET['u'] : 0;
+$usuario_nombre_edicion = "";
 
 // --- LÓGICA DE REGISTRO DE NUEVO MÓDULO ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['crear_modulo'])) {
@@ -26,14 +27,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['crear_modulo'])) {
 
 // 1. Guardar cambios de permisos
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $id_seleccionado > 0 && isset($_POST['guardar_permisos'])) {
-    $pdo->prepare("DELETE FROM permisos_usuario WHERE usuario_id = ?")->execute(array($id_seleccionado));
-    if (isset($_POST['modulos'])) {
-        $ins = $pdo->prepare("INSERT INTO permisos_usuario (usuario_id, modulo_id) VALUES (?, ?)");
-        foreach ($_POST['modulos'] as $mod_id) {
-            $ins->execute(array($id_seleccionado, $mod_id));
+    try {
+        $pdo->beginTransaction();
+        $pdo->prepare("DELETE FROM permisos_usuario WHERE usuario_id = ?")->execute(array($id_seleccionado));
+        if (isset($_POST['modulos'])) {
+            $ins = $pdo->prepare("INSERT INTO permisos_usuario (usuario_id, modulo_id) VALUES (?, ?)");
+            foreach ($_POST['modulos'] as $mod_id) {
+                $ins->execute(array($id_seleccionado, (int)$mod_id));
+            }
         }
+        $pdo->commit();
+        $mensaje = "✅ Permisos actualizados. El usuario deberá cerrar y volver a iniciar sesión.";
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        $mensaje = "❌ Error: " . $e->getMessage();
     }
-    $mensaje = "Permisos de usuario actualizados.";
 }
 
 // 2. Cargar Datos
@@ -42,9 +50,13 @@ $modulos = $pdo->query("SELECT * FROM modulos ORDER BY seccion, nombre")->fetchA
 
 $permisos_actuales = array();
 if ($id_seleccionado > 0) {
+    $stmt_u = $pdo->prepare("SELECT usuario FROM usuarios WHERE id = ?");
+    $stmt_u->execute(array($id_seleccionado));
+    $usuario_nombre_edicion = $stmt_u->fetchColumn();
+
     $res = $pdo->prepare("SELECT modulo_id FROM permisos_usuario WHERE usuario_id = ?");
     $res->execute(array($id_seleccionado));
-    $permisos_actuales = $res->fetchAll(PDO::FETCH_COLUMN, 0);
+    $permisos_actuales = $res->fetchAll(PDO::FETCH_COLUMN, 0); // IDs actuales
 }
 ?>
 
@@ -60,9 +72,11 @@ if ($id_seleccionado > 0) {
         .user-item { padding: 10px; border-bottom: 1px solid #333; display: block; color: #aaa; text-decoration: none; }
         .user-item.active { color: #00bcd4; font-weight: bold; background: #252525; }
         .matrix { flex-grow: 1; background: #1e1e1e; padding: 20px; border-radius: 8px; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
-        .card { background: #2a2a2a; padding: 10px; border-radius: 4px; border-left: 4px solid #444; cursor: pointer; display: flex; align-items: center; gap: 10px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+        .card { background: #2a2a2a; padding: 12px; border-radius: 4px; border-left: 4px solid #444; cursor: pointer; display: flex; align-items: flex-start; gap: 10px; transition: 0.2s; }
+        .card:hover { background: #333; }
         .card.checked { border-left-color: #00bcd4; background: #333; }
+        .card small { display: block; color: #666; font-size: 0.8em; margin-top: 3px; }
         .btn { background: #00bcd4; border: none; padding: 10px 20px; color: #000; font-weight: bold; cursor: pointer; border-radius: 4px; }
         
         /* Estilos Formulario Nuevo Módulo */
@@ -71,6 +85,7 @@ if ($id_seleccionado > 0) {
             background: #2a2a2a; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; margin-right: 5px; margin-bottom: 10px;
         }
         .form-nuevo h3 { margin-top: 0; color: #00bcd4; font-size: 1.1em; }
+        .seccion-titulo { grid-column: 1 / -1; background: #333; padding: 5px 15px; margin-top: 15px; color: #00bcd4; border-radius: 4px; font-size: 0.9em; text-transform: uppercase; }
     </style>
 </head>
 <body>
@@ -89,6 +104,7 @@ if ($id_seleccionado > 0) {
             <select name="nueva_seccion">
                 <option value="Maestros">Maestros</option>
                 <option value="Transacciones">Transacciones</option>
+                <option value="Facturación">Facturación</option>
                 <option value="Gestión de Caja">Gestión de Caja</option>
                 <option value="Informes">Informes</option>
                 <option value="Seguridad">Seguridad</option>
@@ -111,16 +127,26 @@ if ($id_seleccionado > 0) {
         <div class="matrix">
             <?php if($id_seleccionado > 0): ?>
                 <form method="POST">
-                    <h3>Permisos para: <span style="color: #00bcd4;"><?php echo $id_seleccionado; ?></span></h3>
+                    <h3>Permisos para: <span style="color: #00bcd4;"><?php echo htmlspecialchars($usuario_nombre_edicion); ?></span></h3>
                     <div class="grid">
-                        <?php foreach($modulos as $m): ?>
+                        <?php 
+                        $last_sec = "";
+                        foreach($modulos as $m): 
+                            if($m['seccion'] != $last_sec): 
+                                $last_sec = $m['seccion'];
+                                echo "<div class='seccion-titulo'>$last_sec</div>";
+                            endif;
+                        ?>
                             <label class="card <?php echo in_array($m['id'], $permisos_actuales) ? 'checked' : ''; ?>">
                                 <input type="checkbox" name="modulos[]" value="<?php echo $m['id']; ?>" 
                                 <?php echo in_array($m['id'], $permisos_actuales) ? 'checked' : ''; ?>>
-                                <span>
-                                    <i class="<?php echo $m['icono']; ?>" style="width: 20px; color: #888;"></i>
-                                    <?php echo $m['nombre']; ?>
-                                </span>
+                                <div style="flex:1;">
+                                    <strong>
+                                        <i class="<?php echo $m['icono']; ?>" style="width: 20px; color: #00bcd4;"></i>
+                                        <?php echo $m['nombre']; ?>
+                                    </strong>
+                                    <small>Ruta: <?php echo $m['archivo']; ?></small>
+                                </div>
                             </label>
                         <?php endforeach; ?>
                     </div>

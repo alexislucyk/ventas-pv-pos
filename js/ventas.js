@@ -43,10 +43,6 @@ if (inputBuscarProd) {
                     `;
 
                     div.onclick = () => {
-                        if (prod.stock <= 0) {
-                            alert("No hay stock disponible de este producto.");
-                            return;
-                        }
                         agregarAlCarrito(prod);
                         inputBuscarProd.value = '';
                         resultadosProd.innerHTML = '';
@@ -125,20 +121,34 @@ function agregarAlCarrito(prod) {
     const pCosto = parseFloat(prod.p_compra) || parseFloat(prod.p_costo) || 0; 
 
     if (existe) {
+        // Si existe, aumentamos cantidad y lo movemos al principio para que sea visible
         existe.cant++;
         existe.total = existe.cant * existe.p_unit;
+        const index = carrito.indexOf(existe);
+        carrito.splice(index, 1);
+        carrito.unshift(existe);
     } else {
-        carrito.push({
+        carrito.unshift({ // unshift agrega al inicio del array
             cod_prod: prod.cod_prod,
             descripcion: prod.descripcion,
             p_unit: pVenta,
             p_costo: pCosto,
             cant: 1,
+            desc: 0,
             total: pVenta
         });
     }
     renderizarCarrito();
 }
+
+// Listeners para recalcular todo cuando cambian los valores de financiación
+document.addEventListener('DOMContentLoaded', function() {
+    const ids = ['cuotas_selector', 'intervalo_cuotas', 'interes_manual', 'pago_efectivo', 'pago_transf', 'cond_pago', 'desc_global_tipo', 'desc_global_valor'];
+    ids.forEach(id => {
+        document.getElementById(id)?.addEventListener('input', actualizarTotal);
+        document.getElementById(id)?.addEventListener('change', actualizarTotal);
+    });
+});
 
 function renderizarCarrito() {
     const tbody = document.querySelector('#carrito tbody');
@@ -151,8 +161,9 @@ function renderizarCarrito() {
             <td>${item.cod_prod}</td>
             <td>${item.descripcion}</td>
             <td>$${item.p_unit.toFixed(2)}</td>
-            <td><input type="number" value="${item.cant}" min="1" step="any" style="width:70px" onchange="cambiarCant(${index}, this.value)"></td>
+            <td><input type="number" value="${item.cant}" min="1" step="any" style="width: 60px !important; padding: 6px !important; margin: 0 !important; text-align: center;" onchange="cambiarCant(${index}, this.value)"></td>
             <td>$${item.total.toFixed(2)}</td>
+            <td><input type="number" value="${item.desc || 0}" min="0" max="100" step="1" style="width: 45px !important; padding: 6px !important; margin: 0 !important; text-align: center;" onchange="cambiarDesc(${index}, this.value)"></td>
             <td><button type="button" class="btn btn-danger btn-sm" onclick="eliminarItem(${index})">X</button></td>
         `;
         tbody.appendChild(tr);
@@ -162,9 +173,23 @@ function renderizarCarrito() {
 
 window.cambiarCant = function(index, valor) {
     let n = parseFloat(valor);
-    if (isNaN(n) || n <= 0) n = 1;
+    if (isNaN(n) || n <= 0) {
+        n = 1;
+    }
     carrito[index].cant = n;
-    carrito[index].total = n * carrito[index].p_unit;
+    let subtotal = n * carrito[index].p_unit;
+    let descuentoMonto = subtotal * ((carrito[index].desc || 0) / 100);
+    carrito[index].total = subtotal - descuentoMonto;
+    renderizarCarrito();
+}
+
+window.cambiarDesc = function(index, valor) {
+    let d = parseFloat(valor);
+    if (isNaN(d) || d < 0) d = 0;
+    if (d > 100) d = 100;
+    carrito[index].desc = d;
+    let subtotal = carrito[index].cant * carrito[index].p_unit;
+    carrito[index].total = subtotal * (1 - (d / 100));
     renderizarCarrito();
 }
 
@@ -174,11 +199,49 @@ window.eliminarItem = function(index) {
 }
 
 function actualizarTotal() {
-    const total = carrito.reduce((sum, item) => sum + item.total, 0);
+    let itemsTotal = carrito.reduce((sum, item) => sum + item.total, 0);
+
+    // Aplicar Descuento Global
+    const tipoDesc = document.getElementById('desc_global_tipo').value;
+    const valorDesc = parseFloat(document.getElementById('desc_global_valor').value) || 0;
+    let montoDescGlobal = (tipoDesc === 'porcentaje') ? (itemsTotal * (valorDesc / 100)) : valorDesc;
+    
+    let finalTotal = Math.max(0, itemsTotal - montoDescGlobal);
+
+    const condPago = document.getElementById('cond_pago');
+    const panelCuotas = document.getElementById('panel_financiacion');
+    
+    if (condPago && condPago.value === 'FINANCIADO') {
+        if (panelCuotas) panelCuotas.style.display = 'block';
+        
+        const interesPorc = parseFloat(document.getElementById('interes_manual').value) || 0;
+        const efe = parseFloat(document.getElementById('pago_efectivo').value) || 0;
+        const tra = parseFloat(document.getElementById('pago_transf').value) || 0;
+        const entrega = efe + tra;
+        const cantCuotas = parseInt(document.getElementById('cuotas_selector').value) || 1;
+
+        // El interés se aplica sobre el saldo (Total productos - Entrega inicial)
+        const saldo = Math.max(0, itemsTotal - entrega);
+        const montoInteres = saldo * (interesPorc / 100);
+        const montoAFinanciar = saldo + montoInteres;
+        
+        const valorCuota = montoAFinanciar / cantCuotas;
+
+        const displayCuota = document.getElementById('info_valor_cuota');
+        if (displayCuota) displayCuota.innerText = `$ ${valorCuota.toFixed(2)}`;
+        
+        // El total final de la venta es lo que ya pagó + lo que debe pagar en cuotas
+        finalTotal = entrega + montoAFinanciar;
+    } else {
+        if (panelCuotas) panelCuotas.style.display = 'none';
+    }
+
     const display = document.getElementById('total_venta_display');
+    const inputTotal = document.getElementById('total_venta_input');
     const inputDetalle = document.getElementById('detalle_productos_input');
     
-    if (display) display.innerText = `$ ${total.toFixed(2)}`;
+    if (display) display.innerText = `$ ${finalTotal.toFixed(2)}`;
+    if (inputTotal) inputTotal.value = finalTotal.toFixed(2);
     if (inputDetalle) inputDetalle.value = JSON.stringify(carrito);
 
     calcularVuelto();
@@ -194,16 +257,16 @@ if (inputTransf) inputTransf.addEventListener('input', calcularVuelto);
 if (selectCond) selectCond.addEventListener('change', calcularVuelto);
 
 function calcularVuelto() {
-    const displayTotal = document.getElementById('total_venta_display');
+    const inputTotal = document.getElementById('total_venta_input');
     const condicion = document.getElementById('cond_pago').value;
-    if (!displayTotal) return;
+    if (!inputTotal) return;
 
-    const total = parseFloat(displayTotal.innerText.replace('$ ', '').replace(',', '')) || 0;
+    const total = parseFloat(inputTotal.value) || 0;
     const pagoEfe = parseFloat(document.getElementById('pago_efectivo').value) || 0;
     const pagoTra = parseFloat(document.getElementById('pago_transf').value) || 0;
     
     const totalPagado = pagoEfe + pagoTra;
-    const vueltoContainer = document.getElementById('vuelto_container');
+    const vueltoContainer = document.getElementById('vuelto_contenedor');
     const vueltoDisplay = document.getElementById('vuelto_display');
 
     if (condicion === 'CONTADO' && totalPagado > total && total > 0) {
@@ -223,7 +286,7 @@ if (btnPendiente) {
     btnPendiente.onclick = () => {
         const form = document.getElementById('formVenta');
         if (carrito.length === 0) { 
-            alert("El carrito está vacío."); 
+            mostrarMensaje("Carrito Vacío", "Debe agregar productos antes de guardar la venta.", "error");
             return; 
         }
         document.getElementById('venta_action_input').value = 'Pendiente';
@@ -236,7 +299,7 @@ window.reanudarVenta = function(nDocumento) {
         .then(res => res.json())
         .then(data => {
             if (!data.productos || data.productos.length === 0) {
-                alert("La venta no tiene productos.");
+                mostrarMensaje("Error", "La venta seleccionada no tiene productos registrados.", "error");
                 return;
             }
             carrito = [];
@@ -247,6 +310,7 @@ window.reanudarVenta = function(nDocumento) {
                     p_unit: parseFloat(p.p_unit),
                     p_costo: parseFloat(p.p_costo) || 0,
                     cant: parseFloat(p.cant),
+                    desc: parseFloat(p.descuento_unitario) || 0,
                     total: parseFloat(p.total)
                 });
             });
@@ -272,7 +336,7 @@ window.reanudarVenta = function(nDocumento) {
         })
         .catch(err => {
             console.error("Error al reanudar:", err);
-            alert("Error al obtener los datos de la venta.");
+            mostrarMensaje("Error de Conexión", "No se pudieron recuperar los datos de la venta.", "error");
         });
 };
 
@@ -309,7 +373,7 @@ if (formVenta) {
         if (action === 'Finalizar' && condicion === 'CUENTA CORRIENTE') {
             if (idCliente == "0" || idCliente === "" || !idCliente) {
                 e.preventDefault();
-                alert("⛔ Error: Para vender en CUENTA CORRIENTE debes seleccionar un cliente real.");
+                mostrarMensaje("Cliente Requerido", "⛔ Para vender en CUENTA CORRIENTE debes seleccionar un cliente real.", "error");
                 return false;
             }
         }

@@ -11,20 +11,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         if (isset($_POST['guardar_empresa'])) {
             // Usamos una consulta que inserta si no existe o actualiza si existe
-            $sql = "INSERT INTO datos_empresa (id, nombre_fantasia, razon_social, cuit, condicion_iva, ingresos_brutos, inicio_actividades) 
-                    VALUES (1, ?, ?, ?, ?, ?, ?)
+            $sql = "INSERT INTO datos_empresa (id, nombre_fantasia, razon_social, cuit, condicion_iva, ingresos_brutos, inicio_actividades, direccion, localidad, telefono) 
+                    VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON DUPLICATE KEY UPDATE 
                     nombre_fantasia = VALUES(nombre_fantasia), 
                     razon_social = VALUES(razon_social), 
                     cuit = VALUES(cuit), 
                     condicion_iva = VALUES(condicion_iva), 
                     ingresos_brutos = VALUES(ingresos_brutos), 
-                    inicio_actividades = VALUES(inicio_actividades)";
+                    inicio_actividades = VALUES(inicio_actividades),
+                    direccion = VALUES(direccion),
+                    localidad = VALUES(localidad),
+                    telefono = VALUES(telefono)";
             
             $stmt = $pdo->prepare($sql);
             $stmt->execute([
                 $_POST['nombre_fantasia'], $_POST['razon_social'], $_POST['cuit'],
-                $_POST['condicion_iva'], $_POST['ingresos_brutos'], $_POST['inicio_actividades']
+                $_POST['condicion_iva'], $_POST['ingresos_brutos'], $_POST['inicio_actividades'],
+                $_POST['direccion'], $_POST['localidad'], $_POST['telefono']
             ]);
             $mensaje = "✅ Datos de la empresa guardados correctamente.";
         }
@@ -100,6 +104,11 @@ $sucursales = $pdo->query("SELECT * FROM sucursales ORDER BY es_principal DESC")
         .data-tag { background: #2a2a2a; padding: 4px 10px; border-radius: 4px; color: #00bcd4; font-size: 0.8rem; margin-right: 10px; border: 1px solid #333; }
 
         .grid-config { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 1100px) {
+            .grid-config {
+                grid-template-columns: 1fr;
+            }
+        }
         .card { background: #1e1e1e; border: 1px solid #333; border-radius: 8px; padding: 20px; }
         
         .input-field {
@@ -140,6 +149,8 @@ $sucursales = $pdo->query("SELECT * FROM sucursales ORDER BY es_principal DESC")
                 <p style="text-transform: uppercase; font-size: 0.7rem; letter-spacing: 1px;">Datos actuales del sistema</p>
                 <h2><?php echo htmlspecialchars(isset($empresa['nombre_fantasia']) ? $empresa['nombre_fantasia'] : 'Nombre del Negocio'); ?></h2>
                 <p><i class="fas fa-signature"></i> Razón Social: <strong><?php echo htmlspecialchars(isset($empresa['razon_social']) ? $empresa['razon_social'] : '-'); ?></strong></p>
+                <p><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars(isset($empresa['direccion']) ? $empresa['direccion'] : '-'); ?>, <?php echo htmlspecialchars(isset($empresa['localidad']) ? $empresa['localidad'] : '-'); ?></p>
+                <p><i class="fas fa-phone-alt"></i> <?php echo htmlspecialchars(isset($empresa['telefono']) ? $empresa['telefono'] : '-'); ?></p>
                 <div style="margin-top: 10px;">
                     <span class="data-tag">CUIT: <?php echo htmlspecialchars(isset($empresa['cuit']) ? $empresa['cuit'] : '00-00000000-0'); ?></span>
                     <span class="data-tag">IVA: <?php echo htmlspecialchars(isset($empresa['condicion_iva']) ? $empresa['condicion_iva'] : '-'); ?></span>
@@ -175,12 +186,26 @@ $sucursales = $pdo->query("SELECT * FROM sucursales ORDER BY es_principal DESC")
                     <label>Condición frente al IVA</label>
                     <select name="condicion_iva" class="input-field">
                         <option value="Responsable Inscripto" <?php echo (isset($empresa['condicion_iva']) ? $empresa['condicion_iva'] : '') == 'Responsable Inscripto' ? 'selected' : ''; ?>>Responsable Inscripto</option>
-                        <option value="Monotributista" <?php echo (isset($empresa['condicion_iva']) ? $empresa['condicion_iva'] : '') == 'Monotributista' ? 'selected' : ''; ?>>Monotributista</option>
+                        <option value="Responsable Monotributo" <?php echo (isset($empresa['condicion_iva']) ? $empresa['condicion_iva'] : '') == 'Monotributista' ? 'selected' : ''; ?>>Monotributista</option>
                         <option value="IVA Exento" <?php echo (isset($empresa['condicion_iva']) ? $empresa['condicion_iva'] : '') == 'IVA Exento' ? 'selected' : ''; ?>>IVA Exento</option>
                     </select>
 
                     <label>Ingresos Brutos</label>
                     <input type="text" name="ingresos_brutos" class="input-field" value="<?php echo htmlspecialchars(isset($empresa['ingresos_brutos']) ? $empresa['ingresos_brutos'] : ''); ?>">
+
+                    <label>Dirección</label>
+                    <input type="text" name="direccion" class="input-field" value="<?php echo htmlspecialchars(isset($empresa['direccion']) ? $empresa['direccion'] : ''); ?>">
+
+                    <div style="display: flex; gap: 10px;">
+                        <div style="flex: 1;">
+                            <label>Localidad</label>
+                            <input type="text" name="localidad" class="input-field" value="<?php echo htmlspecialchars(isset($empresa['localidad']) ? $empresa['localidad'] : ''); ?>">
+                        </div>
+                        <div style="flex: 1;">
+                            <label>Teléfono de Contacto</label>
+                            <input type="text" name="telefono" class="input-field" value="<?php echo htmlspecialchars(isset($empresa['telefono']) ? $empresa['telefono'] : ''); ?>">
+                        </div>
+                    </div>
 
                     <button type="submit" name="guardar_empresa" class="btn-save">
                         <i class="fas fa-sync-alt"></i> ACTUALIZAR FICHA

@@ -50,7 +50,7 @@ try {
             </div>
             <div>
                 <strong>Condición:</strong> ' . htmlspecialchars($venta['cond_pago']) . '<br>
-                <strong>Total:</strong> <span style="color: #2ecc71; font-weight: bold;">$' . number_format($venta['total_venta'], 2, ',', '.') . '</span>
+                <strong>Total:</strong> <span style="color: #2ecc71; font-weight: bold;">$' . number_format((float)($venta['total_venta'] ?? 0), 2, ',', '.') . '</span>
             </div>
         </div>
         
@@ -79,8 +79,8 @@ try {
             </tbody>
         </table>
         <div style="text-align: right; margin-top: 15px; border-top: 1px solid #555; padding-top: 10px;">
-            <p><strong>Efectivo:</strong> $' . number_format($venta['pago_efectivo'], 2, ',', '.') . '</p>
-            <p><strong>Transferencia:</strong> $' . number_format($venta['pago_transf'], 2, ',', '.') . '</p>
+            <p><strong>Efectivo:</strong> $' . number_format((float)($venta['pago_efectivo'] ?? 0), 2, ',', '.') . '</p>
+            <p><strong>Transferencia:</strong> $' . number_format((float)($venta['pago_transf'] ?? 0), 2, ',', '.') . '</p>
         </div>';
     
     echo $html;

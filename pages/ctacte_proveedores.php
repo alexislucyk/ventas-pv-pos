@@ -2,7 +2,7 @@
 include 'infosesion.php';
 // VALIDACIÓN CRÍTICA:
 require_once '../config/validar_permisos.php';
-restringirPagina('developer');
+//restringirPagina('developer');
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 
 require '../config/db_config.php'; 
@@ -48,7 +48,6 @@ try {
 
     <button id="menuToggle" aria-label="Abrir Menú">☰ Menú</button>
     <?php include 'sidebar.php'; ?> 
-    <?php include 'infosesion.php'; ?> 
     
     <div class="content">
         <h1>Consulta y Pagos a Proveedores</h1>

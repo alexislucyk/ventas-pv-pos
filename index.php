@@ -2,7 +2,6 @@
 include 'pages/infosesion.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 $hoy = date('Y-m-d');
-require 'config/db_config.php';
 
 $nombre_usuario = htmlspecialchars($_SESSION['usuario_nombre']);
 $rol = htmlspecialchars($_SESSION['usuario_rol']);
@@ -44,6 +43,45 @@ try {
     $stmt_presup = $pdo->prepare($sql_presup);
     $stmt_presup->execute([$hoy]);
     $presup_pendientes = $stmt_presup->fetchColumn();
+
+    // 6. Top 10 Productos más vendidos (Histórico o Mensual)
+    $sql_top = "SELECT vd.cod_prod, vd.descripcion, SUM(vd.cant) as total_cant, p.stock 
+                FROM ventas_detalle vd
+                JOIN ventas v ON (vd.n_documento = v.n_documento)
+                JOIN productos p ON (vd.cod_prod = p.cod_prod COLLATE utf8mb4_unicode_ci)
+                WHERE v.estado = 'Finalizada' COLLATE utf8mb4_unicode_ci
+                GROUP BY vd.cod_prod, vd.descripcion, p.stock
+                ORDER BY total_cant DESC
+                LIMIT 10";
+    $top_productos = $pdo->query($sql_top)->fetchAll(PDO::FETCH_ASSOC);
+
+    // 7. Últimas 5 Ventas
+    $ultimas_ventas = $pdo->query("SELECT n_documento, total_venta, cond_pago, usuario FROM ventas WHERE estado = 'Finalizada' ORDER BY id DESC LIMIT 5")->fetchAll(PDO::FETCH_ASSOC);
+
+    // 8. Datos para el gráfico (Últimos 7 días)
+    $ventas_semana = [];
+    $labels_semana = [];
+    for ($i = 6; $i >= 0; $i--) {
+        $fecha = date('Y-m-d', strtotime("-$i days"));
+        $labels_semana[] = date('d/m', strtotime($fecha));
+        
+        $sql_dia = "SELECT SUM(total_venta) as total FROM ventas WHERE DATE(fecha_venta) = ? AND estado != 'Anulada'";
+        $stmt_dia = $pdo->prepare($sql_dia);
+        $stmt_dia->execute([$fecha]);
+        $res_dia = $stmt_dia->fetch(PDO::FETCH_ASSOC);
+        $ventas_semana[] = $res_dia['total'] ? (float)$res_dia['total'] : 0;
+    }
+
+    // 9. Productos más rentables (Top 5 por utilidad neta total)
+    $sql_rentables = "SELECT vd.descripcion, 
+                             SUM(vd.total - (vd.p_costo_venta * vd.cant)) as utilidad 
+                      FROM ventas_detalle vd
+                      JOIN ventas v ON vd.n_documento = v.n_documento
+                      WHERE v.estado = 'Finalizada'
+                      GROUP BY vd.cod_prod, vd.descripcion
+                      ORDER BY utilidad DESC
+                      LIMIT 10";
+    $productos_rentables = $pdo->query($sql_rentables)->fetchAll(PDO::FETCH_ASSOC);
 
 } catch (PDOException $e) {
     $error_db = "Error en el Dashboard: " . $e->getMessage();
@@ -159,7 +197,68 @@ try {
 
         @media (max-width: 768px) {
             .dashboard-grid { grid-template-columns: 1fr; }
+            .secondary-grid { grid-template-columns: 1fr !important; }
         }
+
+        /* Accesos Rápidos Mejorados */
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        .action-btn {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px 20px;
+            background: var(--bg-card);
+            border: 1px solid #333;
+            border-radius: 12px;
+            text-decoration: none;
+            color: #fff;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        }
+        .action-btn:hover {
+            transform: translateY(-3px);
+            background: #252525;
+            box-shadow: 0 8px 15px rgba(0,0,0,0.4);
+        }
+        .action-btn i {
+            font-size: 1.4rem;
+            width: 45px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 10px;
+        }
+        .action-btn span { font-size: 0.9rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        .btn-venta i { color: #4CAF50; background: rgba(76, 175, 80, 0.1); }
+        .btn-venta:hover { border-color: #4CAF50; }
+        .btn-cc i { color: #FF9800; background: rgba(255, 152, 0, 0.1); }
+        .btn-cc:hover { border-color: #FF9800; }
+        .btn-compra i { color: #2196F3; background: rgba(33, 150, 243, 0.1); }
+        .btn-compra:hover { border-color: #2196F3; }
+        .btn-precio i { color: var(--accent); background: rgba(0, 188, 212, 0.1); }
+        .btn-precio:hover { border-color: var(--accent); }
+
+        /* Contenedor del Gráfico y Tablas secundarias */
+        .chart-container { background: var(--bg-card); padding: 25px; border-radius: 12px; border: 1px solid #333; margin: 30px 0; }
+        .secondary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 25px; margin-top: 30px; }
+        .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        .data-table th { text-align: left; color: var(--accent); padding: 10px; border-bottom: 1px solid #333; text-transform: uppercase; font-size: 0.7rem; }
+        .data-table td { padding: 10px; border-bottom: 1px solid #252525; }
+        .text-accent { color: var(--accent); font-weight: bold; }
+    </style>
+    <style>
+        /* Parche para ocultar scrollbars nativos */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #121212; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #444; }
     </style>
 </head>
 <body>
@@ -178,6 +277,13 @@ try {
         <p style="color: var(--text-muted); margin: 5px 0;">Resumen del día: <?php echo date('d/m/Y'); ?> | Usuario: <strong><?php echo $nombre_usuario; ?></strong></p>
     </div>
 
+    <div class="quick-actions">
+        <a href="pages/ventas.php" class="action-btn btn-venta"><i class="fas fa-shopping-cart"></i><span>Nueva Venta</span></a>
+        <a href="pages/cuentas_corrientes.php" class="action-btn btn-cc"><i class="fas fa-users"></i><span>Clientes CC</span></a>
+        <a href="pages/compras.php" class="action-btn btn-compra"><i class="fas fa-truck-loading"></i><span>Cargar Compra</span></a>
+        <a href="pages/consulta_precios.php" class="action-btn btn-precio"><i class="fas fa-search-dollar"></i><span>Consultar Precio</span></a>
+    </div>
+
     <div class="dashboard-grid">
         
         <div class="stat-card card-green">
@@ -194,7 +300,7 @@ try {
             <div class="footer"><i class="fas fa-user-clock"></i> Pendiente de cobro</div>
         </div>
 
-        <a href="pages/ventas_historial.php" class="stat-card card-blue">
+        <a href="pages/resumen_ventas.php" class="stat-card card-blue">
             <i class="fas fa-shopping-basket icon-bg"></i>
             <h3>Operaciones</h3>
             <div class="value"><?php echo $cant_ventas; ?></div>
@@ -216,7 +322,129 @@ try {
         </a>
 
     </div>
+
+    <div class="chart-container">
+        <h3 style="margin: 0 0 20px 0; font-size: 0.9rem; color: var(--text-muted); text-transform: uppercase;">
+            <i class="fas fa-chart-line" style="color: var(--accent);"></i> Flujo de Ventas (Últimos 7 días)
+        </h3>
+        <canvas id="salesChart" style="max-height: 250px;"></canvas>
+    </div>
+
+    <div class="secondary-grid">
+        <!-- TOP 10 PRODUCTOS -->
+        <div class="stat-card">
+            <h3 style="margin-bottom: 15px;"><i class="fas fa-trophy" style="color: #f1c40f;"></i> Top 10 Más Vendidos</h3>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Producto</th>
+                        <th style="text-align: center;">Vendido</th>
+                        <th style="text-align: center;">Stock Actual</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach($top_productos as $tp): ?>
+                    <tr>
+                        <td><?php echo htmlspecialchars($tp['descripcion']); ?></td>
+                        <td style="text-align: center;" class="text-accent"><?php echo number_format($tp['total_cant'], 0); ?></td>
+                        <td style="text-align: center;">
+                            <span style="color: <?php echo $tp['stock'] <= 2 ? '#f44336' : '#888'; ?>">
+                                <?php echo $tp['stock']; ?>
+                            </span>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- PRODUCTOS RENTABLES -->
+        <div class="stat-card">
+            <h3 style="margin-bottom: 15px;"><i class="fas fa-hand-holding-usd" style="color: #2ecc71;"></i> Más Rentables (Top 10)</h3>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Producto</th>
+                        <th style="text-align: right;">Ganancia Acum.</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach($productos_rentables as $pr): ?>
+                    <tr>
+                        <td><?php echo htmlspecialchars($pr['descripcion']); ?></td>
+                        <td style="text-align: right;" class="text-accent">$<?php echo number_format($pr['utilidad'], 2, ',', '.'); ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- ÚLTIMAS VENTAS -->
+        <div class="stat-card">
+            <h3 style="margin-bottom: 15px;"><i class="fas fa-history"></i> Últimas Ventas</h3>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Ticket</th>
+                        <th style="text-align: right;">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach($ultimas_ventas as $uv): ?>
+                    <tr>
+                        <td><small>#<?php echo $uv['n_documento']; ?></small> <br> <span style="font-size: 0.7rem; color: #666;"><?php echo $uv['usuario']; ?></span></td>
+                        <td style="text-align: right;" class="text-accent">$<?php echo number_format($uv['total_venta'], 0, ',', '.'); ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('salesChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: <?php echo json_encode($labels_semana); ?>,
+                datasets: [{
+                    label: 'Ventas ($)',
+                    data: <?php echo json_encode($ventas_semana); ?>,
+                    borderColor: '#00bcd4',
+                    backgroundColor: 'rgba(0, 188, 212, 0.1)',
+                    borderWidth: 3,
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#00bcd4'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: '#333' },
+                        ticks: { 
+                            color: '#aaa',
+                            callback: function(value) { return '$' + value.toLocaleString('es-AR'); }
+                        }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: '#aaa' }
+                    }
+                }
+            }
+        });
+    });
+</script>
 </body>
 </html>

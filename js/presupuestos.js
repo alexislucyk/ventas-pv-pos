@@ -151,12 +151,12 @@ window.guardarPresupuesto = async function() {
     const campoComentarios = document.getElementById('comentarios');
     
     if (!idCliente || idCliente === "") {
-        alert("⚠️ Por favor, selecciona un cliente primero.");
+        mostrarMensaje("Atención", "⚠️ Por favor, selecciona un cliente primero.", "error");
         return;
     }
     
     if (items.length === 0) {
-        alert("⚠️ El presupuesto está vacío. Agrega al menos un producto.");
+        mostrarMensaje("Atención", "⚠️ El presupuesto está vacío. Agrega al menos un producto.", "error");
         return;
     }
 
@@ -176,24 +176,26 @@ window.guardarPresupuesto = async function() {
             body: JSON.stringify(datos)
         });
 
-        // Verificamos si la respuesta es texto antes de parsear (por si hay errores PHP)
-        const text = await response.text();
-        const resultado = JSON.parse(text);
+        if (!response.ok) {
+            throw new Error(`Error en el servidor: ${response.status}`);
+        }
+
+        const resultado = await response.json();
 
         if (resultado.success) {
-            alert("✅ Presupuesto guardado correctamente.");
-            // Abrir PDF
-            window.open(`generar_pdf_presupuesto.php?id=${resultado.id_presupuesto}`, '_blank');
-            // Limpiar todo
-            location.reload();
+            mostrarMensaje("Éxito", "✅ Presupuesto guardado correctamente.", "success", () => {
+                // Abrir PDF
+                window.open(`generar_pdf_presupuesto.php?id=${resultado.id_presupuesto}`, '_blank');
+                // Limpiar todo
+                location.reload();
+            });
         } else {
-            alert("❌ Error del servidor: " + resultado.error);
+            mostrarMensaje("Error", "❌ Error del servidor: " + resultado.error, "error");
         }
     } catch (error) {
         console.error("Error crítico:", error);
-        alert("❌ Error al conectar con el servidor. Revisa la consola.");
+        mostrarMensaje("Error", "❌ Error al conectar con el servidor. Revisa la consola.", "error");
     }
 };
 
 });
-

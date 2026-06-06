@@ -6,15 +6,16 @@ require '../config/db_config.php';
 $mensaje = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $tipo = $_POST['tipo']; // INGRESO o EGRESO
-    $monto = (float)$_POST['monto'];
-    $metodo = $_POST['metodo_pago'];
-    $detalle = trim($_POST['detalle']);
-    $usuario = $_SESSION['usuario'];
+    $tipo = $_POST['tipo'] ?? ''; // INGRESO o EGRESO
+    // PHP Fix: Reemplazar coma por punto para evitar que el cast a float trunque los decimales
+    $monto = (float)str_replace(',', '.', $_POST['monto'] ?? '0');
+    $metodo = $_POST['metodo_pago'] ?? 'EFECTIVO';
+    $detalle = trim($_POST['detalle'] ?? '');
+    $usuario = $_SESSION['usuario'] ?? 'Sistema';
 
     if ($monto > 0 && !empty($detalle)) {
         try {
-            $sql = "INSERT INTO movimiento (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado) 
+            $sql = "INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado) 
                     VALUES (?, ?, ?, ?, NOW(), ?, 0)";
             $pdo->prepare($sql)->execute([$tipo, $monto, $metodo, $detalle, $usuario]);
             
@@ -63,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <h1>Registrar Movimiento Manual</h1>
 
         <?php if ($mensaje): ?>
-            <div class="alert <?php echo strpos($mensaje, '❌') !== false ? 'alert-error' : 'alert-success'; ?>">
+            <div class="alert <?php echo str_contains($mensaje, '❌') ? 'alert-error' : 'alert-success'; ?>">
                 <?php echo $mensaje; ?>
             </div>
         <?php endif; ?>

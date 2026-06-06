@@ -9,31 +9,32 @@ $fecha_fin = isset($_GET['fecha_fin']) ? $_GET['fecha_fin'] : date('Y-m-d');
 
 try {
     // 1. Consulta de Totales Cobrados
-    // Corregimos la lógica: En ventas al contado, el cobro real es el total de la venta.
-    // En ventas a Cta. Cte., el cobro real es solo la entrega parcial (pago_efectivo + pago_transf).
     $sql_resumen = "SELECT 
                         SUM(CASE WHEN cond_pago = 'CONTADO' THEN total_venta ELSE (COALESCE(pago_efectivo, 0) + COALESCE(pago_transf, 0)) END) as total_cobrado
                     FROM ventas 
                     WHERE estado = 'Finalizada' 
                     AND DATE(fecha_venta) BETWEEN :inicio AND :fin";
-    
     $stmt_res = $pdo->prepare($sql_resumen);
     $stmt_res->execute([':inicio' => $fecha_inicio, ':fin' => $fecha_fin]);
     $resumen = $stmt_res->fetch(PDO::FETCH_ASSOC);
-    $total_contado_periodo = isset($resumen['total_cobrado']) ? $resumen['total_cobrado'] : 0;
+
+    // 1.1. Restar Egresos por Devoluciones/Anulaciones de Contado (Dinero que salió de caja)
+    $sql_egresos_dev = "SELECT SUM(total_reintegrado) FROM devoluciones 
+                        WHERE cond_pago = 'CONTADO'
+                        AND DATE(fecha) BETWEEN :inicio AND :fin";
+    $stmt_eg_dev = $pdo->prepare($sql_egresos_dev);
+    $stmt_eg_dev->execute([':inicio' => $fecha_inicio, ':fin' => $fecha_fin]);
+    $total_egresos_dev = (float)$stmt_eg_dev->fetchColumn() ?: 0;
+
+    $total_contado_periodo = (isset($resumen['total_cobrado']) ? (float)$resumen['total_cobrado'] : 0) - $total_egresos_dev;
 
     // 2. Consulta de Deuda Global (Optimizado: calculamos la diferencia neta total)
-    // Nota: Mostramos solo saldos positivos (deudas de clientes hacia nosotros)
     $sql_total_deuda = "SELECT SUM(debe) - SUM(haber) as saldo_neto FROM ctacte";
     $res_deuda = $pdo->query($sql_total_deuda)->fetch(PDO::FETCH_ASSOC);
     $saldo_total_por_cobrar = ($res_deuda['saldo_neto'] > 0) ? $res_deuda['saldo_neto'] : 0;
 
-    /**
-     * 3. Ventas en Cta. Cte. del periodo
-     * IMPORTANTE: Calculamos la deuda real generada (Total menos pagos parciales)
-     * Si una venta de $1000 tuvo entrega de $200, la deuda real en el periodo fue $800.
-     */
-    $sql_ctacte_periodo = "SELECT SUM(total_venta - (pago_efectivo + pago_transf)) as total_ctacte 
+    // 3. Ventas en Cta. Cte. del periodo (Neto de devoluciones en Cta Cte)
+    $sql_ctacte_periodo = "SELECT SUM(total_venta - (COALESCE(pago_efectivo, 0) + COALESCE(pago_transf, 0))) as total_ctacte 
                            FROM ventas 
                            WHERE estado = 'Finalizada' 
                            AND cond_pago = 'CUENTA CORRIENTE'
@@ -41,19 +42,50 @@ try {
     $stmt_ctacte = $pdo->prepare($sql_ctacte_periodo);
     $stmt_ctacte->execute([':inicio' => $fecha_inicio, ':fin' => $fecha_fin]);
     $res_ctacte = $stmt_ctacte->fetch(PDO::FETCH_ASSOC);
-    $total_ctacte = isset($res_ctacte['total_ctacte']) ? $res_ctacte['total_ctacte'] : 0;
+
+    // Restamos las devoluciones hechas a Cta Cte (Haber en la tabla ctacte por devoluciones)
+    $sql_ctacte_dev = "SELECT SUM(haber) FROM ctacte 
+                       WHERE (movimiento LIKE 'ANULACIÓN%' OR movimiento LIKE 'DEVOLUCIÓN%')
+                       AND DATE(fecha) BETWEEN :inicio AND :fin";
+    $stmt_ctacte_dev = $pdo->prepare($sql_ctacte_dev);
+    $stmt_ctacte_dev->execute([':inicio' => $fecha_inicio, ':fin' => $fecha_fin]);
+    $total_ctacte_dev = (float)$stmt_ctacte_dev->fetchColumn() ?: 0;
+
+    $total_ctacte = (isset($res_ctacte['total_ctacte']) ? (float)$res_ctacte['total_ctacte'] : 0) - $total_ctacte_dev;
 
     // 4. Listado de ventas para la tabla
-    $sql_ventas = "SELECT v.id AS id_venta, v.n_documento, v.fecha_venta, v.total_venta, 
-                        v.estado, v.cond_pago,
-                        CONCAT(c.apellido, ', ', c.nombre) AS nombre_cliente
-                    FROM ventas v
-                    LEFT JOIN clientes c ON v.id_cliente = c.id
-                    WHERE DATE(v.fecha_venta) BETWEEN :inicio AND :fin
-                    ORDER BY v.n_documento DESC";
+    $sql_ventas = "
+        SELECT 
+            'VENTA' as tipo_registro,
+            v.id AS id_ref, v.n_documento, v.fecha_venta as fecha, v.total_venta as monto, 
+            v.estado COLLATE utf8mb4_unicode_ci as estado, v.cond_pago COLLATE utf8mb4_unicode_ci as cond_pago,
+            CONCAT(c.apellido, ', ', c.nombre) COLLATE utf8mb4_unicode_ci AS nombre_cliente,
+            af.cae -- Traemos el CAE si existe en la tabla lateral
+        FROM ventas v
+        LEFT JOIN clientes c ON v.id_cliente = c.id
+        LEFT JOIN ventas_afip af ON v.id = af.id_venta
+        WHERE DATE(v.fecha_venta) BETWEEN :inicio1 AND :fin1
+
+        UNION ALL
+
+        -- Devoluciones extraídas directamente de la tabla centralizada
+        SELECT 
+            'DEVOLUCION' as tipo_registro,
+            d.op_n as id_ref, d.op_n as n_documento, d.fecha, -d.total_reintegrado as monto, 
+            'Finalizada' COLLATE utf8mb4_unicode_ci as estado, d.cond_pago COLLATE utf8mb4_unicode_ci as cond_pago,
+            CONCAT(c.apellido, ', ', c.nombre) COLLATE utf8mb4_unicode_ci as nombre_cliente,
+            NULL as cae
+        FROM devoluciones d
+        LEFT JOIN clientes c ON d.id_cliente = c.id
+        WHERE DATE(d.fecha) BETWEEN :inicio2 AND :fin2
+
+        ORDER BY fecha DESC, n_documento DESC";
     
     $stmt_ventas = $pdo->prepare($sql_ventas);
-    $stmt_ventas->execute([':inicio' => $fecha_inicio, ':fin' => $fecha_fin]);
+    $stmt_ventas->execute([
+        ':inicio1' => $fecha_inicio, ':fin1' => $fecha_fin,
+        ':inicio2' => $fecha_inicio, ':fin2' => $fecha_fin
+    ]);
     $ventas = $stmt_ventas->fetchAll(PDO::FETCH_ASSOC);
 
 } catch (PDOException $e) {
@@ -107,6 +139,7 @@ try {
         .close-button { color: #f1c40f; float: right; font-size: 30px; font-weight: bold; cursor: pointer; line-height: 20px; }
         .close-button:hover { color: #fff; }
         
+        .tipo-dev { color: #ff7675; font-weight: bold; font-size: 0.85em; }
         #detalleBody { min-height: 150px; padding-top: 20px; color: #eee; }
 
         /* Estilos de formulario */
@@ -137,19 +170,19 @@ try {
         <div class="resumen-container">
             <div class="widget widget-contado">
                 <h3>💰 Ventas Cobradas</h3>
-                <p>$<?php echo number_format($total_contado_periodo, 2, ',', '.'); ?></p>
+                <p>$<?php echo number_format((float)($total_contado_periodo ?? 0), 2, ',', '.'); ?></p>
                 <small>Efectivo + Transferencia</small>
             </div>
 
             <div class="widget widget-ctacte">
                 <h3>⏳ Ventas en Cta. Cte.</h3>
-                <p>$<?php echo number_format($total_ctacte, 2, ',', '.'); ?></p>
+                <p>$<?php echo number_format((float)($total_ctacte ?? 0), 2, ',', '.'); ?></p>
                 <small>Pendientes del periodo</small>
             </div>
 
             <div class="widget widget-ctacte" style="background: linear-gradient(135deg, #e74c3c, #c0392b);">
                 <h3>📉 Total Cuentas por Cobrar</h3>
-                <p>$<?php echo number_format($saldo_total_por_cobrar, 2, ',', '.'); ?></p>
+                <p>$<?php echo number_format((float)($saldo_total_por_cobrar ?? 0), 2, ',', '.'); ?></p>
                 <small>Deuda global acumulada</small>
             </div>
         </div>
@@ -170,8 +203,14 @@ try {
                     <?php if (count($ventas) > 0): ?>
                         <?php foreach ($ventas as $venta): ?>
                             <tr>
-                                <td><?php echo htmlspecialchars($venta['n_documento']); ?></td>
-                                <td><?php echo date('d/m/Y', strtotime($venta['fecha_venta'])); ?></td>
+                                <td>
+                                    <?php if ($venta['tipo_registro'] === 'DEVOLUCION'): ?>
+                                        <span class="tipo-dev">↩ N° <?php echo $venta['n_documento']; ?></span>
+                                    <?php else: ?>
+                                        <?php echo htmlspecialchars($venta['n_documento']); ?>
+                                    <?php endif; ?>
+                                </td>
+                            <td><?php echo date('d/m/Y', strtotime($venta['fecha'])); ?></td>
                                 <td>
                                     <?php echo htmlspecialchars($venta['nombre_cliente'] ? $venta['nombre_cliente'] : 'Público General'); ?>
                                 </td>
@@ -184,10 +223,23 @@ try {
                                     }
                                     ?>
                                 </td>
-                                <td class="text-right"><strong>$<?php echo number_format($venta['total_venta'], 2, ',', '.'); ?></strong></td>
+                                <td class="text-right"><strong>$<?php echo number_format((float)($venta['monto'] ?? 0), 2, ',', '.'); ?></strong></td>
                                 <td>
-                                    <button class="btn btn-primary btn-action" onclick="mostrarDetalle(<?php echo $venta['n_documento']; ?>)">Detalle</button>
-                                    <button class="btn btn-success btn-action" onclick="imprimirTicket(<?php echo $venta['n_documento']; ?>)">Ticket</button>
+                                    <?php if ($venta['tipo_registro'] === 'VENTA'): ?>
+                                        <button class="btn btn-primary btn-action" onclick="mostrarDetalle(<?php echo $venta['n_documento']; ?>)">Detalle</button>
+                                        <button class="btn btn-success btn-action" onclick="imprimirTicket(<?php echo $venta['n_documento']; ?>)">Ticket</button>
+                                        <button class="btn btn-action" style="background-color: #00bcd4; color: white;" onclick="descargarPDF(<?php echo $venta['n_documento']; ?>)">PDF</button>
+                                        
+                                        <?php if (empty($venta['cae']) && tiene_permiso('pages/facturacion_arca.php')): ?>
+                                            <button class="btn btn-action" style="background-color: #6f42c1; color: white;" onclick="enviarArca(<?php echo $venta['id_ref']; ?>)" title="Convertir a Factura ARCA">ARCA</button>
+                                        <?php elseif (!empty($venta['cae'])): ?>
+                                            <span class="badge" style="background: #27ae60; cursor: help;" title="CAE: <?php echo $venta['cae']; ?>">✓ AFIP</span>
+                                        <?php endif; ?>
+                                    <?php else: ?>
+                                        <button class="btn btn-primary btn-action" onclick="mostrarDetalleDevolucion(<?php echo $venta['id_ref']; ?>, '<?php echo $venta['cond_pago']; ?>')">Detalle</button>
+                                        <button class="btn btn-success btn-action" onclick="imprimirTicketDevolucion(<?php echo $venta['id_ref']; ?>, '<?php echo $venta['cond_pago']; ?>')">Ticket</button>
+                                        <button class="btn btn-action" style="background-color: #e67e22; color: white;" onclick="descargarPDFDevolucion(<?php echo $venta['id_ref']; ?>, '<?php echo $venta['cond_pago']; ?>')">PDF</button>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -202,7 +254,7 @@ try {
     <div id="detalleModal" class="modal">
         <div class="modal-content-lg">
             <span class="close-button" onclick="cerrarModal()">&times;</span>
-            <h2 style="border-bottom: 2px solid #3498db; padding-bottom: 10px;">Detalle de Venta #<span id="detalleNdocumento"></span></h2>
+            <h2 style="border-bottom: 2px solid #3498db; padding-bottom: 10px;">Detalle de Venta <span id="detalleNdocumento"></span></h2>
             
             <div id="detalleBody">
                 </div>
@@ -210,6 +262,9 @@ try {
             <div style="text-align: right; margin-top: 25px; border-top: 1px solid #444; padding-top: 15px;">
                 <button class="btn btn-success" onclick="imprimirTicket(document.getElementById('detalleNdocumento').textContent)">
                     🖨️ Reimprimir Ticket
+                </button>
+                <button class="btn" style="background-color: #00bcd4; color: white; margin-left: 10px;" onclick="descargarPDF(document.getElementById('detalleNdocumento').textContent)">
+                    📥 Descargar Orden (A5)
                 </button>
                 <button class="btn btn-secondary" onclick="cerrarModal()" style="margin-left: 10px;">Cerrar</button>
             </div>
@@ -249,6 +304,62 @@ try {
         const url = 'vista_previa_ticket.php?n_documento=' + nDocumento;
         window.open(url, '_blank', 'width=400,height=700,scrollbars=yes');
     }
+
+    function descargarPDF(nDocumento) {
+        window.location.href = 'generar_pdf_ticket.php?n_documento=' + nDocumento + '&download=1';
+    }
+
+    function mostrarDetalleDevolucion(id, tipo) {
+        detalleNdocumento.textContent = 'N° ' + id;
+        detalleBody.innerHTML = '<div style="text-align:center; padding:20px;"><p>Cargando información del sistema...</p></div>';
+        detalleModal.style.display = 'block';
+
+        fetch('../ajax/obtener_detalle_devolucion.php?id=' + id + '&tipo=' + tipo)
+            .then(res => res.text())
+            .then(html => { detalleBody.innerHTML = html; })
+            .catch(err => {
+                console.error(err);
+                detalleBody.innerHTML = '<p style="color: #e74c3c; text-align:center;">❌ Error al cargar los datos.</p>';
+            });
+    }
+
+    function imprimirTicketDevolucion(id, tipo) {
+        // Creamos una vista previa específica para el ticket de devolución
+        const url = 'vista_previa_ticket_devolucion.php?id=' + id + '&tipo=' + tipo;
+        window.open(url, '_blank', 'width=400,height=700,scrollbars=yes');
+    }
+
+    function descargarPDFDevolucion(id, tipo) {
+        // Reutilizamos el generador A5 pasando el ID
+        window.location.href = 'generar_pdf_devolucion.php?id=' + id + '&tipo=' + tipo + '&download=1';
+    }
+
+    <?php if (tiene_permiso('pages/facturacion_arca.php')): ?>
+    function enviarArca(idVenta) {
+        confirmarAccion(
+            'Facturación Electrónica', 
+            '¿Desea enviar esta venta a ARCA (AFIP) para generar la factura legal?', 
+            'GENERAR FACTURA', 
+            'btn-primary', 
+            () => {
+                fetch('procesar_factura_arca.php', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: 'id_venta=' + idVenta
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        mostrarMensaje('¡Éxito!', 'Factura generada con CAE: ' + data.cae, 'success', () => location.reload());
+                    } else {
+                        mostrarMensaje('Error AFIP', data.message, 'error');
+                    }
+                })
+                .catch(err => mostrarMensaje('Error Técnico', 'No se pudo conectar con el procesador.', 'error'));
+            }
+        );
+    }
+    <?php endif; ?>
 
     // Cerrar si hace clic fuera del cuadro blanco
     window.onclick = function(event) {

@@ -2,7 +2,7 @@
 include 'infosesion.php';
 // VALIDACIÓN CRÍTICA:
 require_once '../config/validar_permisos.php';
-restringirPagina('developer');
+//restringirPagina('developer');
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 
 // -----------------------------------------------------
@@ -22,15 +22,15 @@ $id_compra_generada = null; // Para mostrar en el mensaje de éxito
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_compra'])) {
     
     // 2.1. Recibir y Sanitizar Datos del Formulario
-    $id_proveedor   = filter_var($_POST['proveedor_id'], FILTER_VALIDATE_INT);
-    $cond_pago      = htmlspecialchars($_POST['cond_pago']);
-    $documento_tipo = htmlspecialchars($_POST['documento']);
-    $n_documento    = htmlspecialchars($_POST['n_documento']);
-    $total_compra   = filter_var($_POST['total_compra'], FILTER_VALIDATE_FLOAT);
-    $fecha_compra   = htmlspecialchars($_POST['fecha_compra']);
-    $detalle_json   = $_POST['detalle_productos']; // El JSON del carrito
+    $id_proveedor   = filter_var($_POST['proveedor_id'] ?? 0, FILTER_VALIDATE_INT);
+    $cond_pago      = htmlspecialchars($_POST['cond_pago'] ?? 'CONTADO');
+    $documento_tipo = htmlspecialchars($_POST['documento'] ?? 'OTROS');
+    $n_documento    = htmlspecialchars($_POST['n_documento'] ?? '');
+    $total_compra   = filter_var($_POST['total_compra'] ?? 0, FILTER_VALIDATE_FLOAT);
+    $fecha_compra   = htmlspecialchars($_POST['fecha_compra'] ?? date('Y-m-d'));
+    $detalle_json   = $_POST['detalle_productos'] ?? '[]'; // El JSON del carrito
     $fecha_operacion = date('Y-m-d H:i:s'); // Fecha de registro en el sistema
-    $usuario_id     = $_SESSION['usuario_id']; // Asume que tienes este campo en la tabla 'compras'
+    $usuario_id     = $_SESSION['usuario_id'] ?? 0;
 
     // 2.2. Validaciones Críticas
     if (!$id_proveedor || $total_compra <= 0 || empty($n_documento) || empty($detalle_json)) {
@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_compra'])) 
     }
 
     if (!$error) {
-        $productos_detalle = json_decode($detalle_json, true);
+        $productos_detalle = json_decode((string)$detalle_json, true);
 
         if (json_last_error() !== JSON_ERROR_NONE || count($productos_detalle) === 0) {
             $error = true;
@@ -92,10 +92,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_compra'])) 
 
 
             foreach ($productos_detalle as $item) {
-                $cod_prod = htmlspecialchars($item['cod_prod']);
-                $descripcion = htmlspecialchars($item['descripcion']);
-                $cant = filter_var($item['cant'], FILTER_VALIDATE_FLOAT);
-                $p_unit = filter_var($item['p_unit'], FILTER_VALIDATE_FLOAT);
+                $cod_prod = htmlspecialchars($item['cod_prod'] ?? '');
+                $descripcion = htmlspecialchars($item['descripcion'] ?? '');
+                $cant = (float)($item['cant'] ?? 0);
+                $p_unit = (float)($item['p_unit'] ?? 0);
                 $total_linea = $cant * $p_unit; 
 
                 // 1. Insertar en compras_detalle
@@ -174,13 +174,29 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                                 cuit 
                             FROM proveedores 
                             ORDER BY razon ASC";
-                            
         $stmt_proveedores = $pdo->query($sql_proveedores);
         $proveedores = $stmt_proveedores->fetchAll(PDO::FETCH_ASSOC); 
+
+        // Listas para el modal de registro rápido de productos
+        $rubros_list = $pdo->query("SELECT nombre FROM rubros ORDER BY nombre ASC")->fetchAll(PDO::FETCH_ASSOC);
+        $proveedores_list = $pdo->query("SELECT razon FROM proveedores ORDER BY razon ASC")->fetchAll(PDO::FETCH_ASSOC);
+
+        // Sugerir código para nuevo proveedor
+        $stmt_cod_prov = $pdo->query("SELECT cod_prov FROM proveedores ORDER BY (cod_prov + 0) DESC LIMIT 1");
+        $ult_prov = $stmt_cod_prov->fetch();
+        $nuevo_cod_prov_sugerido = $ult_prov ? (intval($ult_prov['cod_prov']) + 1) : 1;
+
+        // Obtener Ganancia Global de la configuración
+        $stmt_conf = $pdo->query("SELECT valor FROM configuracion WHERE clave = 'ganancia_global'");
+        $ganancia_config = (float)($stmt_conf->fetchColumn() ?: 60);
+
     } catch (Exception $e) {
         error_log("Error al cargar proveedores: " . $e->getMessage());
         $mensaje = "⚠️ Advertencia: No se pudieron cargar los proveedores.";
         $proveedores = []; 
+        $rubros_list = [];
+        $proveedores_list = [];
+        $nuevo_cod_prov_sugerido = 1;
     }
 }
 
@@ -201,7 +217,7 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
             gap: 20px; 
         }
         /* Media Query para pantallas pequeñas (apilamiento) */
-        @media (max-width: 1366px) {
+        @media (max-width: 1100px) {
             .compra-grid {
                 grid-template-columns: 1fr; /* Columna única */
             }
@@ -215,8 +231,10 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
             overflow-y: auto; 
             background: #222; 
             border: 1px solid #444; 
-            position: absolute; 
-            width: 90%; 
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%; 
             z-index: 10; 
         }
         .text-right { text-align: right; }
@@ -229,13 +247,12 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
 
     <button id="menuToggle" aria-label="Abrir Menú">☰ Menú</button>
     <?php include 'sidebar.php'; ?> 
-    <?php include 'infosesion.php'; ?> 
     
     <div class="content">
         <h1>Registro de Compra a Proveedores</h1>
         
         <?php if ($mensaje): ?>
-            <div class="alert <?php echo $error ? 'alert-error' : 'alert-success'; ?>">
+            <div class="alert <?php echo str_contains($mensaje, '❌') ? 'alert-error' : 'alert-success'; ?>">
                 <?php echo $mensaje; ?>
             </div>
         <?php endif; ?>
@@ -245,9 +262,14 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
             <div class="card">
                 <h2>Detalle de Productos Comprados</h2>
                 
-                <label for="buscar_producto">Buscar Producto (Código o Descripción)</label>
-                <input type="text" id="buscar_producto" class="input-field" placeholder="Escriba el código o nombre del producto">
-                <div id="resultadosBusqueda"></div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <label for="buscar_producto"><i class="fas fa-search"></i> Buscar Producto</label>
+                    <button type="button" class="btn btn-success" onclick="abrirModalNuevoProducto()" title="Agregar nuevo producto" style="padding: 2px 8px; margin-bottom: 5px; font-size: 0.8rem; background: #27ae60;">+ Nuevo</button>
+                </div>
+                <div style="position: relative; margin-bottom: 15px;">
+                    <input type="text" id="buscar_producto" class="input-field" placeholder="Escriba el código o nombre del producto" style="margin-bottom: 0 !important;">
+                    <div id="resultadosBusqueda"></div>
+                </div>
 
                 <hr>
 
@@ -275,10 +297,15 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
 
                     <h2>Datos del Proveedor y Factura</h2>
 
-                    <div class="contenedor-busqueda-proveedor" style="margin-bottom: 20px; position: relative;"> 
-                        <label for="buscar_proveedor">Buscar Proveedor (Nombre o CUIT)</label>
-                        <input type="text" id="buscar_proveedor" class="input-field" placeholder="Seleccionar Proveedor">
-                        <div id="resultadosBusquedaProveedores" style="left: 0;"></div>
+                    <div class="contenedor-busqueda-proveedor" style="margin-bottom: 20px;"> 
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label for="buscar_proveedor"><i class="fas fa-truck"></i> Buscar Proveedor</label>
+                            <button type="button" class="btn btn-success" onclick="abrirModalNuevoProveedor()" title="Agregar nuevo proveedor" style="padding: 2px 8px; margin-bottom: 5px; font-size: 0.8rem; background: #27ae60;">+ Nuevo</button>
+                        </div>
+                        <div style="position: relative;">
+                            <input type="text" id="buscar_proveedor" class="input-field" placeholder="Seleccionar Proveedor" style="margin-bottom: 0 !important;">
+                            <div id="resultadosBusquedaProveedores"></div>
+                        </div>
                     </div>
                     
                     <div style="margin-bottom: 10px;">
@@ -347,6 +374,83 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
         </div>
     </div>
     
+    <!-- Modal Nuevo Producto Rápido -->
+    <div id="modalNuevoProducto" class="modal" style="display:none; position:fixed; z-index:10000; left:0; top:0; width:100%; height:100%; background: rgba(0,0,0,0.9);">
+        <div class="modal-content" style="background: #1a1a1a; margin: 2% auto; padding: 25px; width: 500px; border-radius: 12px; border: 1px solid #333; max-height: 90vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px;">
+                <h2 style="margin:0; color:#00bcd4;">Registrar Producto</h2>
+                <span onclick="cerrarModalNuevoProducto()" style="cursor:pointer; font-size: 28px; color: #ff4444;">&times;</span>
+            </div>
+            <form id="formNuevoProducto">
+                <label>Código de Barras / Interno *</label>
+                <input type="text" id="np_cod_prod" class="input-field" required>
+                <label>Descripción *</label>
+                <input type="text" id="np_descripcion" class="input-field" required>
+                
+                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                    <div style="flex: 1;">
+                        <label>Costo (Compra) *</label>
+                        <input type="number" step="0.01" id="np_p_compra" class="input-field" required oninput="calcularPrecioVentaSugerido()">
+                    </div>
+                    <div style="flex: 1;">
+                        <label>Precio Venta ($) *</label>
+                        <input type="number" step="0.01" id="np_p_venta" class="input-field" required>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                    <div style="flex: 1;">
+                        <label>Stock Inicial</label>
+                        <input type="number" step="0.01" id="np_stock" class="input-field" value="0">
+                    </div>
+                    <div style="flex: 1;">
+                        <label>Fecha Ult. Compra</label>
+                        <input type="date" id="np_fecha_ult_compra" class="input-field" value="<?php echo date('Y-m-d'); ?>">
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 10px;">
+                    <label>Rubro</label>
+                    <select id="np_rubro" class="input-field">
+                        <?php foreach ($rubros_list as $r): ?>
+                            <option value="<?php echo $r['nombre']; ?>" <?php echo ($r['nombre'] == 'VARIOS') ? 'selected' : ''; ?>><?php echo $r['nombre']; ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <label>Proveedor Principal</label>
+                    <select id="np_proveedor" class="input-field">
+                        <?php foreach ($proveedores_list as $p): ?>
+                            <option value="<?php echo $p['razon']; ?>" <?php echo ($p['razon'] == 'GENERAL') ? 'selected' : ''; ?>><?php echo $p['razon']; ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <button type="button" class="btn btn-primary btn-block" onclick="guardarNuevoProducto()" style="margin-top: 15px; height: 45px; font-weight: bold;">GUARDAR Y AGREGAR</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Nuevo Proveedor Rápido -->
+    <div id="modalNuevoProveedor" class="modal" style="display:none; position:fixed; z-index:10000; left:0; top:0; width:100%; height:100%; background: rgba(0,0,0,0.9);">
+        <div class="modal-content" style="background: #1a1a1a; margin: 10% auto; padding: 25px; width: 400px; border-radius: 12px; border: 1px solid #333;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px;">
+                <h2 style="margin:0; color:#00bcd4;">Registrar Proveedor</h2>
+                <span onclick="cerrarModalNuevoProveedor()" style="cursor:pointer; font-size: 28px; color: #ff4444;">&times;</span>
+            </div>
+            <form id="formNuevoProveedor">
+                <label>Código Proveedor *</label>
+                <input type="text" id="nprov_cod_prov" class="input-field" value="<?php echo $nuevo_cod_prov_sugerido; ?>" required>
+                <label>Razón Social *</label>
+                <input type="text" id="nprov_razon" class="input-field" required>
+                <label>CUIT</label>
+                <input type="text" id="nprov_cuit" class="input-field">
+                <label>Teléfono</label>
+                <input type="text" id="nprov_telefono" class="input-field">
+                <button type="button" class="btn btn-primary btn-block" onclick="guardarNuevoProveedor()" style="margin-top: 15px; height: 45px; font-weight: bold;">GUARDAR Y SELECCIONAR</button>
+            </form>
+        </div>
+    </div>
+
 </body>
 <script src="../js/global.js"></script> 
 <script>
@@ -583,13 +687,13 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
         formCompra.addEventListener('submit', function(e) {
             
             if (proveedorIdHidden.value === '0' || proveedorIdHidden.value === '') {
-                alert("Debe seleccionar un proveedor para registrar la compra.");
+                mostrarMensaje("Faltan Datos", "Debe seleccionar un proveedor para registrar la compra.", "error");
                 e.preventDefault();
                 return;
             }
             
             if (carrito.length === 0) {
-                alert("Debe agregar al menos un producto al carrito de compra.");
+                mostrarMensaje("Carrito Vacío", "Debe agregar al menos un producto para registrar la compra.", "error");
                 e.preventDefault();
                 return;
             }
@@ -599,7 +703,105 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
             
             // El resto se procesa en el bloque PHP superior
         });
-        
+
+        // ===========================================
+        // 5. LÓGICA MODALES RÁPIDOS (PRODUCTO Y PROVEEDOR)
+        // ===========================================
+        window.abrirModalNuevoProducto = function() {
+            const modal = document.getElementById('modalNuevoProducto');
+            modal.style.display = 'block';
+            const busq = document.getElementById('buscar_producto').value.trim();
+            if (busq !== "") document.getElementById('np_cod_prod').value = busq;
+            document.getElementById('np_cod_prod').focus();
+        };
+
+        window.cerrarModalNuevoProducto = function() {
+            document.getElementById('modalNuevoProducto').style.display = 'none';
+            document.getElementById('formNuevoProducto').reset();
+        };
+
+        window.guardarNuevoProducto = function() {
+            const formData = new FormData();
+            formData.append('cod_prod', document.getElementById('np_cod_prod').value.trim());
+            formData.append('descripcion', document.getElementById('np_descripcion').value.trim());
+            formData.append('p_compra', document.getElementById('np_p_compra').value);
+            formData.append('p_venta', document.getElementById('np_p_venta').value);
+            formData.append('stock', document.getElementById('np_stock').value);
+            formData.append('fecha_ult_compra', document.getElementById('np_fecha_ult_compra').value);
+            formData.append('rubro', document.getElementById('np_rubro').value);
+            formData.append('proveedor', document.getElementById('np_proveedor').value);
+
+            fetch('../ajax/agregar_producto_rapido.php', { method: 'POST', body: formData })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    // Agregamos directamente al carrito de compras
+                    carrito.push({
+                        cod_prod: data.producto.cod_prod,
+                        descripcion: data.producto.descripcion,
+                        p_unit: parseFloat(data.producto.p_compra), 
+                        cant: 1,
+                        total: parseFloat(data.producto.p_compra)
+                    });
+                    renderizarCarrito();
+                    cerrarModalNuevoProducto();
+                } else { alert("Error: " + data.error); }
+            });
+        };
+
+        window.abrirModalNuevoProveedor = function() {
+            document.getElementById('modalNuevoProveedor').style.display = 'block';
+            document.getElementById('nprov_razon').focus();
+        };
+
+        window.cerrarModalNuevoProveedor = function() {
+            document.getElementById('modalNuevoProveedor').style.display = 'none';
+            document.getElementById('formNuevoProveedor').reset();
+        };
+
+        window.guardarNuevoProveedor = function() {
+            const formData = new FormData();
+            formData.append('cod_prov', document.getElementById('nprov_cod_prov').value.trim());
+            formData.append('razon', document.getElementById('nprov_razon').value.trim());
+            formData.append('cuit', document.getElementById('nprov_cuit').value.trim());
+            formData.append('telefono', document.getElementById('nprov_telefono').value.trim());
+
+            fetch('../ajax/agregar_proveedor_rapido.php', { method: 'POST', body: formData })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    // Actualizar lista local de proveedores para el buscador
+                    proveedoresData.push({
+                        id_proveedor: data.id_proveedor,
+                        nombre: data.nombre,
+                        cuit: data.cuit
+                    });
+                    // Seleccionar automáticamente al nuevo proveedor
+                    nombreProveedorDisplay.textContent = data.nombre;
+                    proveedorIdHidden.value = data.id_proveedor;
+                    cuitProveedorDisplay.value = data.cuit;
+                    cerrarModalNuevoProveedor();
+                } else { alert("Error: " + data.error); }
+            });
+        };
+
+        // Función para calcular precio de venta sugerido (60% de ganancia)
+        window.calcularPrecioVentaSugerido = function() {
+            const gananciaRef = <?php echo $ganancia_config; ?>;
+            const pCompraInput = document.getElementById('np_p_compra');
+            const pVentaInput = document.getElementById('np_p_venta');
+            const pCompra = parseFloat(pCompraInput.value.replace(',', '.')) || 0;
+            if (pCompra > 0) {
+                const multiplicador = 1 + (gananciaRef / 100);
+                pVentaInput.value = (pCompra * multiplicador).toFixed(2);
+            } else { pVentaInput.value = ''; }
+        };
+
+        // Cerrar modales al hacer clic fuera
+        window.addEventListener('click', function(e) {
+            if (e.target.id === 'modalNuevoProducto') cerrarModalNuevoProducto();
+            if (e.target.id === 'modalNuevoProveedor') cerrarModalNuevoProveedor();
+        });
     });
 </script>
 </html>

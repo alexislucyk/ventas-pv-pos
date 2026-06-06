@@ -4,10 +4,19 @@
 // 1. Limpieza absoluta del buffer para evitar que el PDF salga dañado o vacío
 if (ob_get_contents()) ob_end_clean();
 
+// Silenciar avisos de funciones obsoletas
+error_reporting(E_ALL & ~E_DEPRECATED);
+ini_set('display_errors', 0);
+
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 
 require('../fpdf/fpdf.php');
 require('../config/db_config.php');
+
+// Helper moderno
+function to_iso($text) {
+    return mb_convert_encoding($text, 'ISO-8859-1', 'UTF-8');
+}
 
 // Validar ID
 $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
@@ -28,6 +37,27 @@ if (!$presu) {
     die("Error: No se encontraron datos para el presupuesto ID: " . $id);
 }
 
+// 2.1. Buscamos datos de la empresa y sucursal principal de forma dinámica
+try {
+    $stmt_emp = $pdo->query("SELECT nombre_fantasia, cuit, direccion, localidad, telefono FROM datos_empresa WHERE id = 1 LIMIT 1");
+    $emp_d = $stmt_emp->fetch(PDO::FETCH_ASSOC);
+    
+    // Buscamos el email en la sucursal principal (ya que no está en datos_empresa)
+    $stmt_suc = $pdo->query("SELECT email FROM sucursales WHERE es_principal = 1 LIMIT 1");
+    $suc_d = $stmt_suc->fetch(PDO::FETCH_ASSOC);
+    
+    $nombreEmpresa = !empty($emp_d['nombre_fantasia']) ? $emp_d['nombre_fantasia'] : 'Electricidad Lucyk';
+    
+    // Construimos la dirección completa usando los nuevos campos de datos_empresa
+    $dirEmpresa    = !empty($emp_d['direccion']) ? $emp_d['direccion'] . (!empty($emp_d['localidad']) ? ' - ' . $emp_d['localidad'] : '') : 'Dirección no configurada';
+    
+    $telEmpresa    = !empty($emp_d['telefono']) ? $emp_d['telefono'] : '';
+    $emailEmpresa  = !empty($suc_d['email']) ? $suc_d['email'] : '';
+} catch (Exception $e) {
+    $nombreEmpresa = 'Electricidad Lucyk';
+    $dirEmpresa = 'Error al cargar dirección';
+}
+
 // 3. Mapeo de datos (Usando los nombres exactos de tu base de datos)
 $clienteNombre = $presu['apellido'] . " " . $presu['nombre'];
 $clienteDoc    = $presu['cuit']; 
@@ -39,37 +69,43 @@ $fechaFormateada = date("d/m/Y", strtotime($fechaPresu));
 $pdf = new FPDF();
 $pdf->AddPage();
 
-// --- ENCABEZADO DE LA EMPRESA ---
+// --- ENCABEZADO DE LA EMPRESA DINÁMICO ---
 $pdf->SetFont('Arial', 'B', 20); 
-$pdf->Cell(0, 10, utf8_decode('Electricidad Lucyk'), 0, 1, 'L'); // Nombre grande a la izquierda
+$pdf->Cell(0, 10, to_iso($nombreEmpresa), 0, 1, 'L'); 
 
 $pdf->SetFont('Arial', '', 10);
-$pdf->Cell(0, 5, utf8_decode('Dirección: Av. San Martin 698 - El Nochero, Santa Fe'), 0, 1, 'L');
-$pdf->Cell(0, 5, utf8_decode('Teléfono: (3491) 438555 | Email: alexislucyk@gmail.com'), 0, 1, 'L');
+$pdf->Cell(0, 5, to_iso('Dirección: ' . $dirEmpresa), 0, 1, 'L');
+$pdf->Cell(0, 5, to_iso('Teléfono: ' . $telEmpresa . ($emailEmpresa ? ' | Email: ' . $emailEmpresa : '')), 0, 1, 'L');
 
 // Línea divisoria decorativa
 $pdf->Line(10, 35, 200, 35); 
 $pdf->Ln(10); // Salto de línea
 
+// 3. Mapeo de datos (Usando los nombres exactos de tu base de datos)
+$clienteNombre = $presu['apellido'] . " " . $presu['nombre'];
+$clienteDoc    = $presu['cuit']; 
+$fechaPresu    = $presu['fecha_presupuesto'];
+$totalPresu    = $presu['total_presupuesto'];
+
 // --- TÍTULO DEL DOCUMENTO (Más chico como pediste) ---
 $pdf->SetFont('Arial', 'B', 12); // Bajamos de 16 a 12
-$pdf->Cell(0, 10, utf8_decode('PRESUPUESTO # ' . $id), 0, 1, 'R'); // Lo moví a la derecha para que quede profesional
+$pdf->Cell(0, 10, to_iso('PRESUPUESTO # ' . $id), 0, 1, 'R'); // Lo moví a la derecha para que quede profesional
 $pdf->Ln(5);
 
 // Datos del Cliente (Sin cambios, pero revisa el interlineado)
 //$pdf->SetFont('Arial', 'B', 10);
 //$pdf->Cell(0, 6, utf8_decode('DATOS DEL CLIENTE:'), 0, 1);
 $pdf->SetFont('Arial', '', 11);
-$pdf->Cell(0, 7, utf8_decode('Nombre: ' . $clienteNombre), 0, 1);
-$pdf->Cell(0, 7, utf8_decode('CUIT/DNI: ' . $clienteDoc), 0, 1);
-$pdf->Cell(0, 7, utf8_decode('Fecha: ' . $fechaFormateada), 0, 1);
+$pdf->Cell(0, 7, to_iso('Nombre: ' . $clienteNombre), 0, 1);
+$pdf->Cell(0, 7, to_iso('CUIT/DNI: ' . $clienteDoc), 0, 1);
+$pdf->Cell(0, 7, to_iso('Fecha: ' . $fechaFormateada), 0, 1);
 $pdf->Ln(5);
 
 // 5. Tabla de productos
 $pdf->SetFillColor(230, 230, 230);
 $pdf->SetFont('Arial', 'B', 10);
 $pdf->Cell(25, 10, 'Cod', 1, 0, 'C', true);
-$pdf->Cell(85, 10, utf8_decode('Descripción'), 1, 0, 'C', true);
+$pdf->Cell(85, 10, to_iso('Descripción'), 1, 0, 'C', true);
 $pdf->Cell(15, 10, 'Cant', 1, 0, 'C', true);
 $pdf->Cell(30, 10, 'Precio U.', 1, 0, 'C', true);
 $pdf->Cell(35, 10, 'Subtotal', 1, 1, 'C', true);
@@ -85,37 +121,49 @@ while ($row = $stmtDetalle->fetch(PDO::FETCH_ASSOC)) {
     // Verificamos nombres de columnas del detalle según tu tabla
     $cant  = $row['cantidad'];
     $prec  = $row['precio_unitario'];
-    $sub   = $cant * $prec;
+    $desc_porc = isset($row['descuento_unitario']) ? $row['descuento_unitario'] : 0;
+    $sub_bruto = $cant * $prec;
+    $monto_desc = $sub_bruto * ($desc_porc / 100);
+    $sub_neto = $sub_bruto - $monto_desc;
 
     $pdf->Cell(25, 8, $row['cod_prod'], 1);
-    $pdf->Cell(85, 8, utf8_decode($row['descripcion']), 1);
+    $pdf->Cell(85, 8, to_iso($row['descripcion']), 1);
     $pdf->Cell(15, 8, $cant, 1, 0, 'C');
-    $pdf->Cell(30, 8, '$ ' . number_format($prec, 2, ',', '.'), 1, 0, 'R');
-    $pdf->Cell(35, 8, '$ ' . number_format($sub, 2, ',', '.'), 1, 1, 'R');
+    $pdf->Cell(30, 8, '$ ' . number_format((float)($prec ?? 0), 2, ',', '.'), 1, 0, 'R');
+    $pdf->Cell(35, 8, '$ ' . number_format((float)($sub_neto ?? 0), 2, ',', '.'), 1, 1, 'R');
+    
+    if ($desc_porc > 0) {
+        $pdf->SetFont('Arial', 'I', 8);
+        $pdf->SetTextColor(100, 100, 100);
+        $pdf->Cell(110, 5, '', 0);
+        $pdf->Cell(80, 5, to_iso("Descuento aplicado: " . (float)$desc_porc . "% (-$" . number_format($monto_desc, 2, ',', '.') . ")"), 0, 1, 'R');
+        $pdf->SetFont('Arial', '', 10);
+        $pdf->SetTextColor(0, 0, 0);
+    }
 }
 
 // 6. Fila de Total
 $pdf->Ln(5);
 $pdf->SetFont('Arial', 'B', 12);
 $pdf->Cell(155, 10, 'TOTAL', 0, 0, 'R');
-$pdf->Cell(35, 10, '$ ' . number_format($totalPresu, 2, ',', '.'), 1, 1, 'R');
+$pdf->Cell(35, 10, '$ ' . number_format((float)($totalPresu ?? 0), 2, ',', '.'), 1, 1, 'R');
 
 // --- DESPUÉS DEL TOTAL ---
 
 if (!empty($presu['observaciones'])) {
     $pdf->Ln(10); // Espacio después del total
     $pdf->SetFont('Arial', 'B', 10);
-    $pdf->Cell(0, 5, utf8_decode('OBSERVACIONES:'), 0, 1);
+    $pdf->Cell(0, 5, to_iso('OBSERVACIONES:'), 0, 1);
     
     $pdf->SetFont('Arial', '', 10);
     // Usamos MultiCell por si el comentario es muy largo, para que haga salto de línea automático
-    $pdf->MultiCell(0, 5, utf8_decode($presu['observaciones']), 1, 'L');
+    $pdf->MultiCell(0, 5, to_iso($presu['observaciones']), 1, 'L');
 }
 
 // Mensaje de validez (Opcional)
 $pdf->Ln(10);
 $pdf->SetFont('Arial', 'I', 9);
-$pdf->Cell(0, 5, utf8_decode('Este presupuesto tiene una validez de 15 días.'), 0, 1, 'C');
+$pdf->Cell(0, 5, to_iso('Este presupuesto tiene una validez de 15 días.'), 0, 1, 'C');
 
 
 // 7. Salida del PDF - 'I' fuerza la visualizacion en el navegador

@@ -59,40 +59,25 @@
 }
 
 /* ==================================== */
-/* ESTILOS DE IMPRESIÓN (@media print) - ¡LA SOLUCIÓN! */
+/* ESTILOS DE IMPRESIÓN (@media print) */
 /* ==================================== */
-
 @media print {
-    /* 1. Definición del Contenedor de Impresión */
-    body { 
-        padding: 0 !important; 
-        margin: 0 !important; 
-        width: 80mm !important; /* CRÍTICO: Ancho del ticket */
-        font-family: 'Courier New', monospace !important;
-        font-size: 13px !important; /* CRÍTICO: TAMAÑO FORZADO en el contenedor */
-    }
-    
-    /* 2. Regla Ultra-Agresiva para Forzar el Tamaño en el Texto */
-    p, h3, span, strong, div.line, 
-    #ticket-vista-previa, 
-    #ticket-vista-previa * { /* Aplica a TODO dentro del contenedor */
-        font-size: 13px !important;
-        line-height: 1.2 !important; 
-    }
-    
-    /* 3. Márgenes y Layout */
     @page {
-        margin: 0mm !important; /* Cero margen */
+        margin: 0; /* Elimina los márgenes del navegador */
+        size: auto;
     }
-    .no-print { 
-        display: none !important; 
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        background-color: white !important;
     }
-    .sep { 
-        border-top: 1px dashed #000 !important; 
-    }
-    
-    /* Asegurar que los totales se vean un poco más grandes */
-    .total-amount, strong {
-        font-size: 13px !important;
+    #ticket-vista-previa {
+        width: 100% !important;
+        max-width: none !important;
+        padding: 1mm 2mm 1mm 1mm !important; /* Aumentado 1mm el borde derecho para evitar cortes */
+        box-sizing: border-box !important;
+        margin: 0 !important;
+        box-shadow: none !important;
     }
 }

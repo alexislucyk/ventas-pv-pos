@@ -13,12 +13,22 @@ $usuario_activo = isset($_SESSION['usuario_nombre']) ? $_SESSION['usuario_nombre
 if (!isset($pdo) || !($pdo instanceof PDO)) {
     $mensaje = "❌ ERROR CRÍTICO: La conexión a la base de datos no está disponible.";
 } else {
-    // 1. Obtener Clientes para el datalist
+    // 1. Obtener Clientes, Rubros y Proveedores
     try {
         $sql_clientes = "SELECT id AS id_cliente, CONCAT(apellido, ', ', nombre) AS nombre_completo, cuit AS num_documento FROM clientes ORDER BY nombre_completo ASC";
         $clientes = $pdo->query($sql_clientes)->fetchAll(PDO::FETCH_ASSOC);
+
+        // Listas para el modal de registro rápido de productos
+        $rubros_list = $pdo->query("SELECT nombre FROM rubros ORDER BY nombre ASC")->fetchAll(PDO::FETCH_ASSOC);
+        $proveedores_list = $pdo->query("SELECT razon FROM proveedores ORDER BY razon ASC")->fetchAll(PDO::FETCH_ASSOC);
+
+        // Obtener Ganancia Global de la configuración
+        $stmt_conf = $pdo->query("SELECT valor FROM configuracion WHERE clave = 'ganancia_global'");
+        $ganancia_config = (float)($stmt_conf->fetchColumn() ?: 60);
     } catch (Exception $e) {
         $clientes = [];
+        $rubros_list = [];
+        $proveedores_list = [];
     }
 
     // 2. LÓGICA DE PROCESAMIENTO
@@ -30,8 +40,16 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
         $id_venta_existente = (isset($_POST['id_venta_existente'])) ? (int)$_POST['id_venta_existente'] : 0;
         $id_cliente = (isset($_POST['id_cliente_hidden'])) ? (int)$_POST['id_cliente_hidden'] : 0;
         $cond_pago = (isset($_POST['cond_pago'])) ? trim($_POST['cond_pago']) : 'CONTADO';
-        $pago_efectivo = (isset($_POST['pago_efectivo'])) ? max(0.0, (float)$_POST['pago_efectivo']) : 0.0;
-        $pago_transf = (isset($_POST['pago_transf'])) ? max(0.0, (float)$_POST['pago_transf']) : 0.0;
+        // Fix: Soporte para decimales con coma en los campos de pago
+        $pago_efectivo = (isset($_POST['pago_efectivo'])) ? max(0.0, (float)str_replace(',', '.', $_POST['pago_efectivo'])) : 0.0;
+        $pago_transf = (isset($_POST['pago_transf'])) ? max(0.0, (float)str_replace(',', '.', $_POST['pago_transf'])) : 0.0;
+        // Nuevos campos para descuentos
+        $desc_global_tipo = $_POST['desc_global_tipo'] ?? 'fijo';
+        $desc_global_valor = (isset($_POST['desc_global_valor'])) ? max(0.0, (float)str_replace(',', '.', $_POST['desc_global_valor'])) : 0.0;
+        // Nuevos campos para financiación
+        $cant_cuotas = isset($_POST['cuotas_selector']) ? (int)$_POST['cuotas_selector'] : 1;
+        $intervalo_dias = isset($_POST['intervalo_cuotas']) ? (int)$_POST['intervalo_cuotas'] : 30;
+        $interes_porc = isset($_POST['interes_manual']) ? (float)$_POST['interes_manual'] : 0;
         $detalle_productos = json_decode($_POST['detalle_productos'], true);
 
         if (empty($detalle_productos)) {
@@ -39,9 +57,10 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
         } else {
             try {
                 $pdo->beginTransaction();
+                $productos_sin_stock = [];
 
                 // --- RECALCULO Y VALIDACIÓN ---
-                $total_recalculado = 0;
+                $total_bruto = 0;
                 foreach ($detalle_productos as &$item) {
                     $stmt_v = $pdo->prepare("SELECT p_venta, p_compra, stock, descripcion FROM productos WHERE cod_prod = ?");
                     $stmt_v->execute([$item['cod_prod']]);
@@ -49,16 +68,25 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
 
                     if (!$prod_db) throw new Exception("Producto no encontrado: " . $item['cod_prod']);
                     
-                    if ($es_finalizar && $prod_db['stock'] < $item['cant']) {
-                        throw new Exception("Stock insuficiente para: " . $prod_db['descripcion']);
+                    // Ya no lanzamos excepción, solo guardamos el nombre para avisar luego
+                    if ($es_finalizar && (float)$prod_db['stock'] < (float)$item['cant']) {
+                        $productos_sin_stock[] = $prod_db['descripcion'];
                     }
 
                     $item['p_unit'] = (float)$prod_db['p_venta'];
                     $item['p_costo_venta'] = (float)$prod_db['p_compra']; 
-                    $item['total'] = $item['p_unit'] * (float)$item['cant'];
-                    $total_recalculado += $item['total'];
+                    
+                    // Descuento por producto (Tratado como porcentaje)
+                    $desc_porc_item = isset($item['desc']) ? (float)$item['desc'] : 0;
+                    $subtotal_item = $item['p_unit'] * (float)$item['cant'];
+                    $monto_desc_item = $subtotal_item * ($desc_porc_item / 100);
+                    $item['total'] = $subtotal_item - $monto_desc_item;
+                    $total_bruto += $item['total'];
                 }
                 unset($item);
+
+                $monto_desc_global = ($desc_global_tipo === 'porcentaje') ? ($total_bruto * ($desc_global_valor / 100)) : $desc_global_valor;
+                $total_recalculado = max(0, $total_bruto - $monto_desc_global);
 
                 // Obtener N° Documento correlativo
                 if ($id_venta_existente <= 0) {
@@ -67,27 +95,35 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                     $n_documento = ($res_n['ultimo'] !== null) ? $res_n['ultimo'] + 1 : 1;
                 }
 
+                $id_venta_actual = 0;
                 // --- A) Insertar o Actualizar Cabecera de Venta ---
                 if ($id_venta_existente > 0) {
-                    $sql_v = "UPDATE ventas SET id_cliente=?, cond_pago=?, total_venta=?, pago_efectivo=?, pago_transf=?, estado=?, usuario=? WHERE id=?";
-                    $pdo->prepare($sql_v)->execute([$id_cliente, $cond_pago, $total_recalculado, $pago_efectivo, $pago_transf, $estado_venta, $usuario_activo, $id_venta_existente]);
+                    $sql_v = "UPDATE ventas SET id_cliente=?, cond_pago=?, total_venta=?, descuento_global=?, tipo_descuento_global=?, pago_efectivo=?, pago_transf=?, estado=?, usuario=? WHERE id=?";
+                    $pdo->prepare($sql_v)->execute([$id_cliente, $cond_pago, $total_recalculado, $monto_desc_global, $desc_global_tipo, $pago_efectivo, $pago_transf, $estado_venta, $usuario_activo, $id_venta_existente]);
                     
                     $stmt_doc = $pdo->prepare("SELECT n_documento FROM ventas WHERE id=?");
                     $stmt_doc->execute([$id_venta_existente]);
                     $n_documento = $stmt_doc->fetchColumn();
 
                     $pdo->prepare("DELETE FROM ventas_detalle WHERE n_documento = ?")->execute([$n_documento]);
+                    // Limpiamos financiación previa si existiera para evitar duplicados
+                    $pdo->prepare("DELETE FROM ventas_financiacion WHERE id_venta = ?")->execute([$id_venta_existente]);
+                    $pdo->prepare("DELETE FROM cuotas_seguimiento WHERE id_venta = ?")->execute([$id_venta_existente]);
+                    
+                    $id_venta_actual = $id_venta_existente;
                 } else {
                     $fecha_venta = date('Y-m-d H:i:s');
-                    $sql_v = "INSERT INTO ventas (id_cliente, cond_pago, n_documento, total_venta, pago_efectivo, pago_transf, fecha_venta, estado, usuario) VALUES (?,?,?,?,?,?,?,?,?)";
-                    $pdo->prepare($sql_v)->execute([$id_cliente, $cond_pago, $n_documento, $total_recalculado, $pago_efectivo, $pago_transf, $fecha_venta, $estado_venta, $usuario_activo]);
+                    $sql_v = "INSERT INTO ventas (id_cliente, cond_pago, n_documento, total_venta, descuento_global, tipo_descuento_global, pago_efectivo, pago_transf, fecha_venta, estado, usuario) VALUES (?,?,?,?,?,?,?,?,?,?,?)";
+                    $pdo->prepare($sql_v)->execute([$id_cliente, $cond_pago, $n_documento, $total_recalculado, $monto_desc_global, $desc_global_tipo, $pago_efectivo, $pago_transf, $fecha_venta, $estado_venta, $usuario_activo]);
+                    $id_venta_actual = $pdo->lastInsertId();
                 }
 
                 // --- B) Insertar Detalle y Stock ---
-                $sql_d = "INSERT INTO ventas_detalle (cod_prod, descripcion, cant, p_unit, p_costo_venta, total, n_documento, fecha) VALUES (?,?,?,?,?,?,?,?)";
+                $sql_d = "INSERT INTO ventas_detalle (cod_prod, descripcion, cant, p_unit, descuento_unitario, p_costo_venta, total, n_documento, fecha) VALUES (?,?,?,?,?,?,?,?,?)";
                 $stmt_d = $pdo->prepare($sql_d);
                 foreach ($detalle_productos as $item) {
-                    $stmt_d->execute([$item['cod_prod'], $item['descripcion'], $item['cant'], $item['p_unit'], $item['p_costo_venta'], $item['total'], $n_documento, date('Y-m-d H:i:s')]);
+                    $desc_u = isset($item['desc']) ? (float)$item['desc'] : 0;
+                    $stmt_d->execute([$item['cod_prod'], $item['descripcion'], $item['cant'], $item['p_unit'], $desc_u, $item['p_costo_venta'], $item['total'], $n_documento, date('Y-m-d H:i:s')]);
                     
                     if ($es_finalizar) {
                         $pdo->prepare("UPDATE productos SET stock = stock - ? WHERE cod_prod = ?")->execute([$item['cant'], $item['cod_prod']]);
@@ -100,6 +136,48 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                     if ($saldo_deuda > 0) {
                         $sql_cc = "INSERT INTO ctacte (id_cliente, movimiento, n_documento, debe, haber, fecha) VALUES (?, 'FACTURA', ?, ?, 0, NOW())";
                         $pdo->prepare($sql_cc)->execute([$id_cliente, $n_documento, $saldo_deuda]);
+                    }
+                }
+
+                // --- D) Lógica de Financiación (Cuotas) ---
+                if ($es_finalizar && $cond_pago === 'FINANCIADO' && $id_cliente > 0) {
+                    $saldo_a_financiar = $total_recalculado - ($pago_efectivo + $pago_transf);
+                    $monto_interes = $saldo_a_financiar * ($interes_porc / 100);
+                    $monto_total_cuotas = $saldo_a_financiar + $monto_interes;
+                    $valor_cuota = $monto_total_cuotas / $cant_cuotas;
+
+                    // 1. Insertar cabecera de financiación
+                    $sql_finan = "INSERT INTO ventas_financiacion 
+                                  (id_venta, cant_cuotas, intervalo_dias, interes_porcentaje, monto_interes, entrega_inicial, monto_cuota_sugerida)
+                                  VALUES (?, ?, ?, ?, ?, ?, ?)";
+                    $stmt_finan = $pdo->prepare($sql_finan);
+                    $stmt_finan->execute([
+                        $id_venta_actual,
+                        $cant_cuotas,
+                        $intervalo_dias,
+                        $interes_porc,
+                        $monto_interes,
+                        ($pago_efectivo + $pago_transf),
+                        $valor_cuota
+                    ]);
+
+                    // 2. Generar plan de cuotas en seguimiento
+                    $sql_cuota = "INSERT INTO cuotas_seguimiento 
+                                  (id_venta, nro_cuota, fecha_vencimiento, monto_original, estado)
+                                  VALUES (?, ?, ?, ?, 'Pendiente')";
+                    $stmt_cuota = $pdo->prepare($sql_cuota);
+
+                    for ($i = 1; $i <= $cant_cuotas; $i++) {
+                        // Calcular fecha de vencimiento sumando los días de intervalo
+                        $dias_sumar = $i * $intervalo_dias;
+                        $vencimiento = date('Y-m-d', strtotime("+$dias_sumar days"));
+                        
+                        $stmt_cuota->execute([
+                            $id_venta_actual,
+                            $i,
+                            $vencimiento,
+                            $valor_cuota
+                        ]);
                     }
                 }
 
@@ -120,6 +198,11 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                 $pdo->commit();
                 $_SESSION['ticket_a_imprimir_doc'] = $n_documento;
                 $_SESSION['status_msj'] = "✅ Venta N° $n_documento procesada correctamente.";
+                
+                if (!empty($productos_sin_stock)) {
+                    $_SESSION['status_msj_warning'] = "⚠️ Venta cerrada con stock insuficiente en: " . implode(", ", $productos_sin_stock);
+                }
+
                 header("Location: ventas.php");
                 exit();
 
@@ -132,7 +215,20 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
 }
 
 if (isset($_SESSION['status_msj'])) { $mensaje = $_SESSION['status_msj']; unset($_SESSION['status_msj']); }
+$mensaje_warning = '';
+if (isset($_SESSION['status_msj_warning'])) { $mensaje_warning = $_SESSION['status_msj_warning']; unset($_SESSION['status_msj_warning']); }
 $ticket_doc_a_imprimir = isset($_SESSION['ticket_a_imprimir_doc']) ? $_SESSION['ticket_a_imprimir_doc'] : null;
+$cliente_tel = '';
+$cliente_nom = '';
+if ($ticket_doc_a_imprimir) {
+    $stmt_c = $pdo->prepare("SELECT c.telefono, CONCAT(c.apellido, ' ', c.nombre) as nombre FROM ventas v JOIN clientes c ON v.id_cliente = c.id WHERE v.n_documento = ?");
+    $stmt_c->execute([$ticket_doc_a_imprimir]);
+    $res_c = $stmt_c->fetch();
+    if ($res_c) {
+        $cliente_tel = $res_c['telefono'];
+        $cliente_nom = $res_c['nombre'];
+    }
+}
 unset($_SESSION['ticket_a_imprimir_doc']);
 ?>
 
@@ -176,6 +272,13 @@ unset($_SESSION['ticket_a_imprimir_doc']);
         }
 
         .venta-grid { display: grid; grid-template-columns: 3fr 1fr; gap: 20px; }
+
+        @media (max-width: 1100px) {
+            .venta-grid {
+                grid-template-columns: 1fr;
+                display: block;
+            }
+        }
 
         /* INPUTS ESTILO DARK */
         .input-field, input[type="text"], input[type="number"], select {
@@ -269,6 +372,32 @@ unset($_SESSION['ticket_a_imprimir_doc']);
         }
 
         hr { border: 0; border-top: 1px solid #333; margin: 20px 0; }
+
+        /* Notificación Toast */
+        .toast-notificacion {
+            position: fixed; top: 20px; right: 20px; background: #2ecc71; color: white;
+            padding: 15px 25px; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            z-index: 10000; display: flex; align-items: center; gap: 10px; font-weight: bold;
+            animation: slideInToast 0.3s ease-out forwards;
+        }
+        @keyframes slideInToast {
+            from { transform: translateX(120%); }
+            to { transform: translateX(0); }
+        }
+        .toast-fade-out {
+            animation: fadeOutToast 0.5s ease-out forwards;
+        }
+        @keyframes fadeOutToast {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+
+        /* Quitar flechas (spinners) de inputs numéricos en el carrito para ahorrar espacio */
+        #carrito input[type=number]::-webkit-inner-spin-button, 
+        #carrito input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; margin: 0; 
+        }
+        #carrito input[type=number] { -moz-appearance: textfield; }
     </style>
 </head>
 <body>
@@ -277,7 +406,7 @@ unset($_SESSION['ticket_a_imprimir_doc']);
         <h1>Nueva Venta</h1>
 
         <?php if ($mensaje): ?>
-            <div class="alert <?php echo strpos($mensaje, '❌') !== false ? 'alert-error' : 'alert-success'; ?>">
+            <div class="alert <?php echo str_contains($mensaje, '❌') ? 'alert-error' : 'alert-success'; ?>">
                 <?php echo htmlspecialchars($mensaje); ?>
             </div>
         <?php endif; ?>
@@ -285,25 +414,31 @@ unset($_SESSION['ticket_a_imprimir_doc']);
         <div class="venta-grid">
             <div class="card">
                 <div class="contenedor-busqueda" style="position:relative;">
-                    <label><i class="fas fa-search"></i> Buscar Producto</label>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <label><i class="fas fa-search"></i> Buscar Producto</label>
+                        <button type="button" class="btn btn-success" onclick="abrirModalNuevoProducto()" title="Agregar nuevo producto" style="padding: 2px 8px; margin-bottom: 5px; font-size: 0.8rem; background: #27ae60;">+ Nuevo</button>
+                    </div>
                     <input type="text" id="buscar_producto" class="input-field" autocomplete="off" placeholder="Escribe nombre o código...">
                     <div id="resultadosBusqueda"></div> 
                 </div>
                 
                 <h3 style="margin-top:25px; color:#00bcd4;"><i class="fas fa-shopping-cart"></i> Carrito de Compra</h3>
-                <table id="carrito" class="table-full">
-                    <thead>
-                        <tr>
-                            <th>Cód.</th>
-                            <th>Producto</th>
-                            <th>Precio</th>
-                            <th>Cant.</th>
-                            <th>Subtotal</th>
-                            <th>-</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
+                <div class="carrito-container-scroll">
+                    <table id="carrito" class="table-full">
+                        <thead>
+                            <tr>
+                                <th>Cód.</th>
+                                <th>Producto</th>
+                                <th>Precio</th>
+                                <th>Cant.</th>
+                                <th>Subtotal</th>
+                                <th>Desc.</th>
+                                <th>-</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
             </div>
 
             <div class="card">
@@ -314,7 +449,10 @@ unset($_SESSION['ticket_a_imprimir_doc']);
                     <input type="hidden" name="id_cliente_hidden" id="id_cliente_hidden" value="0">
 
                     <div class="contenedor-busqueda-cliente" style="position:relative;">
-                        <label><i class="fas fa-user-tag"></i> Cliente</label>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label><i class="fas fa-user-tag"></i> Cliente</label>
+                            <button type="button" class="btn btn-success" onclick="abrirModalNuevoCliente()" title="Agregar nuevo cliente" style="padding: 2px 8px; margin-bottom: 5px; font-size: 0.8rem; background: #27ae60;">+ Nuevo</button>
+                        </div>
                         <input type="text" id="buscar_cliente" class="input-field" autocomplete="off" placeholder="Buscar cliente...">
                         <div id="resultadosBusquedaClientes"></div>
                     </div>
@@ -328,11 +466,53 @@ unset($_SESSION['ticket_a_imprimir_doc']);
                     <select id="cond_pago" name="cond_pago" class="input-field">
                         <option value="CONTADO">CONTADO</option>
                         <option value="CUENTA CORRIENTE">CUENTA CORRIENTE</option>
+                        <option value="FINANCIADO">FINANCIADO</option>
                     </select>
+
+                    <div id="panel_descuento_global" style="margin-top: 15px; padding: 10px; background: #252525; border-radius: 6px; border: 1px solid #444;">
+                        <label><i class="fas fa-percentage"></i> Descuento Global</label>
+                        <div style="display: flex; gap: 5px;">
+                            <select name="desc_global_tipo" id="desc_global_tipo" class="input-field" style="flex: 1;">
+                            <option value="porcentaje">Porcentaje (%)</option>    
+                            <option value="fijo">Monto ($)</option>
+                            </select>
+                            <input type="number" step="0.01" name="desc_global_valor" id="desc_global_valor" class="input-field" style="flex: 1;" placeholder="0.00" value="0">
+                        </div>
+                    </div>
+
+                    <!-- Panel de Financiación (Solicitado en Manifiesto) -->
+                    <div id="panel_financiacion" style="display: none; background: #252525; padding: 15px; border-radius: 8px; border: 1px dashed #00bcd4; margin-top: 15px;">
+                        <h3 style="color: #00bcd4; margin-top: 0;"><i class="fas fa-hand-holding-usd"></i> Detalles de Financiación</h3>
+                        
+                        <label for="cuotas_selector">Cantidad de Cuotas</label>
+                        <select id="cuotas_selector" name="cuotas_selector" class="input-field">
+                            <option value="1">1 Cuota</option>
+                            <option value="3">3 Cuotas</option>
+                            <option value="6">6 Cuotas</option>
+                            <option value="12">12 Cuotas</option>
+                        </select>
+
+                        <label for="intervalo_cuotas">Intervalo entre Cuotas (días)</label>
+                        <select id="intervalo_cuotas" name="intervalo_cuotas" class="input-field">
+                            <option value="30">30 días</option>
+                            <option value="15">15 días</option>
+                            <option value="10">10 días</option>
+                            <option value="7">7 días</option>
+                        </select>
+
+                        <label for="interes_manual">Interés Manual (%)</label>
+                        <input type="number" step="0.01" id="interes_manual" name="interes_manual" class="input-field" value="0" min="0">
+
+                        <div style="display: flex; justify-content: space-between; font-size: 1.1em; margin-top: 15px; padding-top: 10px; border-top: 1px dashed #444;">
+                            <strong>Valor Cuota:</strong>
+                            <strong id="info_valor_cuota" style="color: #2ecc71;">$0.00</strong>
+                        </div>
+                    </div>
 
                     <div class="total-box">
                         <p style="margin:0; color:#aaa; text-transform:uppercase; letter-spacing:1px; font-size:0.8rem;">Total a Cobrar</p>
                         <span id="total_venta_display">$ 0.00</span>
+                        <input type="hidden" name="total_venta_input" id="total_venta_input" value="0.00">
                     </div>
 
                     <div id="vuelto_contenedor" class="vuelto-box">
@@ -373,14 +553,104 @@ unset($_SESSION['ticket_a_imprimir_doc']);
         </div>
     </div>
 
+    <!-- Modal Nuevo Producto Rápido -->
+    <div id="modalNuevoProducto" class="modal" style="display:none; position:fixed; z-index:10000; left:0; top:0; width:100%; height:100%; background: rgba(0,0,0,0.9);">
+        <div class="modal-content" style="background: #1a1a1a; margin: 2% auto; padding: 25px; width: 450px; border-radius: 12px; border: 1px solid #333; max-height: 90vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px;">
+                <h2 style="margin:0; color:#00bcd4;">Registrar Producto</h2>
+                <span onclick="cerrarModalNuevoProducto()" style="cursor:pointer; font-size: 28px; color: #ff4444;">&times;</span>
+            </div>
+            <form id="formNuevoProducto">
+                <label>Código de Barras / Interno *</label>
+                <input type="text" id="np_cod_prod" class="input-field" required>
+                <label>Descripción *</label>
+                <input type="text" id="np_descripcion" class="input-field" required>
+                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                    <div style="flex: 1;">
+                        <label>Precio Costo ($) *</label>
+                        <input type="number" step="0.01" id="np_p_compra" class="input-field" required oninput="calcularPrecioVentaSugerido()">
+                    </div>
+                    <div style="flex: 1;">
+                        <label>Precio Venta ($) *</label>
+                        <input type="number" step="0.01" id="np_p_venta" class="input-field" required>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                    <div style="flex: 1;">
+                        <label>Stock Inicial</label>
+                        <input type="number" step="0.01" id="np_stock" class="input-field" value="0">
+                    </div>
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <label>Rubro</label>
+                    <select id="np_rubro" class="input-field">
+                        <?php foreach ($rubros_list as $r): ?>
+                            <option value="<?php echo $r['nombre']; ?>" <?php echo ($r['nombre'] == 'VARIOS') ? 'selected' : ''; ?>><?php echo $r['nombre']; ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <label>Proveedor</label>
+                    <select id="np_proveedor" class="input-field" disabled>
+                        <?php foreach ($proveedores_list as $p): ?>
+                            <option value="<?php echo $p['razon']; ?>" <?php echo ($p['razon'] == 'GENERAL') ? 'selected' : ''; ?>><?php echo $p['razon']; ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <button type="button" class="btn btn-primary btn-block" onclick="guardarNuevoProducto()" style="margin-top: 15px; height: 45px; font-weight: bold;">GUARDAR Y AGREGAR</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Nuevo Cliente -->
+    <div id="modalNuevoCliente" class="modal" style="display:none; position:fixed; z-index:10000; left:0; top:0; width:100%; height:100%; background: rgba(0,0,0,0.9);">
+        <div class="modal-content" style="background: #1a1a1a; margin: 10% auto; padding: 25px; width: 400px; border-radius: 12px; border: 1px solid #333;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px;">
+                <h2 style="margin:0; color:#00bcd4;">Registrar Cliente</h2>
+                <span onclick="cerrarModalNuevoCliente()" style="cursor:pointer; font-size: 28px; color: #ff4444;">&times;</span>
+            </div>
+            <form id="formNuevoCliente">
+                <label>Apellido *</label>
+                <input type="text" id="nc_apellido" class="input-field" required placeholder="Obligatorio">
+                <label>Nombre</label>
+                <input type="text" id="nc_nombre" class="input-field">
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <div style="flex: 1;">
+                        <label>DNI</label>
+                        <input type="text" id="nc_dni" class="input-field" placeholder="Sólo números">
+                    </div>
+                    <div style="flex: 1;">
+                        <label>CUIT</label>
+                        <input type="text" id="nc_cuit" class="input-field" placeholder="Sólo números">
+                    </div>
+                </div>
+                <label>Condición IVA</label>
+                <select id="nc_id_tipo_iva" class="input-field">
+                    <option value="99" selected>Consumidor Final</option>
+                    <option value="1">Responsable Inscripto</option>
+                    <option value="6">Monotributo</option>
+                    <option value="4">Exento</option>
+                </select>
+                <label>Teléfono</label>
+                <input type="text" id="nc_telefono" class="input-field">
+                <button type="button" class="btn btn-primary btn-block" onclick="guardarNuevoCliente()" style="margin-top: 15px; height: 45px; font-weight: bold;">GUARDAR Y SELECCIONAR</button>
+            </form>
+        </div>
+    </div>
+
     <?php if ($ticket_doc_a_imprimir): ?>
     <div id="modalTicket" style="position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center;">
         <div style="background: #1a1a1a; padding: 35px; border-radius: 12px; text-align: center; border: 1px solid #00bcd4; width: 380px;">
             <i class="fas fa-print" style="font-size: 3rem; color: #00bcd4; margin-bottom: 15px;"></i>
             <h3 style="color: #4caf50; margin-bottom: 10px;">Venta Procesada</h3>
             <p style="color: #ccc;">¿Desea imprimir el ticket N° <strong><?php echo $ticket_doc_a_imprimir; ?></strong>?</p>
-            <div style="margin-top: 25px; display: flex; gap: 10px; justify-content: center;">
-                <button onclick="window.open('vista_previa_ticket.php?n_documento=<?php echo $ticket_doc_a_imprimir; ?>', '_blank'); this.parentElement.parentElement.parentElement.style.display='none';" class="btn btn-primary" style="padding: 10px 20px;">Sí, Imprimir</button>
+            <div style="margin-top: 25px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                <button onclick="window.open('vista_previa_ticket.php?n_documento=<?php echo $ticket_doc_a_imprimir; ?>', '_blank'); this.parentElement.parentElement.parentElement.style.display='none';" class="btn btn-primary" style="padding: 10px 20px;">
+                    <i class="fas fa-print"></i> Imprimir
+                </button>
+                <button onclick="enviarTicketWA('', '', '<?php echo $ticket_doc_a_imprimir; ?>', event)" class="btn" style="background: #e67e22; color: white; padding: 10px 20px;">
+                    <i class="fas fa-file-pdf"></i> Descargar PDF
+                </button>
                 <button onclick="this.parentElement.parentElement.parentElement.style.display='none';" class="btn btn-secondary" style="padding: 10px 20px; background:#444;">Cerrar</button>
             </div>
         </div>
@@ -391,39 +661,168 @@ unset($_SESSION['ticket_a_imprimir_doc']);
     <script>
         var clientesData = <?php echo json_encode($clientes); ?>;
 
-        function actualizarVuelto() {
-            var cond = document.getElementById('cond_pago').value;
-            var efec = parseFloat(document.getElementById('pago_efectivo').value) || 0;
-            var tran = parseFloat(document.getElementById('pago_transf').value) || 0;
-            var totalText = document.getElementById('total_venta_display').innerText;
-            var totalLimpio = totalText.replace(/[^\d,.]/g, '');
-            
-            if (totalLimpio.includes(',') && totalLimpio.includes('.')) {
-                totalLimpio = totalLimpio.replace(/\./g, '').replace(',', '.');
-            } else if (totalLimpio.includes(',')) {
-                totalLimpio = totalLimpio.replace(',', '.');
-            }
-            
-            var total = parseFloat(totalLimpio) || 0;
-            var pagoTotal = efec + tran;
-            var box = document.getElementById('vuelto_contenedor');
-            
-            if (cond === 'CONTADO' && pagoTotal > total && total > 0) {
-                var vuelto = pagoTotal - total;
-                document.getElementById('vuelto_display').innerText = '$ ' + vuelto.toLocaleString('es-AR', {minimumFractionDigits:2});
-                box.style.setProperty("display", "block", "important");
-            } else {
-                box.style.display = 'none';
-            }
+        // RESTAURAR CARRITO SI HUBO ERROR DE STOCK
+        <?php if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($mensaje) && strpos($mensaje, '❌') !== false): ?>
+            document.addEventListener('DOMContentLoaded', function() {
+                carrito = <?php echo $_POST['detalle_productos']; ?>;
+                renderizarCarrito(); // Función definida en ventas.js
+            });
+        <?php endif; ?>
+
+        // MOSTRAR ADVERTENCIA DE STOCK SI EXISTE
+        <?php if (!empty($mensaje_warning)): ?>
+            document.addEventListener('DOMContentLoaded', function() {
+                mostrarToast("<?php echo addslashes($mensaje_warning); ?>", "error");
+            });
+        <?php endif; ?>
+
+        function mostrarToast(mensaje, tipo = 'success') {
+            const toast = document.createElement('div');
+            toast.className = 'toast-notificacion';
+            if (tipo === 'error') toast.style.background = '#e74c3c';
+            toast.innerHTML = `<i class="fas ${tipo === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle'}"></i> ${mensaje}`;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('toast-fade-out');
+                setTimeout(() => toast.remove(), 500);
+            }, 5000);
         }
 
-        document.getElementById('pago_efectivo').addEventListener('input', actualizarVuelto);
-        document.getElementById('pago_transf').addEventListener('input', actualizarVuelto);
-        document.getElementById('cond_pago').addEventListener('change', actualizarVuelto);
-
-        if (window.MutationObserver) {
-            new MutationObserver(actualizarVuelto).observe(document.getElementById('total_venta_display'), {childList:true, characterData:true, subtree:true});
+        function enviarTicketWA(telefono, nombre, nDoc, event) {
+            // En lugar de enviar por WhatsApp, redireccionamos a la generación del PDF con el flag de descarga
+            const urlDownload = 'generar_pdf_ticket.php?n_documento=' + nDoc + '&download=1';
+            window.location.href = urlDownload;
+            mostrarToast("Iniciando descarga del comprobante...");
         }
+
+        // --- LÓGICA MODAL NUEVO CLIENTE ---
+        function abrirModalNuevoCliente() {
+            document.getElementById('modalNuevoCliente').style.display = 'block';
+            document.getElementById('nc_apellido').focus();
+        }
+
+        function cerrarModalNuevoCliente() {
+            document.getElementById('modalNuevoCliente').style.display = 'none';
+            document.getElementById('formNuevoCliente').reset();
+        }
+
+        function guardarNuevoCliente() {
+            const apellido = document.getElementById('nc_apellido').value.trim();
+            const nombre = document.getElementById('nc_nombre').value.trim();
+            const dni = document.getElementById('nc_dni').value.trim();
+            const id_tipo_iva = document.getElementById('nc_id_tipo_iva').value;
+            const cuit = document.getElementById('nc_cuit').value.trim();
+            const telefono = document.getElementById('nc_telefono').value.trim();
+
+            if (!apellido) {
+                mostrarToast("El apellido del cliente es obligatorio.", "error");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('apellido', apellido);
+            formData.append('nombre', nombre);
+            formData.append('dni', dni);
+            formData.append('id_tipo_iva', id_tipo_iva);
+            formData.append('cuit', cuit);
+            formData.append('telefono', telefono);
+
+            fetch('../ajax/agregar_cliente_rapido.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    // Actualizar clientesData para que aparezca en futuras búsquedas sin recargar
+                    clientesData.push({
+                        id_cliente: data.id_cliente,
+                        nombre_completo: data.nombre_completo,
+                        num_documento: cuit
+                    });
+
+                    // Seleccionar automáticamente al nuevo cliente
+                    document.getElementById('id_cliente_hidden').value = data.id_cliente;
+                    document.getElementById('nombre_cliente_display').innerText = data.nombre_completo;
+                    mostrarToast("✅ Cliente seleccionado: " + data.nombre_completo);
+                    cerrarModalNuevoCliente();
+                } else {
+                    mostrarToast(data.error, "error");
+                }
+            })
+            .catch(err => console.error(err));
+        }
+
+        // --- LÓGICA MODAL NUEVO PRODUCTO ---
+        window.abrirModalNuevoProducto = function() {
+            const modal = document.getElementById('modalNuevoProducto');
+            if (modal) {
+                modal.style.display = 'block';
+                // Si el usuario escribió algo en el buscador, lo usamos como código por defecto
+                const busqueda = document.getElementById('buscar_producto').value.trim();
+                if (busqueda !== "") document.getElementById('np_cod_prod').value = busqueda;
+                document.getElementById('np_cod_prod').focus();
+            }
+        };
+
+        window.cerrarModalNuevoProducto = function() {
+            document.getElementById('modalNuevoProducto').style.display = 'none';
+            document.getElementById('formNuevoProducto').reset();
+        };
+
+        window.guardarNuevoProducto = function() {
+            const cod_prod = document.getElementById('np_cod_prod').value.trim();
+            const descripcion = document.getElementById('np_descripcion').value.trim();
+            const p_venta = document.getElementById('np_p_venta').value.trim();
+            const p_compra = document.getElementById('np_p_compra').value.trim(); // Capturar p_compra
+            const stock = document.getElementById('np_stock').value.trim();
+            const rubro = document.getElementById('np_rubro').value;
+            const proveedor = document.getElementById('np_proveedor').value;
+
+            if (!cod_prod || !descripcion || !p_venta) {
+                mostrarToast("Código, descripción y precio son obligatorios.", "error");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('cod_prod', cod_prod);
+            formData.append('p_compra', p_compra); // Enviar p_compra
+            formData.append('descripcion', descripcion);
+            formData.append('p_venta', p_venta);
+            formData.append('stock', stock);
+            formData.append('rubro', rubro);
+            formData.append('proveedor', proveedor);
+
+            fetch('../ajax/agregar_producto_rapido.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    if (typeof window.agregarAlCarrito === 'function') {
+                        window.agregarAlCarrito(data.producto);
+                    }
+                    mostrarToast("✅ Producto registrado y agregado.");
+                    cerrarModalNuevoProducto();
+                } else {
+                    mostrarToast(data.error, "error");
+                }
+            })
+            .catch(err => console.error("Error en alta rápida:", err));
+        };
+
+        // Función para calcular precio de venta sugerido (60% de ganancia)
+        window.calcularPrecioVentaSugerido = function() {
+            const gananciaRef = <?php echo $ganancia_config; ?>;
+            const pCompraInput = document.getElementById('np_p_compra');
+            const pVentaInput = document.getElementById('np_p_venta'); // Asegúrate de que p_venta exista
+            const pCompra = parseFloat(pCompraInput.value.replace(',', '.')) || 0;
+            if (pCompra > 0) {
+                const multiplicador = 1 + (gananciaRef / 100);
+                pVentaInput.value = (pCompra * multiplicador).toFixed(2);
+            } else { pVentaInput.value = ''; }
+        };
     </script>
 </body>
 </html>

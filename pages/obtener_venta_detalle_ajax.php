@@ -76,6 +76,7 @@ try {
             descripcion, 
             cant, 
             p_unit, 
+            descuento_unitario,
             total
             /* NOTA: Para ser perfectos, aquí deberíamos traer el stock actual 
                de la tabla 'productos' para la validación JS, pero lo omitiremos 

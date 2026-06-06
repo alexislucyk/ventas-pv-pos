@@ -1,0 +1,5 @@
+{
+    "require": {
+        "afipsdk/afip.php": "^1.2"
+    }
+}

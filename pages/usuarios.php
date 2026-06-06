@@ -1,7 +1,7 @@
 <?php
 include 'infosesion.php';
 require_once '../config/validar_permisos.php';
-restringirPagina('developer');
+//restringirPagina('developer');
 require '../config/db_config.php';
 
 
@@ -18,9 +18,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $sql = "INSERT INTO usuarios (usuario, password_hash, rol, estado) VALUES (?, ?, ?, 'ACTIVO')";
             $pdo->prepare($sql)->execute([$user, $pass, $rol]);
-            $mensaje = "<div class='alert success'>✅ Usuario '$user' registrado correctamente.</div>";
+            $mensaje = "✅ Usuario '$user' registrado correctamente.";
         } catch (Exception $e) { 
-            $mensaje = "<div class='alert danger'>❌ Error: El usuario ya existe.</div>"; 
+            $mensaje = "❌ Error: El usuario ya existe."; 
         }
     }
 
@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sql = "UPDATE usuarios SET password_hash = ? WHERE id = ?";
         $pdo->prepare($sql)->execute([$pass_nueva, $id_u]);
         $u_nom = $_POST['u_nombre'];
-        $mensaje = "<div class='alert success'>✅ Password de '$u_nom' reseteada con éxito.</div>";
+        $mensaje = "✅ Password de '$u_nom' reseteada con éxito.";
     }
 
     // 3. Cambiar Estado
@@ -136,6 +136,25 @@ $usuarios = $pdo->query("SELECT * FROM usuarios ORDER BY id DESC")->fetchAll(PDO
         .alert { padding: 15px; border-radius: 8px; margin-bottom: 20px; font-weight: bold; }
         .success { background: rgba(76, 175, 80, 0.2); color: #4caf50; border: 1px solid #4caf50; }
         .danger { background: rgba(244, 67, 54, 0.2); color: #f44336; border: 1px solid #f44336; }
+
+        /* Notificación Toast */
+        .toast-notificacion {
+            position: fixed; top: 20px; right: 20px; background: #2ecc71; color: white;
+            padding: 15px 25px; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            z-index: 10000; display: flex; align-items: center; gap: 10px; font-weight: bold;
+            animation: slideInToast 0.3s ease-out forwards;
+        }
+        @keyframes slideInToast {
+            from { transform: translateX(120%); }
+            to { transform: translateX(0); }
+        }
+        .toast-fade-out {
+            animation: fadeOutToast 0.5s ease-out forwards;
+        }
+        @keyframes fadeOutToast {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
     </style>
 </head>
 <body>
@@ -146,7 +165,14 @@ $usuarios = $pdo->query("SELECT * FROM usuarios ORDER BY id DESC")->fetchAll(PDO
                 <i class="fas fa-user-shield"></i> Seguridad y Usuarios
             </h1>
 
-            <?php echo $mensaje; ?>
+            <?php if ($mensaje): ?>
+                <script>
+                    document.addEventListener('DOMContentLoaded', function() {
+                        const msg = "<?php echo str_replace(['✅', '❌'], '', $mensaje); ?>";
+                        mostrarToast(msg, "<?php echo str_contains($mensaje, '❌') ? 'error' : 'success'; ?>");
+                    });
+                </script>
+            <?php endif; ?>
 
             <div class="card-admin">
                 <form method="POST" class="form-grid">
@@ -231,9 +257,67 @@ $usuarios = $pdo->query("SELECT * FROM usuarios ORDER BY id DESC")->fetchAll(PDO
         </div>
     </div>
 
+    <!-- Modal para Resetear Password -->
+    <div id="modalReset" class="modal">
+        <div class="modal-content" style="max-width: 450px; border-top: 4px solid #f39c12;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #444; padding-bottom: 10px;">
+                <h2 style="margin: 0; color: #f39c12;"><i class="fas fa-key"></i> Resetear Clave</h2>
+                <button onclick="cerrarModalReset()" style="background:none; border:none; color:white; font-size: 20px; cursor:pointer;">&times;</button>
+            </div>
+            
+            <div style="margin-top: 20px;">
+                <p style="margin-bottom: 15px;">Estás por resetear la contraseña del usuario: <strong id="reset_user_name" style="color: var(--accent);"></strong></p>
+                <div class="input-group">
+                    <label>Nueva Contraseña Genérica</label>
+                    <input type="password" id="input_nueva_pass" class="input-dark" placeholder="Mínimo 4 caracteres" autocomplete="off">
+                </div>
+                <input type="hidden" id="reset_user_id">
+            </div>
+            
+            <div style="margin-top: 25px; display: flex; justify-content: flex-end; gap: 10px;">
+                <button class="btn btn-secondary" onclick="cerrarModalReset()">Cancelar</button>
+                <button class="btn-toggle" style="background: #f39c12; color: white;" onclick="confirmarReset()">
+                    <i class="fas fa-save"></i> GUARDAR NUEVA CLAVE
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
+    function mostrarToast(mensaje, tipo = 'success') {
+        const toast = document.createElement('div');
+        toast.className = 'toast-notificacion';
+        if (tipo === 'error') toast.style.background = '#e74c3c';
+        toast.innerHTML = `<i class="fas ${tipo === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle'}"></i> ${mensaje}`;
+        document.body.appendChild(toast);
+        setTimeout(() => {
+            toast.classList.add('toast-fade-out');
+            setTimeout(() => toast.remove(), 500);
+        }, 5000);
+    }
+
     function resetPassword(id, nombre) {
-        const nueva = prompt("Ingrese la nueva contraseña genérica para " + nombre + ":");
+        document.getElementById('reset_user_id').value = id;
+        document.getElementById('reset_user_name').innerText = nombre;
+        document.getElementById('input_nueva_pass').value = '';
+        
+        const modal = document.getElementById('modalReset');
+        modal.style.display = 'flex';
+        modal.style.alignItems = 'center';
+        modal.style.justifyContent = 'center';
+        
+        setTimeout(() => document.getElementById('input_nueva_pass').focus(), 100);
+    }
+
+    function cerrarModalReset() {
+        document.getElementById('modalReset').style.display = 'none';
+    }
+
+    function confirmarReset() {
+        const id = document.getElementById('reset_user_id').value;
+        const nombre = document.getElementById('reset_user_name').innerText;
+        const nueva = document.getElementById('input_nueva_pass').value;
+
         if (nueva && nueva.length >= 4) {
             const form = document.createElement('form');
             form.method = 'POST';
@@ -245,10 +329,21 @@ $usuarios = $pdo->query("SELECT * FROM usuarios ORDER BY id DESC")->fetchAll(PDO
             `;
             document.body.appendChild(form);
             form.submit();
-        } else if (nueva) {
-            alert("La contraseña es muy corta.");
+        } else {
+            mostrarToast("La contraseña debe tener al menos 4 caracteres.", "error");
         }
     }
+
+    // Cerrar modal al hacer clic fuera del contenido
+    window.onclick = function(event) {
+        const modal = document.getElementById('modalReset');
+        if (event.target == modal) cerrarModalReset();
+    }
+
+    // Permitir enviar con la tecla Enter
+    document.getElementById('input_nueva_pass').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') confirmarReset();
+    });
     </script>
 </body>
 </html>

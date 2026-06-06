@@ -2,7 +2,7 @@
 include 'infosesion.php';
 require_once '../config/validar_permisos.php';
 // Mantenemos tu restricción de seguridad
-restringirPagina('developer'); 
+//restringirPagina('developer'); 
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 require '../config/db_config.php'; 
 
@@ -106,7 +106,7 @@ if (isset($_GET['buscar_prod']) && !empty($_GET['cod_prod_historial'])) {
                 <div class="stat-icon" style="color: var(--success); background: rgba(46, 204, 113, 0.1);"><i class="fas fa-dollar-sign"></i></div>
                 <div class="stat-info">
                     <h3>Valorización de Stock</h3>
-                    <p>$<?php echo number_format($total_valoracion, 2, ',', '.'); ?></p>
+                    <p>$<?php echo number_format((float)($total_valoracion ?? 0), 2, ',', '.'); ?></p>
                 </div>
             </div>
         </div>
@@ -135,9 +135,9 @@ if (isset($_GET['buscar_prod']) && !empty($_GET['cod_prod_historial'])) {
                             <tr>
                                 <td><?php echo date('d/m/Y', strtotime($mov['fecha'])); ?></td>
                                 <td><i class="fas fa-file-invoice" style="color:#666;"></i> <?php echo $mov['n_documento']; ?></td>
-                                <td><?php echo htmlspecialchars($mov['nombre_proveedor']); ?></td>
-                                <td class="text-right text-bold"><?php echo number_format($mov['cant'], 0, ',', '.'); ?></td>
-                                <td class="text-right">$<?php echo number_format($mov['p_unit'], 2, ',', '.'); ?></td>
+                                <td><?php echo htmlspecialchars($mov['nombre_proveedor'] ?? ''); ?></td>
+                                <td class="text-right text-bold"><?php echo number_format((float)($mov['cant'] ?? 0), 0, ',', '.'); ?></td>
+                                <td class="text-right">$<?php echo number_format((float)($mov['p_unit'] ?? 0), 2, ',', '.'); ?></td>
                                 <td class="text-right text-bold" style="color: var(--accent);">$<?php echo number_format($mov['total'], 2, ',', '.'); ?></td>
                             </tr>
                         <?php endforeach; ?>
@@ -174,12 +174,12 @@ if (isset($_GET['buscar_prod']) && !empty($_GET['cod_prod_historial'])) {
                             <td><?php echo htmlspecialchars($prod['descripcion']); ?></td>
                             <td class="text-right">
                                 <span class="stock-tag <?php echo $claseStock; ?>">
-                                    <?php echo number_format($prod['stock'], 0, ',', '.'); ?>
+                                    <?php echo number_format((float)($prod['stock'] ?? 0), 0, ',', '.'); ?>
                                 </span>
                             </td>
-                            <td class="text-right">$<?php echo number_format($prod['p_compra'], 2, ',', '.'); ?></td>
-                            <td class="text-right">$<?php echo number_format($prod['p_venta'], 2, ',', '.'); ?></td>
-                            <td class="text-right text-bold" style="color: var(--success);">$<?php echo number_format($prod['valor_inventario'], 2, ',', '.'); ?></td>
+                            <td class="text-right">$<?php echo number_format((float)($prod['p_compra'] ?? 0), 2, ',', '.'); ?></td>
+                            <td class="text-right">$<?php echo number_format((float)($prod['p_venta'] ?? 0), 2, ',', '.'); ?></td>
+                            <td class="text-right text-bold" style="color: var(--success);">$<?php echo number_format((float)($prod['valor_inventario'] ?? 0), 2, ',', '.'); ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

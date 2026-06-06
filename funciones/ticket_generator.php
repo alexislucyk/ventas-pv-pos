@@ -6,7 +6,7 @@ date_default_timezone_set('America/Argentina/Buenos_Aires');
  * Genera el HTML del ticket de venta.
  * Corregido para alineación simétrica y compatibilidad con PHP 5.
  */
-function generar_html_ticket_contenido($pdo, $n_documento) { 
+function generar_html_ticket_contenido(PDO $pdo, int|string $n_documento): string { 
     
     $n_documento = (int)$n_documento;
     
@@ -30,7 +30,7 @@ function generar_html_ticket_contenido($pdo, $n_documento) {
         // --- 2. OBTENER DATOS DE LA VENTA ---
         $sql_venta = "
             SELECT 
-                v.fecha_venta, v.total_venta, v.cond_pago, v.pago_efectivo, v.pago_transf,
+                v.fecha_venta, v.total_venta, v.descuento_global, v.cond_pago, v.pago_efectivo, v.pago_transf,
                 c.nombre AS nombre_cliente, c.apellido AS apellido_cliente
             FROM ventas v
             LEFT JOIN clientes c ON v.id_cliente = c.id
@@ -45,17 +45,18 @@ function generar_html_ticket_contenido($pdo, $n_documento) {
         }
 
         // --- 3. OBTENER DETALLE DE PRODUCTOS ---
-        $sql_detalle = "SELECT descripcion, cant, p_unit, total FROM ventas_detalle WHERE n_documento = :n_documento";
+        $sql_detalle = "SELECT descripcion, cant, p_unit, descuento_unitario, total FROM ventas_detalle WHERE n_documento = :n_documento";
         $stmt_detalle = $pdo->prepare($sql_detalle);
         $stmt_detalle->execute(array(':n_documento' => $n_documento));
         $productos = $stmt_detalle->fetchAll(PDO::FETCH_ASSOC);
 
         // --- 4. CÁLCULOS ---
-        $total_venta  = (float)$venta['total_venta'];
+        $total_final_venta  = (float)$venta['total_venta'];
+        $desc_global        = (!empty($venta['descuento_global'])) ? (float)$venta['descuento_global'] : 0.0;
         $pago_efec    = (float)$venta['pago_efectivo'];
         $pago_trans   = (float)$venta['pago_transf'];
         $total_pagado = $pago_efec + $pago_trans;
-        $cambio_saldo = $total_pagado - $total_venta;
+        $cambio_saldo = $total_pagado - $total_final_venta;
         
         // --- 5. GENERACIÓN DEL HTML ---
         $html = '<font size="2">'; 
@@ -79,11 +80,9 @@ function generar_html_ticket_contenido($pdo, $n_documento) {
         
         $html .= '<div class="sep"></div>';
         
-        // Datos del Ticket
-        $html .= '<p>';
-        $html .= 'Fecha: ' . date('d/m/Y H:i', strtotime($venta['fecha_venta'])) . '<br>';
-        $html .= 'Orden Vta.N°: ' . str_pad($n_documento, 8, '0', STR_PAD_LEFT) . '<br>';
-        $html .= '</p>';
+        $html .= '<div class="line"><span>Fecha y Hora:</span> <span>' . date('d/m/Y H:i', strtotime($venta['fecha_venta'])) . '</span></div>';
+        $html .= '<div class="line"><span>Orden Vta. N°:</span> <span>' . str_pad($n_documento, 8, '0', STR_PAD_LEFT) . '</span></div>';
+
         $html .= '<div class="sep"></div>';
         
         // Cliente
@@ -96,8 +95,8 @@ function generar_html_ticket_contenido($pdo, $n_documento) {
             $nom_cli = htmlspecialchars($cli_apellido . ", " . $cli_nombre);
         }
 
-        $html .= '<p>Cliente: ' . $nom_cli . '</p>';
-        $html .= '<p>Cond. Pago: ' . $venta['cond_pago'] . '</p>';
+        $html .= '<div class="line"><span>Cliente:</span> <span>' . $nom_cli . '</span></div>';
+        $html .= '<div class="line"><span>Cond. Pago:</span> <span>' . $venta['cond_pago'] . '</span></div>';
         $html .= '<div class="sep"></div>';
 
         // --- ARTÍCULOS (TABLA SIMÉTRICA) ---
@@ -107,8 +106,12 @@ function generar_html_ticket_contenido($pdo, $n_documento) {
         if (!empty($productos)) {
             // Estructura de tabla con ancho fijo para evitar desbordes
             $html .= '<table style="width: 100%; border-collapse: collapse; table-layout: fixed;">';
+            $total_bruto_items = 0;
             
             foreach ($productos as $p) {
+                $sub_bruto_linea = (float)$p['cant'] * (float)$p['p_unit'];
+                $total_bruto_items += $sub_bruto_linea;
+
                 // Fila 1: Descripción
                 $html .= '<tr>';
                 $html .= '<td colspan="2" style="padding-top: 5px; word-wrap: break-word;">' . htmlspecialchars($p['descripcion']) . '</td>';
@@ -120,9 +123,19 @@ function generar_html_ticket_contenido($pdo, $n_documento) {
                 $html .= $p['cant'] . ' x $' . number_format($p['p_unit'], 2, ',', '.');
                 $html .= '</td>';
                 $html .= '<td style="text-align: right; font-weight: bold; padding-bottom: 5px;">';
-                $html .= '$' . number_format($p['total'], 2, ',', '.');
+                $html .= '$' . number_format((float)$p['total'], 2, ',', '.');
                 $html .= '</td>';
                 $html .= '</tr>';
+
+                // Fila 3: Descuento por Producto (si aplica)
+                if (!empty($p['descuento_unitario']) && (float)$p['descuento_unitario'] > 0) {
+                    $monto_ahorro_it = $sub_bruto_linea * ((float)$p['descuento_unitario'] / 100);
+                    $html .= '<tr>';
+                    $html .= '<td colspan="2" class="discount-text" style="padding-bottom: 5px; text-align: left;">';
+                    $html .= 'Descuento (' . (float)$p['descuento_unitario'] . '%): -$' . number_format($monto_ahorro_it, 2, ',', '.');
+                    $html .= '</td>';
+                    $html .= '</tr>';
+                }
             }
             
             $html .= '</table>';
@@ -132,9 +145,37 @@ function generar_html_ticket_contenido($pdo, $n_documento) {
 
         // --- TOTAL ---
         $html .= '<table style="width: 100%;">';
+        
+        // Subtotal Bruto (Suma de Precio x Cantidad sin ningún descuento)
+        $html .= '<tr>';
+        $html .= '<td style="text-align: left;">Subtotal:</td>';
+        $html .= '<td style="text-align: right;">$' . number_format($total_bruto_items, 2, ',', '.') . '</td>';
+        $html .= '</tr>';
+
+        // Ahorro total por productos individuales
+        $total_ahorro_items = 0;
+        foreach($productos as $p) { 
+            $total_ahorro_items += ((float)$p['cant'] * (float)$p['p_unit'] * ((float)($p['descuento_unitario'] ?? 0) / 100)); 
+        }
+        
+        if ($total_ahorro_items > 0) {
+            $html .= '<tr class="discount-text">';
+            $html .= '<td style="text-align: left;">Descuento Productos:</td>';
+            $html .= '<td style="text-align: right;">-$' . number_format($total_ahorro_items, 2, ',', '.') . '</td>';
+            $html .= '</tr>';
+        }
+
+        // Descuento Global
+        if ($desc_global > 0) {
+            $html .= '<tr class="discount-text">';
+            $html .= '<td style="text-align: left;">Descuento Global:</td>';
+            $html .= '<td style="text-align: right;">-$' . number_format($desc_global, 2, ',', '.') . '</td>';
+            $html .= '</tr>';
+        }
+
         $html .= '<tr>';
         $html .= '<td style="text-align: left;"><strong>TOTAL:</strong></td>';
-        $html .= '<td style="text-align: right;"><strong>$' . number_format($total_venta, 2, ',', '.') . '</strong></td>';
+        $html .= '<td style="text-align: right;"><strong>$' . number_format($total_final_venta, 2, ',', '.') . '</strong></td>';
         $html .= '</tr>';
         $html .= '</table>';
         

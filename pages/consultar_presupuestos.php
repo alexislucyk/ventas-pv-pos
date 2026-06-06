@@ -48,7 +48,7 @@ $presupuestos = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
                         <td><?php echo htmlspecialchars($pres['cliente_nombre']); ?></td>
                         <td style="color: #2ecc71; font-weight: bold;">$<?php echo number_format($pres['total_presupuesto'], 2); ?></td>
                         <td>
-                            <a href="../generar_pdf.php?id=<?php echo $pres['id']; ?>" target="_blank" title="Ver PDF">
+                            <a href="generar_pdf_presupuesto.php?id=<?php echo $pres['id']; ?>" target="_blank" title="Ver PDF">
                                 <i class="fas fa-file-pdf" style="color: #e74c3c; font-size: 1.2em;"></i>
                             </a>
                             <button onclick="verPresupuesto(<?php echo $pres['id']; ?>)" title="Vista Previa" style="background:none; border:none; cursor:pointer;">
@@ -88,7 +88,7 @@ $presupuestos = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
 
     modal.style.display = 'block';
     titulo.innerText = "Cargando Presupuesto #" + id + "...";
-    btnPDF.href = "../generar_pdf.php?id=" + id;
+    btnPDF.href = "generar_pdf_presupuesto.php?id=" + id;
 
     // Llamada AJAX para obtener los items del presupuesto
     fetch('../ajax/obtener_detalle_presupuesto.php?id=' + id)

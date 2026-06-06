@@ -5,7 +5,7 @@ date_default_timezone_set('America/Argentina/Buenos_Aires');
 /**
  * Genera el HTML del ticket con datos de contacto desde datos_empresa.
  */
-function generar_html_ticket_contenido($pdo, $n_documento) { 
+function generar_html_ticket_contenido(PDO $pdo, int|string $n_documento): string { 
     
     $n_documento = (int)$n_documento;
     

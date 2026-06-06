@@ -12,6 +12,7 @@ echo "<body style='background:#1a1a1a; color:#eee; font-family:sans-serif; paddi
 echo "<h2>🛠️ Procesando Regularización de Caja</h2>";
 
 try {
+    // Sugerencia: Podrías verificar si ya existen movimientos para evitar duplicados accidentales
     // 1. Opcional: Limpiar la tabla de movimientos (ya que mencionaste que quieres ordenarla de cero)
     // $pdo->exec("TRUNCATE TABLE movimientos");
     // echo "<p style='color:#f1c40f;'>> Tabla movimientos vaciada.</p>";
@@ -35,9 +36,10 @@ try {
         $fecha     = $v['fecha_venta'];
         $usuario   = $v['usuario'];
         $condicion = $v['cond_pago'];
-        $total_v   = (float)$v['total_venta'];
-        $pago_efe  = (float)$v['pago_efectivo'];
-        $pago_tra  = (float)$v['pago_transf'];
+        // Forzamos el parseo a float asegurando que el string de la DB (que viene con punto) no se altere
+        $total_v   = floatval($v['total_venta']);
+        $pago_efe  = floatval($v['pago_efectivo']);
+        $pago_tra  = floatval($v['pago_transf']);
         
         $monto_ingresado = $pago_efe + $pago_tra;
 

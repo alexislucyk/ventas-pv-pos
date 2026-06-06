@@ -1,127 +1,191 @@
 <?php
 include 'infosesion.php';
-date_default_timezone_set('America/Argentina/Buenos_Aires');
+require '../config/db_config.php';
 
-require '../config/db_config.php'; 
-
-$mensaje = '';
-$productos = array();
-
-try {
-    // ----------------------
-    // LISTAR PRODUCTOS PARA CONSULTA
-    // ----------------------
-    // Obtenemos solo los campos necesarios para la consulta rápida
-    $stmt = $pdo->query('SELECT cod_prod, descripcion, p_venta, stock FROM productos ORDER BY cod_prod ASC');
-    $productos = $stmt->fetchAll();
-
-} catch (Exception $e) {
-    $mensaje = "❌ Error al cargar los productos: " . $e->getMessage();
-}
-
-## Vista (HTML y Diseño) ##
+// Obtenemos la ganancia configurada para mostrar precios sugeridos si fuera necesario
+$stmt_conf = $pdo->query("SELECT valor FROM configuracion WHERE clave = 'ganancia_global'");
+$ganancia_config = (float)($stmt_conf->fetchColumn() ?: 60);
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Consulta de Precios | Mi Negocio POS</title>
-    <link rel="stylesheet" href="../css/style.css"> 
+    <title>Consulta de Precios | Electricidad Lucyk</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        /* Estilos específicos para esta consulta (opcional) */
-        .tabla-consulta td, .tabla-consulta th {
-            padding: 10px;
-            font-size: 1.1em;
+        /* TEMA OSCURO REPORTES (Sincronizado con reportes_inventario.php y ventas.php) */
+        body {
+            background-color: #121212;
+            color: #e0e0e0;
         }
-        .stock-bajo {
-            color: #ff5757; /* Rojo para stock bajo */
+
+        .content h1 {
+            color: #00bcd4;
+            font-weight: 700;
+            border-bottom: 1px solid #333;
+            padding-bottom: 10px;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .content h1::before {
+            content: "\f02a"; /* Icono de código de barras */
+            font-family: "Font Awesome 5 Free";
+            margin-right: 15px;
+            font-size: 1.5rem;
+        }
+
+        .card {
+            background-color: #1e1e1e !important;
+            border: 1px solid #333 !important;
+            border-radius: 8px !important;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3) !important;
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+
+        .input-field {
+            background-color: #2a2a2a !important;
+            border: 1px solid #444 !important;
+            color: #fff !important;
+            border-radius: 4px;
+            padding: 12px;
+            font-size: 1.1rem;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .input-field:focus {
+            border-color: #00bcd4 !important;
+            outline: none;
+            box-shadow: 0 0 8px rgba(0, 188, 212, 0.3);
+        }
+
+        .table-full {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .table-full th {
+            background-color: #181818;
+            color: #00bcd4;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            padding: 15px;
+            text-align: left;
+            border-bottom: 2px solid #333;
+        }
+
+        .table-full td {
+            padding: 15px;
+            border-bottom: 1px solid #222;
+            font-size: 1rem;
+        }
+
+        .table-full tr:hover {
+            background-color: #252525;
+        }
+
+        .precio-destacado {
+            color: #4caf50;
             font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        .stock-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: bold;
+        }
+        .stock-ok { background: rgba(76, 175, 80, 0.2); color: #4caf50; }
+        .stock-low { background: rgba(244, 67, 54, 0.2); color: #f44336; }
+
+        /* Estilo para los resultados del buscador */
+        #contenedor-resultados {
+            min-height: 200px;
         }
     </style>
 </head>
 <body>
-
-    <?php include 'sidebar.php'; ?> 
-    <?php include 'infosesion.php'; ?> 
-
+    <?php include 'sidebar.php'; ?>
     <div class="content">
-        <h1>Consulta Rápida de Precios y Stock</h1>
-        
-        <?php if ($mensaje): ?>
-            <div class="alert alert-error">
-                <?php echo $mensaje; ?>
-            </div>
-        <?php endif; ?>
+        <h1>Consulta de Precios</h1>
 
-        <div class="card">   
-            
-            <input type="text" id="filtroConsulta" class="input-field" placeholder="🔍 Escriba Código o Descripción para buscar..." style="margin-bottom: 20px;">
-            
-            <?php if (empty($productos)): ?>
-                <p style="margin-top: 20px;">No hay productos cargados en el sistema.</p>
-            <?php else: ?>
-                <table id="tablaConsulta" class="tabla-consulta">
+        <div class="card">
+            <label style="color: #aaa; margin-bottom: 10px; display: block;">Escanee el código o escriba el nombre del producto:</label>
+            <div style="position: relative;">
+                <i class="fas fa-search" style="position: absolute; right: 15px; top: 15px; color: #555;"></i>
+                <input type="text" id="busqueda_precio" class="input-field" placeholder="Buscar por código o descripción..." autocomplete="off" autofocus>
+            </div>
+        </div>
+
+        <div class="card">
+            <div id="contenedor-resultados">
+                <table class="table-full" id="tabla_precios">
                     <thead>
                         <tr>
-                            <th style="width: 15%;">Código</th>
+                            <th>Cód. Barra</th>
                             <th>Descripción</th>
-                            <th style="width: 15%; text-align: right;">P. Venta</th>
-                            <th style="width: 10%; text-align: right;">Stock</th>
+                            <th>Rubro</th>
+                            <th style="text-align: right;">Precio Venta</th>
+                            <th style="text-align: center;">Stock</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <?php foreach ($productos as $p): 
-                            // Opcional: Resaltar stock bajo (ejemplo: stock < 5)
-                            $clase_stock = ($p['stock'] < 5) ? 'stock-bajo' : '';
-                        ?>
-                            <tr>
-                                <td><?php echo htmlspecialchars($p['cod_prod']); ?></td>
-                                <td><?php echo htmlspecialchars($p['descripcion']); ?></td>
-                                <td style="text-align: right;">$<?php echo number_format($p['p_venta'], 2, ',', '.'); ?></td>
-                                <td style="text-align: right;" class="<?php echo $clase_stock; ?>">
-                                    <?php echo number_format($p['stock'], 2, ',', '.'); ?>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
+                    <tbody id="tbody_resultados">
+                        <tr>
+                            <td colspan="5" style="text-align: center; color: #666; padding: 40px;">
+                                <i class="fas fa-barcode" style="font-size: 3rem; display: block; margin-bottom: 10px; opacity: 0.5;"></i>
+                                Ingrese un criterio de búsqueda para ver los precios.
+                            </td>
+                        </tr>
                     </tbody>
                 </table>
-            <?php endif; ?>
-        </div>
+            </div>
+        </div>
     </div>
-</body>
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const inputFiltro = document.getElementById('filtroConsulta');
-        const tabla = document.getElementById('tablaConsulta');
-        const filas = tabla ? tabla.getElementsByTagName('tbody')[0].getElementsByTagName('tr') : [];
 
-        if (inputFiltro) {
-            inputFiltro.addEventListener('keyup', function() {
-                const filtro = inputFiltro.value.toUpperCase(); 
+    <script>
+    document.getElementById('busqueda_precio').addEventListener('input', function() {
+        const q = this.value.trim();
+        const tbody = document.getElementById('tbody_resultados');
 
-                for (let i = 0; i < filas.length; i++) {
-                    let fila = filas[i];
-                    // Celdas a buscar: Código (0) y Descripción (1)
-                    let celdaCodigo = fila.getElementsByTagName('td')[0];
-                    let celdaDescripcion = fila.getElementsByTagName('td')[1];
-                    let textoFila = '';
-
-                    // Concatena el texto de las celdas para buscar en ambas
-                    if (celdaCodigo) {
-                        textoFila += (celdaCodigo.textContent || celdaCodigo.innerText);
-                    }
-                    if (celdaDescripcion) {
-                        textoFila += ' ' + (celdaDescripcion.textContent || celdaDescripcion.innerText);
-                    }
-
-                    if (textoFila.toUpperCase().indexOf(filtro) > -1) {
-                        fila.style.display = "";
-                    } else {
-                        fila.style.display = "none";
-                    }
-                }
-            });
+        if (q.length < 2) {
+            return;
         }
+
+        fetch('buscar_producto_ajax.php?q=' + encodeURIComponent(q))
+            .then(res => res.json())
+            .then(data => {
+                tbody.innerHTML = '';
+                if (data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 20px;">No se encontraron productos.</td></tr>';
+                    return;
+                }
+
+                data.forEach(prod => {
+                    const tr = document.createElement('tr');
+                    const stockClass = prod.stock > 0 ? 'stock-ok' : 'stock-low';
+                    
+                    tr.innerHTML = `
+                        <td><strong>${prod.cod_prod}</strong></td>
+                        <td>${prod.descripcion}</td>
+                        <td><span style="color: #aaa; font-size: 0.9rem;">${prod.rubro || 'VARIOS'}</span></td>
+                        <td style="text-align: right;" class="precio-destacado">
+                            $ ${parseFloat(prod.p_venta).toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                        </td>
+                        <td style="text-align: center;">
+                            <span class="stock-badge ${stockClass}">${prod.stock}</span>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            })
+            .catch(err => console.error("Error consultando precios:", err));
     });
-</script>
+    </script>
+</body>
 </html>

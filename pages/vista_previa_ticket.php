@@ -24,36 +24,43 @@ $html_ticket_content = generar_html_ticket_contenido($pdo, $n_documento);
 $html = '<!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <title>Vista Previa Ticket #' . $n_documento . '</title>
-        <link rel="stylesheet" href="../css/ticket_print.css">
-    <style>
-        /* Estilos base para la vista en pantalla. Los estilos de impresión vienen de ticket_print.css */
-        body {
-            width: 320px; 
-            margin: 20px auto; 
-            padding: 0;
-            color: black; /* Asegurar que el texto sea visible */
-            background: white; /* Asegurar fondo blanco para el ticket */
-        }
-        /* Forzar la aplicación del CSS de ticket_print.css para la vista previa */
-        #ticket-vista-previa {
-            padding: 10px; /* Margen interno para el contenido */
-        }
-    </style>
+    <meta charset="UTF-8">
+    <title>Vista Previa Ticket #' . $n_documento . '</title>
+    <link rel="stylesheet" href="../css/ticket_print.css">
+    <style>
+        @media print {
+            @page { 
+                margin: 0; 
+                size: auto; 
+            }
+            body { 
+                margin: 0 !important; 
+                padding: 0 !important; 
+            }
+            .no-print { 
+                display: none !important; 
+            }
+            #ticket-vista-previa {
+                width: 100% !important;
+                padding: 1mm 2mm 1mm 1mm !important;
+                box-sizing: border-box !important;
+                margin: 0 !important;
+            }
+        }
+    </style>
 </head>
 <body onload="window.print()">
-    <div id="ticket-vista-previa">
+    <div id="ticket-vista-previa">
 ';
 
 $html .= $html_ticket_content; // Inserta el contenido del ticket
 
 $html .= '
-    </div>
-        <div style="text-align: center; margin-top: 20px;" class="no-print">
-        <button onclick="window.print()" style="padding: 10px 20px;">Imprimir de Nuevo</button>
-        <button onclick="window.close()" style="padding: 10px 20px;">Cerrar Vista Previa</button>
-    </div>
+    </div>
+    <div style="text-align: center; margin-top: 20px;" class="no-print">
+        <button onclick="window.print()" style="padding: 10px 20px; cursor: pointer;">Imprimir de Nuevo</button>
+        <button onclick="window.close()" style="padding: 10px 20px; cursor: pointer; margin-left: 10px;">Cerrar Vista Previa</button>
+    </div>
 </body>
 </html>';
 

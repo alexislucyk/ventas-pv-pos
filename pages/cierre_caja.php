@@ -3,23 +3,22 @@
 include 'infosesion.php';
 // VALIDACIÓN CRÍTICA:
 require_once '../config/validar_permisos.php';
-restringirPagina('developer');
+//restringirPagina('developer');
 require '../config/db_config.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 
-$hoy = date('Y-m-d');
-
 // Calculamos los totales actuales para mostrar como "Esperado"
 try {
+    // CRÍTICO: No filtramos por hoy, sino por movimientos NO CERRADOS (cerrado = 0)
+    // Esto asegura que si se olvidó cerrar la caja ayer, los montos se acumulen correctamente.
     $sql_sistema = "SELECT 
         SUM(CASE WHEN tipo = 'INGRESO' AND (metodo_pago = 'EFECTIVO' OR metodo_pago = 'MIXTO') THEN monto ELSE 0 END) as ingresos_efectivo,
         SUM(CASE WHEN tipo = 'INGRESO' AND metodo_pago = 'TRANSFERENCIA' THEN monto ELSE 0 END) as ingresos_transf,
         SUM(CASE WHEN tipo = 'EGRESO' THEN monto ELSE 0 END) as egresos
     FROM movimientos 
-    WHERE DATE(fecha) = ?";
+    WHERE cerrado = 0";
     
-    $stmt = $pdo->prepare($sql_sistema);
-    $stmt->execute([$hoy]);
+    $stmt = $pdo->query($sql_sistema);
     $sistema = $stmt->fetch(PDO::FETCH_ASSOC);
 
     $ingresos_efectivo = $sistema['ingresos_efectivo'] ?: 0;
@@ -78,6 +77,11 @@ try {
 
                 <div class="card">
                     <h3>Resumen del Sistema</h3>
+                    <?php if ($ingresos_efectivo == 0 && $ingresos_transf == 0 && $egresos == 0): ?>
+                        <div class="alert alert-info" style="background-color: #004a54; border-left: 4px solid #00bcd4;">
+                            <i class="fas fa-info-circle"></i> No hay movimientos pendientes de cierre.
+                        </div>
+                    <?php endif; ?>
                     <div class="info-line">
                         <span>Ingresos Efectivo:</span>
                         <strong>$ <?php echo number_format($ingresos_efectivo, 2, ',', '.'); ?></strong>

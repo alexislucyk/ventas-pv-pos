@@ -2,14 +2,19 @@
 // pages/vista_recibo.php
 include 'infosesion.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
-require '../config/db_config.php'; // Asegúrate que el path sea correcto
 
 // 1. Obtener ID del Movimiento (Recibo)
 $id_movimiento = filter_input(INPUT_GET, 'id_mov', FILTER_VALIDATE_INT);
-
 if (!$id_movimiento) {
     die("Error: ID de recibo no especificado o inválido.");
 }
+
+$formato = isset($_GET['formato']) ? $_GET['formato'] : 'ticket';
+
+// 1.1. Obtener datos de la empresa dinámicamente
+$stmt_emp = $pdo->query("SELECT * FROM datos_empresa WHERE id = 1 LIMIT 1");
+$emp = $stmt_emp->fetch(PDO::FETCH_ASSOC);
+
 
 // 2. Consulta de Datos (Movimiento y Cliente)
 try {
@@ -46,108 +51,96 @@ $fecha_formateada = date('d/m/Y', strtotime($recibo['fecha']));
 $monto_formateado = number_format($recibo['haber'], 2, ',', '.');
 $cliente_nombre = htmlspecialchars($recibo['apellido'] . ', ' . $recibo['nombre']);
 
-// Datos de tu empresa (Ejemplo, cámbialos por tus datos reales)
-$empresa_nombre = "Electricidad Lucyck";
-$empresa_direccion = "Av. San Martín 698";
-$empresa_tel = "3491-438555";
+// Detectar si es una devolución/anulación para cambiar etiquetas dinámicamente
+$mov_txt = strtoupper($recibo['movimiento']);
+$es_devolucion = (strpos($mov_txt, 'ANULACIÓN') !== false || strpos($mov_txt, 'DEVOLUCIÓN') !== false);
+$titulo_doc = $es_devolucion ? "COMPROBANTE DE DEVOLUCIÓN" : "RECIBO DE PAGO";
+$subtitulo_detalle = $es_devolucion ? "DETALLE DE OPERACIÓN" : "DETALLE DEL PAGO";
+$label_total = $es_devolucion ? "TOTAL REINTEGRADO:" : "TOTAL ABONADO:";
 ?>
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Recibo N° <?php echo $id_movimiento; ?></title>
-    <link rel="stylesheet" href="../css/style.css"> 
+    <title>Recibo N° <?php echo $recibo['n_documento'] ?: $recibo['id']; ?></title>
+    <link rel="stylesheet" href="../css/ticket_print.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        /* Estilos específicos para la vista del recibo */
-        .recibo-container {
-            width: 300px; 
-            margin: 20px auto; 
-            padding: 15px; 
-            background: #fff; 
-            color: #000;
-            border: 1px solid #ddd;
-            font-family: 'Courier New', monospace; /* Fuente de ticket */
-            font-size: 14px;
-            /* line-height: 1.5; */
-        }
-
-        /* --- NUEVO ESTILO --- */
-        .acciones-recibo-container {
-            width: 300px; /* Igual al ancho del recibo */
-            margin: 0 auto; /* Centrar y margen superior */
-            text-align: center;
-        }
-        
-
-        .header, .footer { text-align: center; margin-bottom: 10px; }
-        .divider { border-top: 1px dashed #000; margin: 5px 0; }
-        .data-row { display: flex; justify-content: space-between; }
-        .total { font-weight: bold; font-size: 16px; margin-top: 10px; }
-        
-        
-        @media print {
-            body { background: none; }
-            .content { margin: 0; padding: 0; }
-            .no-print { display: none; }
-            .recibo-container { border: none; }
-        }
+        body { background: #525659; margin: 0; padding: 0; }
+        #ticket-vista-previa { background: white; color: black; margin: 20px auto; padding: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+        .recibo-container.ticket { width: 320px; }
+        .recibo-container.a5 { width: 148mm; }
+        @media print { body { background: none; } .no-print { display: none; } #ticket-vista-previa { margin: 0; box-shadow: none; border: none; width: 100% !important; } }
     </style>
 </head>
-<body>
-    <!-- <div class="content no-print" style="text-align: center; padding-top: 50px;">
-        <p>Recibo N° <?php echo $id_movimiento; ?> generado con éxito.</p>
-        <button onclick="window.print()" class="btn btn-green">Imprimir Recibo</button>
-        <a href="pagos_ctacte.php" style="display: block; margin-top: 15px;">Volver al registro de pagos</a>
-    </div> -->
-    <div class="no-print" style="padding-top: 50px;">
-        
-        <div class="acciones-recibo-container">
-            <p style="margin-bottom: 15px;">Recibo N° <?php echo $id_movimiento; ?> generado con éxito.</p>
+<body onload="window.print()">
+
+    <!-- Contenedor del ticket: Fuera de .content para que la impresora lo tome limpio -->
+    <div id="ticket-vista-previa" class="recibo-container <?php echo $formato; ?>">
+        <?php if ($formato === 'ticket'): ?>
+                <!-- DISEÑO TICKET 80mm -->
+                <div class="center">
+                    <h3><?php echo strtoupper($emp['nombre_fantasia']); ?></h3>
+                    <p><?php echo htmlspecialchars($emp['direccion']); ?><br>Tel: <?php echo htmlspecialchars($emp['telefono']); ?></p>
+                    <p><strong><?php echo $titulo_doc; ?></strong></p>
+                </div>
+                <div class="sep"></div>
+
+                <div class="line"><span>Recibo N°:</span> <span><?php echo $recibo['n_documento'] ?: $recibo['id']; ?></span></div>
+                <div class="line"><span>Fecha:</span> <span><?php echo $fecha_formateada; ?></span></div>
+                <div class="line"><span>Cliente:</span> <span><?php echo $cliente_nombre; ?></span></div>
+                <div class="line"><span>CUIT:</span> <span><?php echo $recibo['cuit'] ?: 'Consumidor Final'; ?></span></div>
+            <?php else: ?>
+                <!-- DISEÑO A5 PROFESSIONAL (Ya implementado arriba en el CSS) -->
+                <div class="header-box">
+                    <div class="box-x"><span>X</span></div>
+                    <div class="box-x-text">DOC. NO VÁLIDO COMO FACTURA</div>
+                    <div class="header-left">
+                        <h2 style="margin: 0; font-size: 1.3em;"><?php echo strtoupper($emp['nombre_fantasia']); ?></h2>
+                        <p style="font-size: 0.85em; margin: 8px 0; line-height: 1.4;">
+                            <?php echo htmlspecialchars($emp['direccion']); ?><br>
+                            <?php echo htmlspecialchars($emp['localidad']); ?><br>
+                            Tel: <?php echo htmlspecialchars($emp['telefono']); ?>
+                        </p>
+                    </div>
+                    <div class="header-right">
+                        <h2 style="margin: 0; font-size: 1.2em;"><?php echo $titulo_doc; ?></h2>
+                        <p style="font-size: 1.1em; margin: 8px 0; font-weight: bold;">
+                            N° <?php echo str_pad($recibo['n_documento'] ?: $recibo['id'], 8, "0", STR_PAD_LEFT); ?>
+                        </p>
+                        <p style="font-size: 1em; margin: 5px 0;">Fecha: <?php echo $fecha_formateada; ?></p>
+                    </div>
+                </div>
+            <?php endif; ?>
+
+            <div class="sep"></div>
+
+            <div class="center" style="font-weight: bold;"><?php echo $subtitulo_detalle; ?></div>
             
-            <button onclick="window.print()" class="btn btn-green">Imprimir Recibo</button> 
+            <div class="line">
+                <span>Movimiento:</span> 
+                <span><?php echo htmlspecialchars($recibo['movimiento']); ?></span>
+            </div>
             
-            <a href="pagos_ctacte.php" style="display: block;">Volver al registro de pagos</a>
-        </div>
-        
-    </div>
+            <div class="sep"></div>
+            
+            <div class="line total-amount">
+                <span style="font-weight: bold;">
+                    <span><?php echo $label_total; ?></span> 
+                </span>
+                <span style="font-weight: bold;">
+                    $<?php echo $monto_formateado; ?></span>
+            </div>
 
-    <div class="recibo-container">
-        <div class="header">
-            <h4><?php echo $empresa_nombre; ?></h4>
-            <p><?php echo $empresa_direccion; ?></p>
-            <p>Tel: <?php echo $empresa_tel; ?></p>
-        </div>
-
-        <div class="divider"></div>
-
-        <p class="data-row"><span>Recibo N°:</span> <span><?php echo $recibo['n_documento'] ?: $recibo['id']; ?></span></p>
-        <p class="data-row"><span>Fecha:</span> <span><?php echo $fecha_formateada; ?></span></p>
-        <p class="data-row"><span>Cliente:</span> <span><?php echo $cliente_nombre; ?></span></p>
-        <p class="data-row"><span>CUIT:</span> <span><?php echo $recibo['cuit'] ?: 'Consumidor Final'; ?></span></p>
-
-        <div class="divider"></div>
-
-        <p style="font-weight: bold; text-align: center;">DETALLE DEL PAGO</p>
-        
-        <p class="data-row">
-            <span>Movimiento:</span> 
-            <span><?php echo htmlspecialchars($recibo['movimiento']); ?></span>
-        </p>
-        
-        <div class="divider"></div>
-        
-        <div class="total">
-            <p class="data-row">
-                <span>TOTAL ABONADO:</span> 
-                <span>$<?php echo $monto_formateado; ?></span>
-            </p>
+            <div class="divider"></div>
+            <div class="footer">
+                <p>GRACIAS POR SU PAGO.</p>
+            </div>
         </div>
 
-        <div class="divider"></div>
-        <div class="footer">
-            <p>GRACIAS POR SU PAGO.</p>
-        </div>
+    <div class="no-print" style="text-align: center; margin-top: 20px; padding-bottom: 30px;">
+        <button onclick="window.print()" style="padding: 10px 20px; cursor: pointer;">Imprimir de nuevo</button>
+        <a href="pagos_ctacte.php" style="display: block; margin-top: 15px; color: #ddd; text-decoration: none;">Volver al registro de pagos</a>
     </div>
 </body>
 </html>

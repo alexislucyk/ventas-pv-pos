@@ -58,6 +58,13 @@
     padding-left: 10px;
 }
 
+/* Estilo para los descuentos en el ticket */
+.discount-text {
+    font-size: 11px !important;
+    color: #666 !important;
+    font-style: italic;
+}
+
 /* ==================================== */
 /* ESTILOS DE IMPRESIÓN (@media print) - ¡LA SOLUCIÓN! */
 /* ==================================== */
@@ -66,7 +73,7 @@
     /* 1. Definición del Contenedor de Impresión */
     body { 
         padding: 0 !important; 
-        margin: 0 !important; 
+        margin: 0 !important;
         width: 80mm !important; /* CRÍTICO: Ancho del ticket */
         font-family: 'Courier New', monospace !important;
         font-size: 13px !important; /* CRÍTICO: TAMAÑO FORZADO en el contenedor */

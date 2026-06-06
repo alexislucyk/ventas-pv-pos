@@ -1,7 +1,7 @@
 <?php
 include 'infosesion.php';
 require_once '../config/validar_permisos.php';
-restringirPagina('developer');
+//restringirPagina('developer');
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 require '../config/db_config.php';
 
@@ -10,6 +10,14 @@ $accion = isset($_GET['accion']) ? $_GET['accion'] : 'listar';
 $id = isset($_GET['id']) ? $_GET['id'] : null;
 $mensaje = '';
 $cliente_editar = array(); 
+
+// Mapeo de tipos de IVA para ARCA/AFIP
+$tipos_iva = [
+    99 => 'Consumidor Final',
+    1  => 'Responsable Inscripto',
+    6  => 'Monotributo',
+    4  => 'Exento'
+];
 
 // --- LÓGICA PARA AUTOGENERAR ID (Solo si es creación) ---
 $nuevo_id_sugerido = '';
@@ -29,6 +37,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $nombre = trim($_POST['nombre']); 
         $apellido = trim($_POST['apellido']); 
+        $dni = trim($_POST['dni']);
+        $id_tipo_iva = isset($_POST['id_tipo_iva']) ? intval($_POST['id_tipo_iva']) : 99;
         $cuit = trim($_POST['cuit']);
         $telefono = trim($_POST['telefono']);
         $direccion = trim($_POST['direccion']);
@@ -46,15 +56,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($accion_post === 'crear') {
             // Usamos el ID autogenerado en el INSERT
             $id_a_insertar = $_POST['id_visual']; 
-            $sql = "INSERT INTO clientes (id, nombre, apellido, cuit, telefono, direccion, estado, habilita_cta, relacion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            $sql = "INSERT INTO clientes (id, nombre, apellido, dni, id_tipo_iva, cuit, telefono, direccion, estado, habilita_cta, relacion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = $pdo->prepare($sql);
-            $stmt->execute(array($id_a_insertar, $nombre, $apellido, $cuit, $telefono, $direccion, $estado, $habilita_cta, $relacion));
+            $stmt->execute(array($id_a_insertar, $nombre, $apellido, $dni, $id_tipo_iva, $cuit, $telefono, $direccion, $estado, $habilita_cta, $relacion));
             $mensaje = "✅ Cliente #$id_a_insertar registrado con éxito.";
             $accion = 'listar'; 
         } elseif ($accion_post === 'editar' && $id_post) {
-            $sql = "UPDATE clientes SET nombre=?, apellido=?, cuit=?, telefono=?, direccion=?, estado=?, habilita_cta=?, relacion=? WHERE id=?";
+            $sql = "UPDATE clientes SET nombre=?, apellido=?, dni=?, id_tipo_iva=?, cuit=?, telefono=?, direccion=?, estado=?, habilita_cta=?, relacion=? WHERE id=?";
             $stmt = $pdo->prepare($sql);
-            $stmt->execute(array($nombre, $apellido, $cuit, $telefono, $direccion, $estado, $habilita_cta, $relacion, $id_post));
+            $stmt->execute(array($nombre, $apellido, $dni, $id_tipo_iva, $cuit, $telefono, $direccion, $estado, $habilita_cta, $relacion, $id_post));
             $mensaje = "✅ Datos del cliente actualizados.";
             $accion = 'listar'; 
         }
@@ -118,7 +128,7 @@ if ($accion === 'listar') {
         </div>
 
         <?php if ($mensaje): ?>
-            <div class="alert <?php echo (strpos($mensaje, '❌') !== false) ? 'alert-error' : 'alert-success'; ?>">
+            <div class="alert <?php echo str_contains($mensaje, '❌') ? 'alert-error' : 'alert-success'; ?>">
                 <?php echo $mensaje; ?>
             </div>
         <?php endif; ?>
@@ -133,6 +143,7 @@ if ($accion === 'listar') {
                                 <th>ID</th>
                                 <th>Apellido y Nombre</th>
                                 <th>CUIT/DNI</th>
+                                <th>IVA</th>
                                 <th>Teléfono</th>
                                 <th>Cta. Cte.</th>
                                 <th>Acciones</th>
@@ -145,7 +156,8 @@ if ($accion === 'listar') {
                                 <td>
                                     <strong><?php echo htmlspecialchars($c['apellido']); if(!empty($c['nombre'])) echo ', ' . htmlspecialchars($c['nombre']); ?></strong>
                                 </td>
-                                <td><?php echo htmlspecialchars($c['cuit'] ? $c['cuit'] : '---'); ?></td>
+                                <td><?php echo htmlspecialchars($c['cuit'] ?: ($c['dni'] ?: '---')); ?></td>
+                                <td><small><?php echo $tipos_iva[$c['id_tipo_iva']] ?? 'CF'; ?></small></td>
                                 <td><?php echo htmlspecialchars($c['telefono'] ? $c['telefono'] : '---'); ?></td>
                                 <td>
                                     <?php if(strtoupper(trim($c['habilita_cta'])) === 'SI'): ?>
@@ -156,7 +168,11 @@ if ($accion === 'listar') {
                                 </td>
                                 <td>
                                     <a href="abm_clientes.php?accion=editar&id=<?php echo $c['id']; ?>" class="btn btn-primary btn-sm">Editar</a>
-                                    <a href="abm_clientes.php?accion=eliminar&id=<?php echo $c['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('¿Eliminar cliente?')">Borrar</a>
+                                    <a href="abm_clientes.php?accion=eliminar&id=<?php echo $c['id']; ?>" 
+                                       class="btn btn-danger btn-sm" 
+                                       onclick="event.preventDefault(); const url=this.href; confirmarAccion('Eliminar Cliente', '¿Estás seguro de eliminar a este cliente? Se perderán sus datos de contacto.', 'ELIMINAR', 'btn-danger', () => window.location.href=url);">
+                                       Borrar
+                                    </a>
                                 </td>
                             </tr>
                             <?php endforeach; ?>
@@ -196,7 +212,23 @@ if ($accion === 'listar') {
                     </div>
 
                     <div class="flex-row">
-                        <div><label>CUIT / DNI</label><input type="text" name="cuit" value="<?php echo isset($cliente_editar['cuit']) ? htmlspecialchars($cliente_editar['cuit']) : ''; ?>"></div>
+                        <div style="flex: 0.6;">
+                            <label>DNI</label>
+                            <input type="text" name="dni" value="<?php echo isset($cliente_editar['dni']) ? htmlspecialchars($cliente_editar['dni']) : ''; ?>">
+                        </div>
+                        <div style="flex: 1;">
+                            <label>Condición IVA (ARCA)</label>
+                            <select name="id_tipo_iva">
+                                <?php foreach ($tipos_iva as $id_iva => $label_iva): ?>
+                                    <option value="<?php echo $id_iva; ?>" <?php echo (isset($cliente_editar['id_tipo_iva']) && $cliente_editar['id_tipo_iva'] == $id_iva) ? 'selected' : ($id_iva == 99 ? 'selected' : ''); ?>>
+                                        <?php echo $label_iva; ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex-row">
+                        <div><label>CUIT (Empresas)</label><input type="text" name="cuit" value="<?php echo isset($cliente_editar['cuit']) ? htmlspecialchars($cliente_editar['cuit']) : ''; ?>"></div>
                         <div><label>Teléfono</label><input type="text" name="telefono" value="<?php echo isset($cliente_editar['telefono']) ? htmlspecialchars($cliente_editar['telefono']) : ''; ?>"></div>
                     </div>
 

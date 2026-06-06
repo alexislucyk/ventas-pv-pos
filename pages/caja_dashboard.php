@@ -18,6 +18,11 @@ try {
     $stmt->execute([$hoy]);
     $resumen = $stmt->fetch(PDO::FETCH_ASSOC);
 
+    // PHP 8.1 Fix: number_format no acepta null. Coalescemos a 0 y aseguramos tipo float.
+    $resumen['efectivo'] = (float)($resumen['efectivo'] ?? 0);
+    $resumen['transferencia'] = (float)($resumen['transferencia'] ?? 0);
+    $resumen['mixto'] = (float)($resumen['mixto'] ?? 0);
+
     // 2. Total de Egresos (Gastos)
     $sql_egresos = "SELECT SUM(monto) as total_egresos FROM movimientos WHERE tipo = 'EGRESO' AND DATE(fecha) = ?";
     $stmt_eg = $pdo->prepare($sql_egresos);

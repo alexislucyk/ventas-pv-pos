@@ -8,7 +8,7 @@
      * @param integer $n_documento Número de documento de la venta a imprimir.
      * @return string HTML puro del ticket, o un mensaje de error.
      */
-    function generar_html_ticket_contenido($pdo, $n_documento) { 
+    function generar_html_ticket_contenido(PDO $pdo, int|string $n_documento): string { 
         
         $n_documento = (int)$n_documento;
         
@@ -45,9 +45,9 @@
             $productos = $stmt_detalle->fetchAll(PDO::FETCH_ASSOC); // <--- Aquí se cargan
 
             // --- 3. CÁLCULOS NECESARIOS ---
-            $total_venta = (float)$venta['total_venta'];
+            $total_venta = (float)($venta['total_venta'] ?? 0);
             $subtotal = $total_venta; 
-            $total_pagado = (float)$venta['pago_efectivo'] + (float)$venta['pago_transf'];
+            $total_pagado = (float)($venta['pago_efectivo'] ?? 0) + (float)($venta['pago_transf'] ?? 0);
             $cambio_saldo = $total_pagado - $total_venta;
             $nombre_tienda = "Electricidad Lucyk"; 
             
