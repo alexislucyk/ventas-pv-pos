@@ -6,6 +6,9 @@ $hoy = date('Y-m-d');
 $nombre_usuario = htmlspecialchars($_SESSION['usuario_nombre']);
 $rol = htmlspecialchars($_SESSION['usuario_rol']);
 
+// Inicializar variables para evitar errores si las consultas fallan antes de su asignación
+$vencimientos_prov = [];
+
 try {
     // 1. Total Contado y Transferencias (Blindado con DATE para evitar fallos por hora)
     $sql_efectivo = "SELECT SUM(total_venta) as total FROM ventas 
@@ -72,16 +75,44 @@ try {
         $ventas_semana[] = $res_dia['total'] ? (float)$res_dia['total'] : 0;
     }
 
-    // 9. Productos más rentables (Top 5 por utilidad neta total)
-    $sql_rentables = "SELECT vd.descripcion, 
-                             SUM(vd.total - (vd.p_costo_venta * vd.cant)) as utilidad 
-                      FROM ventas_detalle vd
-                      JOIN ventas v ON vd.n_documento = v.n_documento
-                      WHERE v.estado = 'Finalizada'
-                      GROUP BY vd.cod_prod, vd.descripcion
-                      ORDER BY utilidad DESC
-                      LIMIT 10";
-    $productos_rentables = $pdo->query($sql_rentables)->fetchAll(PDO::FETCH_ASSOC);
+    // 9. Próximos Vencimientos a Proveedores (Solo facturas a CRÉDITO con saldo pendiente)
+    $sql_vencimientos = "SELECT 
+                            c.n_documento, 
+                            p.razon as proveedor, 
+                            c.fecha_vencimiento, 
+                            c.total_compra,
+                            (c.total_compra - COALESCE(SUM(cc.debe), 0)) as saldo
+                         FROM compras c
+                         JOIN proveedores p ON c.cod_proveedor = p.cod_prov
+                         LEFT JOIN ctacte_proveedores cc ON c.n_documento = cc.n_documento AND c.cod_proveedor = cc.id_proveedor
+                         WHERE c.cond_pago = 'CRÉDITO'
+                         GROUP BY c.id
+                         HAVING saldo > 0
+                         ORDER BY c.fecha_vencimiento ASC
+                         LIMIT 10";
+    $vencimientos_prov = $pdo->query($sql_vencimientos)->fetchAll(PDO::FETCH_ASSOC);
+
+    // 10. Deuda a Proveedores Vencida
+    // Calculamos el saldo de cada proveedor y restamos las facturas que aún no vencieron.
+    $sql_vencido_prov = "
+        SELECT SUM(CASE WHEN (saldo_prov - COALESCE(no_vencido_prov, 0)) > 0 
+                        THEN (saldo_prov - COALESCE(no_vencido_prov, 0)) 
+                        ELSE 0 END) as total_vencido
+        FROM (
+            SELECT 
+                cp.id_proveedor,
+                SUM(cp.haber - cp.debe) as saldo_prov,
+                (SELECT SUM(c.total_compra) FROM compras c 
+                 WHERE c.cod_proveedor = cp.id_proveedor 
+                 AND c.cond_pago = 'CRÉDITO' 
+                 AND (c.fecha_vencimiento >= :hoy OR c.fecha_vencimiento IS NULL)
+                ) as no_vencido_prov
+            FROM ctacte_proveedores cp
+            GROUP BY cp.id_proveedor
+        ) as calculo";
+    $stmt_v_prov = $pdo->prepare($sql_vencido_prov);
+    $stmt_v_prov->execute([':hoy' => $hoy]);
+    $deuda_vencida_prov = (float)($stmt_v_prov->fetchColumn() ?: 0);
 
 } catch (PDOException $e) {
     $error_db = "Error en el Dashboard: " . $e->getMessage();
@@ -93,7 +124,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel de Control | Electricidad Lucyk</title>
+    <title>Panel de Control | Sistemas Lucyk</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -282,6 +313,7 @@ try {
         <a href="pages/cuentas_corrientes.php" class="action-btn btn-cc"><i class="fas fa-users"></i><span>Clientes CC</span></a>
         <a href="pages/compras.php" class="action-btn btn-compra"><i class="fas fa-truck-loading"></i><span>Cargar Compra</span></a>
         <a href="pages/consulta_precios.php" class="action-btn btn-precio"><i class="fas fa-search-dollar"></i><span>Consultar Precio</span></a>
+        <a href="pages/reporte_cuotas.php" class="action-btn" style="border-color: #ff5252;"><i class="fas fa-hand-holding-usd" style="color: #ff5252; background: rgba(255, 82, 82, 0.1);"></i><span>Cuentas a Cobrar</span></a>
     </div>
 
     <div class="dashboard-grid">
@@ -321,6 +353,13 @@ try {
             <div class="footer"><i class="fas fa-hourglass-start"></i> Pendientes de cierre</div>
         </a>
 
+        <a href="pages/ctacte_proveedores.php" class="stat-card card-red">
+            <i class="fas fa-exclamation-triangle icon-bg"></i>
+            <h3>Deuda Prov. Vencida</h3>
+            <div class="value" style="color: #F44336;">$<?php echo number_format($deuda_vencida_prov, 2, ',', '.'); ?></div>
+            <div class="footer"><i class="fas fa-calendar-times"></i> Pagos con plazo expirado</div>
+        </a>
+
     </div>
 
     <div class="chart-container">
@@ -358,23 +397,35 @@ try {
             </table>
         </div>
 
-        <!-- PRODUCTOS RENTABLES -->
+        <!-- VENCIMIENTOS PROVEEDORES -->
         <div class="stat-card">
-            <h3 style="margin-bottom: 15px;"><i class="fas fa-hand-holding-usd" style="color: #2ecc71;"></i> Más Rentables (Top 10)</h3>
+            <h3 style="margin-bottom: 15px;"><i class="fas fa-calendar-alt" style="color: #FF5252;"></i> Vencimientos Proveedores</h3>
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>Producto</th>
-                        <th style="text-align: right;">Ganancia Acum.</th>
+                        <th>Proveedor</th>
+                        <th style="text-align: center;">Vence</th>
+                        <th style="text-align: right;">Monto</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach($productos_rentables as $pr): ?>
+                    <?php foreach($vencimientos_prov as $vp): 
+                        $es_vencida = ($vp['fecha_vencimiento'] && $vp['fecha_vencimiento'] < $hoy);
+                    ?>
                     <tr>
-                        <td><?php echo htmlspecialchars($pr['descripcion']); ?></td>
-                        <td style="text-align: right;" class="text-accent">$<?php echo number_format($pr['utilidad'], 2, ',', '.'); ?></td>
+                        <td>
+                            <small style="color: #666;">#<?php echo htmlspecialchars($vp['n_documento']); ?></small><br>
+                            <strong><?php echo htmlspecialchars($vp['proveedor']); ?></strong>
+                        </td>
+                        <td style="text-align: center; <?php echo $es_vencida ? 'color: #F44336; font-weight: bold;' : ''; ?>">
+                            <?php echo $vp['fecha_vencimiento'] ? date('d/m/y', strtotime($vp['fecha_vencimiento'])) : '---'; ?>
+                        </td>
+                        <td style="text-align: right;" class="text-accent">$<?php echo number_format($vp['total_compra'], 2, ',', '.'); ?></td>
                     </tr>
                     <?php endforeach; ?>
+                    <?php if (empty($vencimientos_prov)): ?>
+                        <tr><td colspan="3" style="text-align:center; padding: 20px; color: #666;">Sin deudas a crédito registradas.</td></tr>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>

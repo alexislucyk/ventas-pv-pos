@@ -6,54 +6,77 @@ require '../config/db_config.php';
 // Capturar fechas del filtro (por defecto: hoy)
 $fecha_inicio = isset($_GET['fecha_inicio']) ? $_GET['fecha_inicio'] : date('Y-m-d');
 $fecha_fin = isset($_GET['fecha_fin']) ? $_GET['fecha_fin'] : date('Y-m-d');
+$id_cliente_filtro = isset($_GET['id_cliente']) ? (int)$_GET['id_cliente'] : 0;
 
 try {
+    // 0. Cargar lista de clientes para el filtro
+    $clientes = $pdo->query("SELECT id, CONCAT(apellido, ', ', nombre) as nombre FROM clientes ORDER BY apellido ASC")->fetchAll(PDO::FETCH_ASSOC);
+
+    // Preparamos los trozos de WHERE para el cliente si aplica
+    $where_cliente = ($id_cliente_filtro > 0) ? " AND id_cliente = :cliente " : "";
+    $where_v_cliente = ($id_cliente_filtro > 0) ? " AND v.id_cliente = :cliente " : "";
+
     // 1. Consulta de Totales Cobrados
     $sql_resumen = "SELECT 
                         SUM(CASE WHEN cond_pago = 'CONTADO' THEN total_venta ELSE (COALESCE(pago_efectivo, 0) + COALESCE(pago_transf, 0)) END) as total_cobrado
-                    FROM ventas 
+                    FROM ventas v
                     WHERE estado = 'Finalizada' 
-                    AND DATE(fecha_venta) BETWEEN :inicio AND :fin";
+                    AND DATE(fecha_venta) BETWEEN :inicio AND :fin" . $where_v_cliente;
     $stmt_res = $pdo->prepare($sql_resumen);
-    $stmt_res->execute([':inicio' => $fecha_inicio, ':fin' => $fecha_fin]);
+    $params_res = [':inicio' => $fecha_inicio, ':fin' => $fecha_fin];
+    if ($id_cliente_filtro > 0) $params_res[':cliente'] = $id_cliente_filtro;
+    $stmt_res->execute($params_res);
     $resumen = $stmt_res->fetch(PDO::FETCH_ASSOC);
 
     // 1.1. Restar Egresos por Devoluciones/Anulaciones de Contado (Dinero que salió de caja)
-    $sql_egresos_dev = "SELECT SUM(total_reintegrado) FROM devoluciones 
+    $sql_egresos_dev = "SELECT SUM(total_reintegrado) FROM devoluciones d
                         WHERE cond_pago = 'CONTADO'
-                        AND DATE(fecha) BETWEEN :inicio AND :fin";
+                        AND DATE(fecha) BETWEEN :inicio AND :fin" . $where_cliente;
     $stmt_eg_dev = $pdo->prepare($sql_egresos_dev);
-    $stmt_eg_dev->execute([':inicio' => $fecha_inicio, ':fin' => $fecha_fin]);
+    $params_eg = [':inicio' => $fecha_inicio, ':fin' => $fecha_fin];
+    if ($id_cliente_filtro > 0) $params_eg[':cliente'] = $id_cliente_filtro;
+    $stmt_eg_dev->execute($params_eg);
     $total_egresos_dev = (float)$stmt_eg_dev->fetchColumn() ?: 0;
 
     $total_contado_periodo = (isset($resumen['total_cobrado']) ? (float)$resumen['total_cobrado'] : 0) - $total_egresos_dev;
 
     // 2. Consulta de Deuda Global (Optimizado: calculamos la diferencia neta total)
-    $sql_total_deuda = "SELECT SUM(debe) - SUM(haber) as saldo_neto FROM ctacte";
-    $res_deuda = $pdo->query($sql_total_deuda)->fetch(PDO::FETCH_ASSOC);
+    $sql_total_deuda = "SELECT SUM(debe) - SUM(haber) as saldo_neto FROM ctacte WHERE 1=1 " . $where_cliente;
+    $stmt_deuda = $pdo->prepare($sql_total_deuda);
+    $params_deuda = [];
+    if ($id_cliente_filtro > 0) $params_deuda[':cliente'] = $id_cliente_filtro;
+    $stmt_deuda->execute($params_deuda);
+    $res_deuda = $stmt_deuda->fetch(PDO::FETCH_ASSOC);
     $saldo_total_por_cobrar = ($res_deuda['saldo_neto'] > 0) ? $res_deuda['saldo_neto'] : 0;
 
     // 3. Ventas en Cta. Cte. del periodo (Neto de devoluciones en Cta Cte)
     $sql_ctacte_periodo = "SELECT SUM(total_venta - (COALESCE(pago_efectivo, 0) + COALESCE(pago_transf, 0))) as total_ctacte 
-                           FROM ventas 
+                           FROM ventas v
                            WHERE estado = 'Finalizada' 
                            AND cond_pago = 'CUENTA CORRIENTE'
-                           AND DATE(fecha_venta) BETWEEN :inicio AND :fin";
+                           AND DATE(fecha_venta) BETWEEN :inicio AND :fin" . $where_v_cliente;
     $stmt_ctacte = $pdo->prepare($sql_ctacte_periodo);
-    $stmt_ctacte->execute([':inicio' => $fecha_inicio, ':fin' => $fecha_fin]);
+    $params_ct = [':inicio' => $fecha_inicio, ':fin' => $fecha_fin];
+    if ($id_cliente_filtro > 0) $params_ct[':cliente'] = $id_cliente_filtro;
+    $stmt_ctacte->execute($params_ct);
     $res_ctacte = $stmt_ctacte->fetch(PDO::FETCH_ASSOC);
 
     // Restamos las devoluciones hechas a Cta Cte (Haber en la tabla ctacte por devoluciones)
-    $sql_ctacte_dev = "SELECT SUM(haber) FROM ctacte 
+    $sql_ctacte_dev = "SELECT SUM(haber) FROM ctacte m
                        WHERE (movimiento LIKE 'ANULACIÓN%' OR movimiento LIKE 'DEVOLUCIÓN%')
-                       AND DATE(fecha) BETWEEN :inicio AND :fin";
+                       AND DATE(fecha) BETWEEN :inicio AND :fin" . $where_cliente;
     $stmt_ctacte_dev = $pdo->prepare($sql_ctacte_dev);
-    $stmt_ctacte_dev->execute([':inicio' => $fecha_inicio, ':fin' => $fecha_fin]);
+    $params_ct_dev = [':inicio' => $fecha_inicio, ':fin' => $fecha_fin];
+    if ($id_cliente_filtro > 0) $params_ct_dev[':cliente'] = $id_cliente_filtro;
+    $stmt_ctacte_dev->execute($params_ct_dev);
     $total_ctacte_dev = (float)$stmt_ctacte_dev->fetchColumn() ?: 0;
 
     $total_ctacte = (isset($res_ctacte['total_ctacte']) ? (float)$res_ctacte['total_ctacte'] : 0) - $total_ctacte_dev;
 
     // 4. Listado de ventas para la tabla
+    $where_v_list = " WHERE DATE(v.fecha_venta) BETWEEN :inicio1 AND :fin1 " . $where_v_cliente;
+    $where_d_list = " WHERE DATE(d.fecha) BETWEEN :inicio2 AND :fin2 " . $where_cliente;
+
     $sql_ventas = "
         SELECT 
             'VENTA' as tipo_registro,
@@ -64,7 +87,7 @@ try {
         FROM ventas v
         LEFT JOIN clientes c ON v.id_cliente = c.id
         LEFT JOIN ventas_afip af ON v.id = af.id_venta
-        WHERE DATE(v.fecha_venta) BETWEEN :inicio1 AND :fin1
+        $where_v_list
 
         UNION ALL
 
@@ -77,15 +100,19 @@ try {
             NULL as cae
         FROM devoluciones d
         LEFT JOIN clientes c ON d.id_cliente = c.id
-        WHERE DATE(d.fecha) BETWEEN :inicio2 AND :fin2
+        $where_d_list
 
         ORDER BY fecha DESC, n_documento DESC";
     
     $stmt_ventas = $pdo->prepare($sql_ventas);
-    $stmt_ventas->execute([
+    $params_ventas = [
         ':inicio1' => $fecha_inicio, ':fin1' => $fecha_fin,
         ':inicio2' => $fecha_inicio, ':fin2' => $fecha_fin
-    ]);
+    ];
+    if ($id_cliente_filtro > 0) {
+        $params_ventas[':cliente'] = $id_cliente_filtro;
+    }
+    $stmt_ventas->execute($params_ventas);
     $ventas = $stmt_ventas->fetchAll(PDO::FETCH_ASSOC);
 
 } catch (PDOException $e) {
@@ -143,8 +170,28 @@ try {
         #detalleBody { min-height: 150px; padding-top: 20px; color: #eee; }
 
         /* Estilos de formulario */
-        .form-control { padding: 8px; border-radius: 5px; border: 1px solid #555; background: #444; color: white; }
-        .btn-secondary { background-color: #7f8c8d; color: white; padding: 8px 15px; border-radius: 5px; text-decoration: none; }
+        .form-control { padding: 10px; border-radius: 5px; border: 1px solid #555; background: #444; color: white; height: 42px; box-sizing: border-box; }
+        
+        /* Botones unificados y alineados */
+        .btn-filter-action {
+            height: 42px;
+            min-width: 120px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 20px;
+            border-radius: 5px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+            margin-bottom: 15px; /* Compensa el margen inferior de los inputs */
+            transition: 0.2s;
+        }
+        .btn-filter-action:hover { opacity: 0.85; transform: translateY(-1px); }
+        .btn-filter-primary { background-color: #005cd4; color: white; }
+        .btn-filter-secondary { background-color: #c2ca56; color: white !important; }
     </style>
 </head>
 <body>
@@ -153,7 +200,7 @@ try {
         <h1>📊 Resumen Histórico de Ventas</h1>
 
         <div class="card" style="margin-bottom: 20px; padding: 15px;">
-            <form method="GET" style="display: flex; gap: 15px; align-items: flex-end;">
+            <form method="GET" style="display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap;">
                 <div>
                     <label>Desde:</label>
                     <input type="date" name="fecha_inicio" value="<?php echo $fecha_inicio; ?>" class="form-control">
@@ -162,8 +209,19 @@ try {
                     <label>Hasta:</label>
                     <input type="date" name="fecha_fin" value="<?php echo $fecha_fin; ?>" class="form-control">
                 </div>
-                <button type="submit" class="btn btn-primary">🔍 Filtrar</button>
-                <a href="resumen_ventas.php" class="btn btn-secondary">🔄 Limpiar</a>
+                <div style="flex-grow: 1; min-width: 200px;">
+                    <label>Cliente:</label>
+                    <select name="id_cliente" class="form-control" style="width: 100%;">
+                        <option value="0">-- Todos los Clientes --</option>
+                        <?php foreach ($clientes as $c): ?>
+                            <option value="<?php echo $c['id']; ?>" <?php echo ($id_cliente_filtro == $c['id']) ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($c['nombre']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <button type="submit" class="btn-filter-action btn-filter-primary">🔍 Filtrar</button>
+                <a href="resumen_ventas.php" class="btn-filter-action btn-filter-secondary">🔄 Limpiar</a>
             </form>
         </div>
 

@@ -151,6 +151,10 @@ try {
         <?php if (tiene_permiso('pages/compras.php')): ?>
             <a href="<?php echo URL_BASE; ?>pages/compras.php"><i class="fas fa-receipt" style="color: #9b59b6;"></i> Compras</a>
         <?php endif; ?>
+
+        <?php if (tiene_permiso('pages/compras_rapidas.php')): ?>
+            <a href="<?php echo URL_BASE; ?>pages/compras_rapidas.php"><i class="fas fa-bolt" style="color: #f1c40f;"></i> Compra Rápida</a>
+        <?php endif; ?>
         
         <?php if (tiene_permiso('pages/pagos_ctacte.php')): ?>
             <a href="<?php echo URL_BASE; ?>pages/pagos_ctacte.php"><i class="fas fa-credit-card" style="color: #1abc9c;"></i> Pagos Cta. Cte.</a>
@@ -186,6 +190,10 @@ try {
             <a href="<?php echo URL_BASE; ?>pages/resumen_ventas.php"><i class="fas fa-list-alt" style="color: #34495e;"></i> Resumen de ventas</a>
         <?php endif; ?>
         
+        <?php if (tiene_permiso('pages/reporte_cuotas.php')): ?>
+            <a href="<?php echo URL_BASE; ?>pages/reporte_cuotas.php"><i class="fas fa-hand-holding-usd" style="color: #ff5252;"></i> Cuentas a Cobrar</a>
+        <?php endif; ?>
+
         <?php if (tiene_permiso('pages/cuentas_corrientes.php')): ?>
             <a href="<?php echo URL_BASE; ?>pages/cuentas_corrientes.php"><i class="fas fa-user-clock" style="color: #e67e22;"></i> Cta.Cte Clientes</a>
         <?php endif; ?>

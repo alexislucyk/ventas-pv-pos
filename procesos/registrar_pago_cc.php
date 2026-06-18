@@ -10,7 +10,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $monto_pago = filter_input(INPUT_POST, 'monto_pago', FILTER_VALIDATE_FLOAT);
     
     $usuario = $_SESSION['usuario_nombre'] ?? 'Sistema';
+    $condicion_pago = $_POST['condicion_pago'] ?? 'Efectivo';
     $n_recibo_raw = trim($_POST['n_recibo'] ?? '');
+
+    $chq_nro = trim($_POST['chq_nro'] ?? '');
+    $chq_vto = $_POST['chq_vto'] ?? '';
+    $chq_emision = $_POST['chq_emision'] ?? '';
 
     // Lógica para evitar el '0': 
     // Si viene vacío, buscamos el último n_documento de un pago para seguir la correlatividad
@@ -30,6 +35,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Validaciones básicas
     if (!$id_cliente || $monto_pago <= 0) {
         header('Location: /ruta/al/formulario.php?error=Datos inválidos.');
+        exit();
+    }
+
+    // Validación de Cheque (Servidor)
+    if ($condicion_pago === 'Cheque' && (empty($chq_nro) || empty($chq_vto))) {
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'error' => 'Los datos del cheque (N° y Vencimiento) son obligatorios.']);
+        } else {
+            header('Location: ../pages/pagos_ctacte.php?error=Datos de cheque incompletos.');
+        }
         exit();
     }
     
@@ -57,6 +74,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // CAPTURAR EL ID DEL RECIBO/MOVIMIENTO RECIÉN CREADO
         $id_movimiento_generado = $pdo->lastInsertId();
+
+        // --- 2.1. REGISTRAR EN MOVIMIENTOS DE CAJA (Reflejo en Caja Dashboard) ---
+        $detalle_mov = "PAGO RECIBIDO - CLIENTE #$id_cliente" . (!empty($n_recibo) ? " (Recibo $n_recibo)" : "");
+        
+        // Si es cheque, agregamos info al detalle para el cajero
+        if ($condicion_pago === 'Cheque' && !empty($chq_nro)) {
+            $detalle_mov .= " | CHQ N° $chq_nro (Vto: " . date('d/m/y', strtotime($chq_vto)) . ")";
+        }
+
+        $sql_mov = "INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado) 
+                    VALUES ('INGRESO', ?, ?, ?, ?, ?, 0)";
+        $pdo->prepare($sql_mov)->execute([
+            $monto_pago,
+            strtoupper($condicion_pago),
+            $detalle_mov,
+            $fecha_movimiento,
+            $usuario
+        ]);
 
         // --- 3. Redirección de Éxito: REDIRIGIR A LA VISTA DEL RECIBO ---
         // Detectar si es una solicitud AJAX

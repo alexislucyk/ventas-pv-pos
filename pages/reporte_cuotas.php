@@ -1,0 +1,211 @@
+<?php
+include 'infosesion.php';
+require '../config/db_config.php';
+
+// 0. Obtener parámetros de filtro
+$id_cliente_filtro = isset($_GET['id_cliente']) ? (int)$_GET['id_cliente'] : 0;
+$fecha_desde = isset($_GET['fecha_desde']) ? $_GET['fecha_desde'] : '';
+$fecha_hasta = isset($_GET['fecha_hasta']) ? $_GET['fecha_hasta'] : '';
+
+// 1. Construir la consulta con filtros dinámicos
+$where_clauses = ["cs.estado IN ('Pendiente', 'Parcial')", "v.estado != 'Anulada'"];
+$params = [];
+
+if ($id_cliente_filtro > 0) {
+    $where_clauses[] = "v.id_cliente = :id_cliente";
+    $params[':id_cliente'] = $id_cliente_filtro;
+}
+
+if (!empty($fecha_desde)) {
+    $where_clauses[] = "cs.fecha_vencimiento >= :desde";
+    $params[':desde'] = $fecha_desde;
+}
+
+if (!empty($fecha_hasta)) {
+    $where_clauses[] = "cs.fecha_vencimiento <= :hasta";
+    $params[':hasta'] = $fecha_hasta;
+}
+
+$sql_where = implode(" AND ", $where_clauses);
+
+$sql = "SELECT 
+            cs.id,
+            cs.nro_cuota,
+            cs.fecha_vencimiento,
+            cs.monto_original,
+            cs.monto_pagado,
+            cs.estado as estado_cuota,
+            v.n_documento,
+            v.cond_pago,
+            c.apellido,
+            c.nombre,
+            c.telefono,
+            DATEDIFF(CURDATE(), cs.fecha_vencimiento) as dias_mora
+        FROM cuotas_seguimiento cs
+        INNER JOIN ventas v ON cs.id_venta = v.id
+        INNER JOIN clientes c ON v.id_cliente = c.id
+        WHERE $sql_where
+        ORDER BY cs.fecha_vencimiento ASC";
+
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
+$cuotas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Obtener lista de clientes para el selector del filtro
+$lista_clientes = $pdo->query("SELECT id, CONCAT(apellido, ', ', nombre) as nombre_completo FROM clientes ORDER BY apellido ASC")->fetchAll();
+
+// Totales para el resumen
+$total_pendiente = 0;
+$total_vencido = 0;
+foreach ($cuotas as $c) {
+    $saldo = $c['monto_original'] - $c['monto_pagado'];
+    $total_pendiente += $saldo;
+    if ($c['dias_mora'] > 0) {
+        $total_vencido += $saldo;
+    }
+}
+?>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Cuentas a Cobrar | Electricidad Lucyk</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { background-color: #121212; color: #e0e0e0; }
+        .content h1 { color: #00bcd4; font-weight: 700; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 25px; display: flex; align-items: center; }
+        .content h1::before { content: "\f53d"; font-family: "Font Awesome 5 Free"; margin-right: 15px; font-size: 1.5rem; }
+        
+        .resumen-cuotas { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px; }
+        .widget-cuotas { padding: 20px; border-radius: 8px; border: 1px solid #333; background: #1e1e1e; }
+        .widget-cuotas h3 { margin: 0; font-size: 0.9rem; color: #aaa; text-transform: uppercase; }
+        .widget-cuotas p { margin: 10px 0 0; font-size: 1.8rem; font-weight: bold; }
+        
+        .cuota-vencida { color: #ff5252 !important; font-weight: bold; }
+        .cuota-al-dia { color: #4caf50 !important; }
+        
+        .table-full { width: 100%; border-collapse: collapse; background: #1e1e1e; border-radius: 8px; overflow: hidden; }
+        .table-full th { background-color: #181818; color: #00bcd4; padding: 15px; text-align: left; border-bottom: 2px solid #333; font-size: 0.85rem; }
+        .table-full td { padding: 15px; border-bottom: 1px solid #222; }
+        .table-full tr:hover { background-color: #252525; }
+        
+        .btn-whatsapp { background: #25d366; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 0.8rem; }
+        .mora-badge { background: rgba(255, 82, 82, 0.2); color: #ff5252; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; }
+
+        /* Estilos para el panel de filtros */
+        .filter-card { background: #1e1e1e; padding: 20px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; }
+        .filter-grid { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 15px; align-items: flex-end; }
+        .filter-grid label { display: block; color: #aaa; font-size: 0.8rem; margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+    <?php include 'sidebar.php'; ?>
+    <div class="content">
+        <h1>Cuentas a Cobrar (Financiación)</h1>
+
+        <!-- Panel de Filtros -->
+        <div class="filter-card">
+            <form method="GET" class="filter-grid">
+                <div>
+                    <label>Filtrar por Cliente:</label>
+                    <select name="id_cliente" class="input-field" style="margin-bottom:0 !important;">
+                        <option value="0">-- Todos los clientes --</option>
+                        <?php foreach($lista_clientes as $lc): ?>
+                            <option value="<?php echo $lc['id']; ?>" <?php echo ($id_cliente_filtro == $lc['id']) ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($lc['nombre_completo']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div>
+                    <label>Vencimiento Desde:</label>
+                    <input type="date" name="fecha_desde" class="input-field" value="<?php echo $fecha_desde; ?>" style="margin-bottom:0 !important;">
+                </div>
+                <div>
+                    <label>Vencimiento Hasta:</label>
+                    <input type="date" name="fecha_hasta" class="input-field" value="<?php echo $fecha_hasta; ?>" style="margin-bottom:0 !important;">
+                </div>
+                <div style="display: flex; gap: 5px;">
+                    <button type="submit" class="btn btn-primary" style="padding: 10px 20px;"><i class="fas fa-filter"></i> Filtrar</button>
+                    <a href="reporte_cuotas.php" class="btn btn-secondary" style="padding: 10px 15px; background: #444;" title="Limpiar Filtros"><i class="fas fa-sync"></i></a>
+                </div>
+            </form>
+        </div>
+
+        <div class="resumen-cuotas">
+            <div class="widget-cuotas">
+                <h3>Total Pendiente de Cobro</h3>
+                <p>$ <?php echo number_format($total_pendiente, 2, ',', '.'); ?></p>
+            </div>
+            <div class="widget-cuotas" style="border-left: 5px solid #ff5252;">
+                <h3>Total Vencido (Mora)</h3>
+                <p style="color: #ff5252;">$ <?php echo number_format($total_vencido, 2, ',', '.'); ?></p>
+            </div>
+        </div>
+
+        <div class="card">
+            <table class="table-full">
+                <thead>
+                    <tr>
+                        <th>Vencimiento</th>
+                        <th>Cliente</th>
+                        <th>Venta</th>
+                        <th>Cuota</th>
+                        <th style="text-align: right;">Saldo</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($cuotas)): ?>
+                        <tr><td colspan="7" style="text-align: center; padding: 40px; color: #666;">No hay cuotas pendientes de cobro.</td></tr>
+                    <?php else: ?>
+                        <?php foreach ($cuotas as $c): 
+                            $saldo = $c['monto_original'] - $c['monto_pagado'];
+                            $es_vencida = ($c['dias_mora'] > 0);
+                        ?>
+                        <tr>
+                            <td class="<?php echo $es_vencida ? 'cuota-vencida' : ''; ?>">
+                                <?php echo date('d/m/Y', strtotime($c['fecha_vencimiento'])); ?>
+                                <?php if($es_vencida): ?>
+                                    <br><span class="mora-badge"><?php echo $c['dias_mora']; ?> días de mora</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <strong><?php echo htmlspecialchars($c['apellido'] . ', ' . $c['nombre']); ?></strong>
+                                <br><small style="color: #777;"><?php echo $c['telefono']; ?></small>
+                            </td>
+                            <td>#<?php echo str_pad($c['n_documento'], 8, '0', STR_PAD_LEFT); ?></td>
+                            <td><?php echo $c['nro_cuota']; ?></td>
+                            <td style="text-align: right; font-weight: bold;">
+                                $ <?php echo number_format($saldo, 2, ',', '.'); ?>
+                            </td>
+                            <td>
+                                <span class="badge <?php echo ($c['estado_cuota'] == 'Parcial') ? 'badge-warning' : 'badge-danger'; ?>">
+                                    <?php echo $c['estado_cuota']; ?></span>
+                            </td>
+                            <td>
+                                <div style="display: flex; gap: 5px;">
+                                    <a href="cobro_cuotas.php?id_venta=<?php echo $c['n_documento']; ?>" class="btn btn-primary btn-sm" title="Ir a Cobrar">
+                                        <i class="fas fa-hand-holding-usd"></i>
+                                    </a>
+                                    <?php if ($c['telefono']): 
+                                        $mensaje_wa = "Hola " . $c['nombre'] . ", te recordamos que tenés una cuota vencida de $" . number_format($saldo, 2) . " en Electricidad Lucyk. Venta #" . $c['n_documento'];
+                                        $link_wa = "https://wa.me/" . preg_replace('/[^0-9]/', '', $c['telefono']) . "?text=" . urlencode($mensaje_wa);
+                                    ?>
+                                        <a href="<?php echo $link_wa; ?>" target="_blank" class="btn-whatsapp" title="Enviar Recordatorio">
+                                            <i class="fab fa-whatsapp"></i>
+                                        </a>
+                                    <?php endif; ?>
+                                </div>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

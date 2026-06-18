@@ -131,9 +131,9 @@ try {
                             <?php foreach ($reporte_utilidad as $i): ?>
                             <tr>
                                 <td><?php echo htmlspecialchars($i['descripcion']); ?></td>
-                                <td class="text-right">$<?php echo number_format((float)($i['total_venta'] ?? 0), 2); ?></td>
-                                <td class="text-right">$<?php echo number_format((float)($i['total_costo'] ?? 0), 2); ?></td>
-                                <td class="text-right text-success"><strong>$<?php echo number_format((float)($i['utilidad_bruta_linea'] ?? 0), 2); ?></strong></td>
+                                <td class="text-right">$<?php echo number_format((float)($i['total_venta'] ?? 0), 2, ',', '.'); ?></td>
+                                <td class="text-right">$<?php echo number_format((float)($i['total_costo'] ?? 0), 2, ',', '.'); ?></td>
+                                <td class="text-right text-success"><strong>$<?php echo number_format((float)($i['utilidad_bruta_linea'] ?? 0), 2, ',', '.'); ?></strong></td>
                             </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -144,27 +144,27 @@ try {
             <div class="col-side">
                 <div class="card-stats">
                     <span>Ventas Mostrador (Hoy)</span>
-                    <span class="big-number text-info">$<?php echo number_format((float)($caja_real['ventas_contado'] ?? 0), 2); ?></span>
+                    <span class="big-number text-info">$<?php echo number_format((float)($caja_real['ventas_contado'] ?? 0), 2, ',', '.'); ?></span>
                 </div>
                 <div class="card-stats">
                     <span>Cobros de Deudas (Cta. Cte.)</span>
-                    <span class="big-number text-success">$<?php echo number_format((float)($caja_real['cobros_ctacte'] ?? 0), 2); ?></span>
+                    <span class="big-number text-success">$<?php echo number_format((float)($caja_real['cobros_ctacte'] ?? 0), 2, ',', '.'); ?></span>
                 </div>
                 <div class="card-stats" style="border-left-color: #e74c3c;">
                     <span>Pagos a Proveedores</span>
-                    <span class="big-number text-danger">$<?php echo number_format((float)($caja_real['pagos_proveedores'] ?? 0), 2); ?></span>
+                    <span class="big-number text-danger">$<?php echo number_format((float)($caja_real['pagos_proveedores'] ?? 0), 2, ',', '.'); ?></span>
                 </div>
                 <div class="card" style="background: #222; border: 1px solid #444;">
                     <h3>Saldo Neto en Caja</h3>
                     <p class="big-number <?php echo $caja_real['neto_caja'] >= 0 ? 'text-success' : 'text-danger'; ?>">
-                        $<?php echo number_format((float)($caja_real['neto_caja'] ?? 0), 2); ?>
+                        $<?php echo number_format((float)($caja_real['neto_caja'] ?? 0), 2, ',', '.'); ?>
                     </p>
                     <small>Este es el dinero real disponible.</small>
                 </div>
                 
                 <div class="card" style="margin-top: 20px; background: #002b36;">
                     <h3>Ganancia Proyectada</h3>
-                    <p>Utilidad Bruta: <br><strong>$<?php echo number_format((float)($total_ingresos_ventas - $total_costos_cmv), 2); ?></strong></p>
+                    <p>Utilidad Bruta: <br><strong>$<?php echo number_format((float)($total_ingresos_ventas - $total_costos_cmv), 2, ',', '.'); ?></strong></p>
                     <small>(Incluso lo no cobrado aún)</small>
                 </div>
             </div>

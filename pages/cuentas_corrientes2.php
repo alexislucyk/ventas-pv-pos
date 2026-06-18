@@ -552,6 +552,16 @@ try {
             return;
         }
 
+        // Validación de Cheque
+        if (condicion_pago === 'Cheque') {
+            const nro = document.getElementById('pago_chq_nro').value.trim();
+            const vto = document.getElementById('pago_chq_vto').value;
+            if (!nro || !vto) {
+                mostrarMensaje("Datos de Cheque", "⚠️ El N° de cheque y la fecha de vencimiento son obligatorios para este método.", "error");
+                return;
+            }
+        }
+
         confirmarAccion(
             "Confirmar Pago a Cliente",
             `¿Está seguro de registrar un pago de $${monto_pago.toLocaleString('es-AR', {minimumFractionDigits:2})} para ${currentClientName}?`,

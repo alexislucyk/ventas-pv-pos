@@ -39,13 +39,19 @@ else if ($id > 0) {
 }
 
 if (!$res) die("No se encontró el comprobante.");
+
+$stmt_cfg = $pdo->query("SELECT valor FROM configuracion WHERE clave = 'ticket_ancho'");
+$ancho_papel = $stmt_cfg->fetchColumn() ?: '80mm';
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <title>Ticket Devolución OP#<?php echo $id; ?></title>
-    <link rel="stylesheet" href="../css/ticket_print.css">
+    <link rel="stylesheet" href="../css/temptocketprint.css">
+    <style>
+        @media print { body { width: <?php echo $ancho_papel; ?> !important; } }
+    </style>
 </head>
 <body onload="window.print()">
     <div id="ticket-vista-previa">

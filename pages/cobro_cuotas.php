@@ -53,10 +53,21 @@ try {
         <?php endif; ?>
 
         <div class="card">
-            <label for="buscar_cliente_cuotas">Buscar Cliente con Deuda Financiada</label>
-            <div class="contenedor-busqueda-cliente" style="position:relative;">
-                <input type="text" id="buscar_cliente_cuotas" class="input-field" autocomplete="off" placeholder="Escriba nombre o CUIT...">
-                <div id="resultadosBusquedaClientes"></div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 0;">
+                <div>
+                    <label for="buscar_cliente_cuotas">Buscar Cliente con Deuda Financiada</label>
+                    <div class="contenedor-busqueda-cliente" style="position:relative;">
+                        <input type="text" id="buscar_cliente_cuotas" class="input-field" autocomplete="off" placeholder="Escriba nombre o CUIT...">
+                        <div id="resultadosBusquedaClientes"></div>
+                    </div>
+                </div>
+                <div>
+                    <label for="input_busqueda_venta">Buscar por N° de Venta / Documento</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="number" id="input_busqueda_venta" class="input-field" placeholder="Ingrese N° de Venta..." style="margin-bottom:0 !important;">
+                        <button type="button" class="btn btn-primary" onclick="buscarVentaParaCobro(document.getElementById('input_busqueda_venta').value)"><i class="fas fa-search"></i> BUSCAR</button>
+                    </div>
+                </div>
             </div>
             <div style="margin-top: 15px; display: flex; gap: 15px; align-items: flex-end; justify-content: space-between; border-top: 1px solid #333; padding-top: 15px;">
                 <div style="display: flex; gap: 10px;">
@@ -139,6 +150,24 @@ try {
         const inputBusqueda = document.getElementById('buscar_cliente_cuotas');
         const resultadosDiv = document.getElementById('resultadosBusquedaClientes');
 
+        // Lógica de auto-carga de búsqueda desde parámetros de URL
+        document.addEventListener('DOMContentLoaded', function() {
+            // 1. Obtener los parámetros de la URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const idVenta = urlParams.get('id_venta');
+
+            // 2. Si existe el parámetro, disparamos la búsqueda
+            if (idVenta) {
+                const inputBusqVenta = document.getElementById('input_busqueda_venta');
+                if (inputBusqVenta) {
+                    inputBusqVenta.value = idVenta;
+                    if (typeof buscarVentaParaCobro === 'function') {
+                        buscarVentaParaCobro(idVenta);
+                    }
+                }
+            }
+        });
+
         inputBusqueda.addEventListener('input', function() {
             const q = this.value.toLowerCase().trim();
             resultadosDiv.innerHTML = '';
@@ -184,6 +213,23 @@ try {
             document.querySelector('#titulo_cliente span').innerText = "Listado General del Sistema";
             document.getElementById('buscar_cliente_cuotas').value = '';
             cargarCuotas('all');
+        };
+
+        window.buscarVentaParaCobro = function(nDoc) {
+            if (!nDoc) return;
+            // Usamos obtener_venta_detalle_ajax.php que está en la misma carpeta 'pages' y ya soporta n_documento
+            fetch(`obtener_venta_detalle_ajax.php?n_documento=${nDoc}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) {
+                        mostrarMensaje("No encontrado", "⚠️ No se encontró ninguna venta financiada con el N° " + nDoc, "error");
+                    } else {
+                        const internalId = data.cabecera.id;
+                        if (internalId) verDetalleCuotas(internalId, data.cabecera.n_documento);
+                        else console.error("La respuesta del servidor no incluyó un ID de venta válido.");
+                    }
+                })
+                .catch(err => console.error("Error buscando venta:", err));
         };
 
         window.verDetalleCuotas = function(idVenta, nDoc) {

@@ -485,12 +485,7 @@ unset($_SESSION['ticket_a_imprimir_doc']);
                         <h3 style="color: #00bcd4; margin-top: 0;"><i class="fas fa-hand-holding-usd"></i> Detalles de Financiación</h3>
                         
                         <label for="cuotas_selector">Cantidad de Cuotas</label>
-                        <select id="cuotas_selector" name="cuotas_selector" class="input-field">
-                            <option value="1">1 Cuota</option>
-                            <option value="3">3 Cuotas</option>
-                            <option value="6">6 Cuotas</option>
-                            <option value="12">12 Cuotas</option>
-                        </select>
+                        <input type="number" id="cuotas_selector" name="cuotas_selector" class="input-field" value="1" min="1" step="1">
 
                         <label for="intervalo_cuotas">Intervalo entre Cuotas (días)</label>
                         <select id="intervalo_cuotas" name="intervalo_cuotas" class="input-field">

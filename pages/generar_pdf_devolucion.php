@@ -177,7 +177,7 @@ try {
     $pdf->SetFont('Arial', 'B', 10);
     $pdf->Cell(115, 8, "TOTAL REINTEGRADO: ", 0, 0, 'R');
     $pdf->SetFillColor(245, 245, 245);
-    $pdf->Cell(23, 8, "$ " . number_format($total_reintegrado, 2), 1, 1, 'R', true);
+    $pdf->Cell(23, 8, "$ " . number_format($total_reintegrado, 2, ',', '.'), 1, 1, 'R', true);
 
     $pdf->Output('I', 'Devolucion_OP' . $op_n . '.pdf');
 } catch (Exception $e) {

@@ -19,8 +19,9 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
 }
 
 $id_venta = isset($_GET['id_venta']) ? (int)$_GET['id_venta'] : 0;
+$n_documento_get = isset($_GET['n_documento']) ? (int)$_GET['n_documento'] : 0;
 
-if ($id_venta <= 0) {
+if ($id_venta <= 0 && $n_documento_get <= 0) {
     echo json_encode(['error' => 'ID de venta no válido.']);
     exit();
 }
@@ -36,6 +37,14 @@ $response = [
 ];
 
 try {
+    // --- A) Construir WHERE dinámico ---
+    $where = "v.id = ?";
+    $val = $id_venta;
+    if ($id_venta <= 0 && $n_documento_get > 0) {
+        $where = "v.n_documento = ?";
+        $val = $n_documento_get;
+    }
+
     // --- A) Obtener Cabecera de la Venta y datos del Cliente ---
     $sql_cabecera = "
         SELECT 
@@ -45,10 +54,10 @@ try {
             c.cuit AS num_documento
         FROM ventas v
         LEFT JOIN clientes c ON v.id_cliente = c.id
-        WHERE v.id = ?";
+        WHERE $where";
     
     $stmt_cabecera = $pdo->prepare($sql_cabecera);
-    $stmt_cabecera->execute([$id_venta]);
+    $stmt_cabecera->execute([$val]);
     $venta = $stmt_cabecera->fetch(PDO::FETCH_ASSOC);
 
     if (!$venta) {

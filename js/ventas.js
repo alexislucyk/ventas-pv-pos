@@ -220,8 +220,8 @@ function actualizarTotal() {
         const entrega = efe + tra;
         const cantCuotas = parseInt(document.getElementById('cuotas_selector').value) || 1;
 
-        // El interés se aplica sobre el saldo (Total productos - Entrega inicial)
-        const saldo = Math.max(0, itemsTotal - entrega);
+        // El interés se aplica sobre el saldo real (Total con descuento global - Entrega inicial)
+        const saldo = Math.max(0, finalTotal - entrega);
         const montoInteres = saldo * (interesPorc / 100);
         const montoAFinanciar = saldo + montoInteres;
         

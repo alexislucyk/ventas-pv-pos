@@ -92,12 +92,30 @@ try {
                     </div>
                     <div>
                         <label>Método de Pago</label>
-                        <select name="condicion_pago" class="input-field" required>
+                        <select name="condicion_pago" id="condicion_pago" class="input-field" required onchange="toggleChequeFields('pago_directo')">
                             <option value="Efectivo">Efectivo</option>
                             <option value="Transferencia">Transferencia</option>
                             <option value="Cheque">Cheque</option>
                             <option value="Tarjeta">Tarjeta</option>
                         </select>
+                    </div>
+                </div>
+
+                <!-- Campos extra para Cheque -->
+                <div id="panel_cheque_pago_directo" style="display: none; background: #252525; padding: 15px; border-radius: 8px; border: 1px dashed #f1c40f; margin-bottom: 20px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                        <div>
+                            <label style="font-size: 0.75rem;">N° Cheque</label>
+                            <input type="text" name="chq_nro" class="input-field" placeholder="00000000">
+                        </div>
+                        <div>
+                            <label style="font-size: 0.75rem;">F. Emisión</label>
+                            <input type="date" name="chq_emision" class="input-field" value="<?php echo date('Y-m-d'); ?>">
+                        </div>
+                        <div>
+                            <label style="font-size: 0.75rem;">F. Vencimiento</label>
+                            <input type="date" name="chq_vto" class="input-field">
+                        </div>
                     </div>
                 </div>
 
@@ -145,9 +163,20 @@ try {
         }
     });
 
+    function toggleChequeFields(suffix) {
+        const combo = suffix === 'pago_directo' ? document.getElementById('condicion_pago') : document.getElementById('pago_condicion_pago');
+        const panel = document.getElementById('panel_cheque_' + suffix);
+        if (combo.value === 'Cheque') {
+            panel.style.display = 'block';
+        } else {
+            panel.style.display = 'none';
+        }
+    }
+
     // Interceptamos el envío del formulario para usar los modales estilizados
     document.getElementById('formRegistroPagoCC').onsubmit = function(e) {
         e.preventDefault(); // Detenemos el envío automático
+        const form = this;
 
         if (!idHidden.value) {
             mostrarMensaje("Faltan Datos", "⚠️ Debe seleccionar un cliente de la lista de resultados para continuar.", "error");
@@ -160,6 +189,17 @@ try {
             return;
         }
 
+        // Validación de Cheque
+        const condicion = document.getElementById('condicion_pago').value;
+        if (condicion === 'Cheque') {
+            const nro = this.querySelector('[name="chq_nro"]').value.trim();
+            const vto = this.querySelector('[name="chq_vto"]').value;
+            if (!nro || !vto) {
+                mostrarMensaje("Datos de Cheque", "⚠️ Cuando el método es Cheque, el N° de cheque y la fecha de vencimiento son obligatorios.", "error");
+                return;
+            }
+        }
+
         const nombreCli = document.getElementById('display_nombre_cliente').innerText;
 
         confirmarAccion(
@@ -168,7 +208,36 @@ try {
             "SÍ, REGISTRAR PAGO",
             "btn-success",
             () => {
-                this.submit(); // Si confirma, enviamos el formulario programáticamente
+                const btnSubmit = form.querySelector('button[type="submit"]');
+                btnSubmit.disabled = true;
+                btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin"></i> PROCESANDO...';
+
+                const formData = new FormData(form);
+                fetch('../procesos/registrar_pago_cc.php', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        // Abrir recibo en una nueva pestaña (popup de impresión)
+                        window.open(`vista_recibo.php?id_mov=${data.id_movimiento}`, '_blank', 'width=400,height=700,scrollbars=yes,resizable=yes');
+                        
+                        // Redirigimos inmediatamente para limpiar el formulario sin mostrar avisos
+                        window.location.href = 'pagos_ctacte.php';
+                    } else {
+                        mostrarMensaje("Error", "❌ " + (data.error || "No se pudo registrar el pago."), "error");
+                        btnSubmit.disabled = false;
+                        btnSubmit.innerHTML = '<i class="fas fa-check-circle"></i> CONFIRMAR REGISTRO DE PAGO';
+                    }
+                })
+                .catch(err => {
+                    console.error("Error en registro:", err);
+                    mostrarMensaje("Error de Conexión", "❌ No se pudo conectar con el servidor.", "error");
+                    btnSubmit.disabled = false;
+                    btnSubmit.innerHTML = '<i class="fas fa-check-circle"></i> CONFIRMAR REGISTRO DE PAGO';
+                });
             }
         );
     };

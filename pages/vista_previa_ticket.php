@@ -16,6 +16,10 @@ if (!isset($_GET['n_documento']) || empty($_GET['n_documento'])) {
 
 $n_documento = (int)$_GET['n_documento'];
 
+// Obtener configuración de ancho de papel
+$stmt_cfg = $pdo->query("SELECT valor FROM configuracion WHERE clave = 'ticket_ancho'");
+$ancho_papel = $stmt_cfg->fetchColumn() ?: '80mm';
+
 // 3. Generar el HTML del ticket (usando $pdo y n_documento)
 // 🚨 NOMBRE DE FUNCIÓN CORREGIDO
 $html_ticket_content = generar_html_ticket_contenido($pdo, $n_documento);
@@ -26,7 +30,7 @@ $html = '<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <title>Vista Previa Ticket #' . $n_documento . '</title>
-    <link rel="stylesheet" href="../css/ticket_print.css">
+    <link rel="stylesheet" href="../css/temptocketprint.css">
     <style>
         @media print {
             @page { 
@@ -36,6 +40,7 @@ $html = '<!DOCTYPE html>
             body { 
                 margin: 0 !important; 
                 padding: 0 !important; 
+                width: ' . $ancho_papel . ' !important;
             }
             .no-print { 
                 display: none !important; 

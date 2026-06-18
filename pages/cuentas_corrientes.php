@@ -57,30 +57,41 @@ try {
         }
         .stat-card {
             background: #2c2c2c;
-            padding: 20px;
+            padding: 15px;
             border-radius: 8px;
-            border-left: 5px solid #00bcd4;
+            border-left: 4px solid #00bcd4;
             color: #fff;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
         }
-        .stat-card h3 { margin: 0; font-size: 0.85rem; color: #bbb; text-transform: uppercase; letter-spacing: 1px; }
-        .stat-card .value { font-size: 24px; font-weight: bold; margin-top: 10px; }
+        .stat-card h3 { margin: 0; font-size: 0.7rem; color: #bbb; text-transform: uppercase; letter-spacing: 1px; }
+        .stat-card .value { font-size: 1.4rem; font-weight: bold; margin-top: 5px; }
         
         .saldo-deudor { color: #ff5e5e; font-weight: bold; }
         .saldo-favor { color: #2ecc71; font-weight: bold; }
         
-        .btn-view { background: #3498db; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 12px; cursor: pointer; border:none; }
-        .btn-whatsapp-nodered { background: #25d366; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 12px; margin-left: 5px; border: none; cursor: pointer; }
+        /* Reducción de Escala General */
+        .content { padding: 20px 30px; }
+        .content h1 { font-size: 1.6rem; margin-bottom: 20px; padding-bottom: 8px; }
+        .card { padding: 12px 15px; margin-bottom: 15px; }
+        .card h2, .card h3 { font-size: 1.1rem; }
+        .input-field { padding: 8px !important; font-size: 0.9rem; margin-bottom: 10px !important; }
+        label { font-size: 0.85rem; margin-bottom: 4px; }
+        .btn, .btn-primary, .btn-secondary, .btn-success, .btn-view, .btn-whatsapp-nodered { padding: 6px 12px; font-size: 0.85rem; }
 
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; background: #1f1f1f; color: #eee; }
-        th { background: #333; color: #fff; padding: 12px; text-align: left; }
-        td { padding: 12px; border-bottom: 1px solid #444; }
+        .btn-view { background: #3498db; color: white; border-radius: 4px; text-decoration: none; cursor: pointer; border:none; }
+        .btn-whatsapp-nodered { background: #25d366; color: white; border-radius: 4px; text-decoration: none; margin-left: 5px; border: none; cursor: pointer; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; background: #1f1f1f; color: #eee; font-size: 0.82rem; }
+        th { background: #333; color: #fff; padding: 6px 10px !important; text-align: left; }
+        td { padding: 6px 10px !important; border-bottom: 1px solid #444; }
+        table .text-right { font-size: 0.85rem !important; }
         tr:hover { background: #292929; }
 
         /* --- FIX DEFINITIVO MODALES --- */
         /* Forzamos el centrado absoluto sobre el viewport ignorando márgenes y flujos del sistema */
         .modal, .modal-custom {
             position: fixed !important;
-            z-index: 2147483647 !important; /* Valor máximo de profundidad */
+            z-index: 2147483640 !important; /* Bajamos ligeramente para dejar espacio al toast */
             left: 0 !important;
             top: 0 !important;
             width: 100% !important;
@@ -96,7 +107,7 @@ try {
         .modal-content, .modal-content-custom {
             background-color: #1e1e1e !important;
             margin: 0 !important; /* Eliminamos el margen que lo empuja hacia abajo */
-            padding: 25px !important;
+            padding: 15px 20px !important;
             border: 1px solid #444 !important;
             border-radius: 12px !important;
             width: 95% !important;
@@ -127,7 +138,7 @@ try {
     <div class="content">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <h1>📊 Cuentas Corrientes</h1>
-            <a href="pagos_ctacte.php" class="btn-primary" style="padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+            <a href="pagos_ctacte.php" class="btn-primary" style="padding: 8px 18px; text-decoration: none; border-radius: 5px;">
                 ➕ Registrar Pago / Cobro
             </a>
         </div>
@@ -266,10 +277,30 @@ try {
                 <label>Monto a Abonar ($)</label>
                 <input type="number" id="pago_monto" name="monto_pago" step="0.01" min="0.01" class="input-field" placeholder="0.00" required>
                 <label>Método de Pago</label>
-                <select name="condicion_pago" class="input-field" required>
+                <select name="condicion_pago" id="pago_condicion_pago" class="input-field" required onchange="toggleChequeFields('modal')">
                     <option value="Efectivo">Efectivo</option>
                     <option value="Transferencia">Transferencia</option>
+                    <option value="Cheque">Cheque</option>
                 </select>
+
+                <!-- Campos extra para Cheque en Modal -->
+                <div id="panel_cheque_modal" style="display: none; background: #111; padding: 12px; border-radius: 8px; border: 1px dashed #f1c40f; margin-bottom: 15px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div style="grid-column: span 2;">
+                            <label style="font-size: 0.75rem;">N° de Cheque</label>
+                            <input type="text" id="pago_chq_nro" name="chq_nro" class="input-field" placeholder="Número del documento">
+                        </div>
+                        <div>
+                            <label style="font-size: 0.75rem;">Emisión</label>
+                            <input type="date" id="pago_chq_emision" name="chq_emision" class="input-field" value="<?php echo date('Y-m-d'); ?>">
+                        </div>
+                        <div>
+                            <label style="font-size: 0.75rem;">Vencimiento</label>
+                            <input type="date" id="pago_chq_vto" name="chq_vto" class="input-field">
+                        </div>
+                    </div>
+                </div>
+
                 <button type="submit" class="btn btn-primary btn-block" style="height: 50px; font-weight: bold; margin-top: 15px;">CONFIRMAR PAGO</button>
             </form>
         </div>
@@ -299,6 +330,31 @@ try {
     let currentClientName = null;
     let modalActualTipo = ''; 
     let modalActualId = 0;
+
+    // --- FUNCIONES DE UTILIDAD ---
+
+    // Función para mostrar notificaciones tipo "toast"
+    function mostrarToast(mensaje, tipo = 'success') {
+        const toast = document.createElement('div');
+        toast.className = 'toast-notificacion';
+        if (tipo === 'error') toast.style.background = '#e74c3c';
+        toast.innerHTML = `<i class="fas ${tipo === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle'}"></i> ${mensaje}`;
+        document.body.appendChild(toast);
+        setTimeout(() => {
+            toast.classList.add('toast-fade-out');
+            setTimeout(() => toast.remove(), 500);
+        }, 5000); // Mostrar por 5 segundos
+    }
+
+    window.toggleChequeFields = function(suffix) {
+        const combo = document.getElementById(suffix === 'modal' ? 'pago_condicion_pago' : 'condicion_pago');
+        const panel = document.getElementById('panel_cheque_' + suffix);
+        if (combo.value === 'Cheque') {
+            panel.style.display = 'block';
+        } else {
+            panel.style.display = 'none';
+        }
+    }
 
     // --- LÓGICA DE DETALLE Y PAGO ---
 
@@ -368,6 +424,17 @@ try {
     document.getElementById('formRegistrarPagoCliente').onsubmit = function(e) {
         e.preventDefault();
 
+        // Validación de Cheque
+        const condicion = document.getElementById('pago_condicion_pago').value;
+        if (condicion === 'Cheque') {
+            const nro = document.getElementById('pago_chq_nro').value.trim();
+            const vto = document.getElementById('pago_chq_vto').value;
+            if (!nro || !vto) {
+                mostrarToast("⚠️ El N° de cheque y el vencimiento son obligatorios.", "error");
+                return;
+            }
+        }
+
         // Truco para evitar el bloqueador de popups: Abrir la ventana inmediatamente durante el evento
         const receiptWin = window.open('', '_blank', 'width=400,height=700,scrollbars=yes');
         if (receiptWin) receiptWin.document.write('<p style="font-family:sans-serif; text-align:center; margin-top:20px;">Generando recibo...</p>');
@@ -389,51 +456,59 @@ try {
                 if (receiptWin) {
                     receiptWin.location.href = 'vista_recibo.php?id_mov=' + data.id_movimiento;
                 } else {
-                    alert("¡Pago registrado! Pero el navegador bloqueó la apertura del recibo N° " + data.id_movimiento + ". Por favor, habilite los pop-ups.");
+                    mostrarToast("⚠️ Pago registrado, pero se bloqueó el recibo. Habilite pop-ups.", "error");
                 }
                 
-                cerrarModalRegistrarPagoCliente();
+                // Recarga inmediata para actualizar saldos sin mensajes de éxito intermedios
                 location.reload();
             } else {
                 if (receiptWin) receiptWin.close();
-                alert("Error: " + data.error);
+                mostrarToast("❌ Error: " + data.error, "error");
                 btn.disabled = false;
                 btn.innerHTML = 'CONFIRMAR PAGO';
             }
         }).catch(err => {
             if (receiptWin) receiptWin.close();
-            alert("Error de conexión");
+            mostrarToast("❌ Error de conexión con el servidor", "error");
             btn.disabled = false;
             btn.innerHTML = 'CONFIRMAR PAGO';
         });
     };
 
-    // --- WHATSAPP ---
-
-    async function enviarWhatsAppNodeRed(telefono, nombre, saldo) {
-        if (!telefono) return alert("El cliente no tiene teléfono.");
-        const msg = `Hola ${nombre}, tu saldo en Electricidad Lucyk es de $${Math.abs(saldo).toLocaleString('es-AR')}.`;
-        document.getElementById('wa_destino_tel').value = telefono;
-        document.getElementById('wa_destino_msg').value = msg;
-        document.getElementById('mensajeWhatsAppPreview').innerText = msg;
-        document.getElementById('modalWhatsApp').style.display = 'flex';
-    }
-
     async function ejecutarEnvioWhatsApp() {
         const btn = document.getElementById('btnConfirmarWA');
         btn.disabled = true;
-        fetch('../ajax/enviar_whatsapp_nodered.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ telefono: document.getElementById('wa_destino_tel').value, mensaje: document.getElementById('wa_destino_msg').value })
-        }).then(res => res.json()).then(data => {
-            if (data.success) { alert("Enviado"); cerrarModalWhatsApp(); }
-        }).finally(() => btn.disabled = false);
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ENVIANDO...';
+        
+        const tel = document.getElementById('wa_destino_tel').value;
+        const msg = document.getElementById('wa_destino_msg').value;
+
+        try {
+            const response = await fetch('../ajax/enviar_whatsapp_nodered.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ telefono: tel, mensaje: msg })
+            });
+
+            const text = await response.text();
+            const data = JSON.parse(text.substring(text.indexOf('{')));
+
+            if (data.success) {
+                mostrarToast("¡Mensaje enviado con éxito!", "success");
+                cerrarModalWhatsApp();
+            } else {
+                mostrarToast("Error: " + (data.error || "No se pudo enviar"), "error");
+            }
+        } catch (err) {
+            console.error("Error en fetch de WhatsApp:", err);
+            mostrarToast("Error de conexión con el servidor.", "error");
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = 'ENVIAR AHORA';
+        }
     }
 
-    // --- UTILIDADES ---
-
-    function cerrarModalHistorial() { document.getElementById('modalHistorial').style.display = 'none'; }
+    function cerrarModalHistorial() { document.getElementById('modalHistorial').style.display = 'none'; } // Ya existía
     function cerrarModalFactura() { document.getElementById('modalFactura').style.display = 'none'; }
     function cerrarModalWhatsApp() { document.getElementById('modalWhatsApp').style.display = 'none'; }
     function cerrarModalRegistrarPagoCliente() { document.getElementById('modalRegistrarPagoCliente').style.display = 'none'; }
@@ -450,6 +525,22 @@ try {
         });
     }
 
+    // --- WHATSAPP ---
+
+    async function enviarWhatsAppNodeRed(telefono, nombre, saldo) {
+        if (!telefono || telefono.trim() === "") {
+            return mostrarToast("El cliente no tiene un teléfono registrado.", "error");
+        }
+        
+        const saldoAbs = Math.abs(saldo).toLocaleString('es-AR', {minimumFractionDigits: 2});
+        const tipoSaldo = saldo > 0 ? "deudor de $" : "a favor de $";
+        const msg = `Hola ${nombre}, te informamos que tu estado de cuenta en Electricidad Lucyk registra un saldo ${tipoSaldo}${saldoAbs}. ¡Saludos!`;
+        
+        document.getElementById('wa_destino_tel').value = telefono;
+        document.getElementById('wa_destino_msg').value = msg;
+        document.getElementById('mensajeWhatsAppPreview').innerText = msg;
+        document.getElementById('modalWhatsApp').style.display = 'flex';
+    }
     // --- BUSCADOR MANUAL ---
     const inputCC = document.getElementById('buscar_cliente_cc');
     const resCC = document.getElementById('resultadosBusquedaCC');

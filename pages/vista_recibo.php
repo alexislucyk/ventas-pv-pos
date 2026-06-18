@@ -15,6 +15,10 @@ $formato = isset($_GET['formato']) ? $_GET['formato'] : 'ticket';
 $stmt_emp = $pdo->query("SELECT * FROM datos_empresa WHERE id = 1 LIMIT 1");
 $emp = $stmt_emp->fetch(PDO::FETCH_ASSOC);
 
+// Obtener configuración de ancho de papel
+$stmt_cfg = $pdo->query("SELECT valor FROM configuracion WHERE clave = 'ticket_ancho'");
+$ancho_papel = $stmt_cfg->fetchColumn() ?: '80mm';
+$ancho_px = ($ancho_papel === '58mm') ? '220px' : '320px';
 
 // 2. Consulta de Datos (Movimiento y Cliente)
 try {
@@ -63,14 +67,14 @@ $label_total = $es_devolucion ? "TOTAL REINTEGRADO:" : "TOTAL ABONADO:";
 <head>
     <meta charset="UTF-8">
     <title>Recibo N° <?php echo $recibo['n_documento'] ?: $recibo['id']; ?></title>
-    <link rel="stylesheet" href="../css/ticket_print.css">
+    <link rel="stylesheet" href="../css/temptocketprint.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         body { background: #525659; margin: 0; padding: 0; }
         #ticket-vista-previa { background: white; color: black; margin: 20px auto; padding: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
-        .recibo-container.ticket { width: 320px; }
+        .recibo-container.ticket { width: <?php echo $ancho_px; ?>; }
         .recibo-container.a5 { width: 148mm; }
-        @media print { body { background: none; } .no-print { display: none; } #ticket-vista-previa { margin: 0; box-shadow: none; border: none; width: 100% !important; } }
+        @media print { body { background: none; width: <?php echo $ancho_papel; ?> !important; } .no-print { display: none; } #ticket-vista-previa { margin: 0; box-shadow: none; border: none; width: 100% !important; } }
     </style>
 </head>
 <body onload="window.print()">
@@ -140,7 +144,8 @@ $label_total = $es_devolucion ? "TOTAL REINTEGRADO:" : "TOTAL ABONADO:";
 
     <div class="no-print" style="text-align: center; margin-top: 20px; padding-bottom: 30px;">
         <button onclick="window.print()" style="padding: 10px 20px; cursor: pointer;">Imprimir de nuevo</button>
-        <a href="pagos_ctacte.php" style="display: block; margin-top: 15px; color: #ddd; text-decoration: none;">Volver al registro de pagos</a>
+        <button onclick="window.close()" style="padding: 10px 20px; cursor: pointer; margin-left: 10px; background: #444; color: white; border: none; border-radius: 4px;">Cerrar Ventana</button>
+        <a href="pagos_ctacte.php" style="display: block; margin-top: 15px; color: #ddd; text-decoration: none; font-size: 0.85rem;">Volver al Menú Principal</a>
     </div>
 </body>
 </html>

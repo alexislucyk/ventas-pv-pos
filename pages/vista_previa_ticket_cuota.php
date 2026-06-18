@@ -6,13 +6,16 @@ require_once '../config/db_config.php';
 
 $id_pago = (int)($_GET['id_pago'] ?? 0);
 if ($id_pago <= 0) die("ID de pago no válido.");
+
+$stmt_cfg = $pdo->query("SELECT valor FROM configuracion WHERE clave = 'ticket_ancho'");
+$ancho_papel = $stmt_cfg->fetchColumn() ?: '80mm';
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <title>Ticket de Pago #<?php echo $id_pago; ?></title>
-    <link rel="stylesheet" href="../css/ticket_print.css">
+    <link rel="stylesheet" href="../css/temptocketprint.css">
     <style>
         @media print {
             @page { 
@@ -22,6 +25,7 @@ if ($id_pago <= 0) die("ID de pago no válido.");
             body { 
                 margin: 0 !important; 
                 padding: 0 !important; 
+                width: <?php echo $ancho_papel; ?> !important;
             }
             .no-print { 
                 display: none !important; 

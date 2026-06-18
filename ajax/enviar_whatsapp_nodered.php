@@ -4,8 +4,9 @@ include '../pages/infosesion.php';
 header('Content-Type: application/json');
 
 // Silenciar cualquier error de PHP para que no rompa el JSON de salida
-error_reporting(0);
-ini_set('display_errors', '0');
+error_reporting(E_ALL); // Reportar todos los errores
+ini_set('display_errors', '0'); // No mostrar errores en la salida JSON
+ini_set('log_errors', '1');    // Loguear errores en el servidor para depuración
 
 // Validación de seguridad: solo permitir si tiene el permiso específico
 $permiso_clave = 'whatsapp_enviar';
@@ -28,96 +29,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Limpiamos el teléfono: dejamos solo números
     $telefono = isset($dataInput['telefono']) ? preg_replace('/[^0-9]/', '', $dataInput['telefono']) : '';
 
-    // Aseguramos el prefijo 549 (Argentina) si el número no lo tiene al inicio
-    if (!empty($telefono) && strpos($telefono, '549') !== 0) {
-        $telefono = '549' . $telefono;
+    // Normalización para Argentina
+    if (!empty($telefono)) {
+        // 1. Quitar '0' inicial si existe (prefijo interurbano)
+        if ($telefono[0] === '0') {
+            $telefono = substr($telefono, 1);
+        }
+        // 2. Si tiene 10 dígitos (ej: 3764123456), agregar 549
+        if (strlen($telefono) === 10) {
+            $telefono = '549' . $telefono;
+        }
+        // 3. Si tiene 12 dígitos y empieza con 54 (ej: 54376...), insertar el 9 intermedio
+        elseif (strlen($telefono) === 12 && substr($telefono, 0, 2) === '54') {
+            $telefono = '549' . substr($telefono, 2);
+        }
+        // 4. Si no empieza con 549 y tiene longitud razonable, forzar prefijo
+        elseif (strpos($telefono, '549') !== 0 && strlen($telefono) >= 7) {
+            $telefono = '549' . $telefono;
+        }
     }
 
     $mensaje = isset($dataInput['mensaje']) ? $dataInput['mensaje'] : '';
-    $pdfUrl = isset($dataInput['pdfUrl']) ? $dataInput['pdfUrl'] : '';
-    $pdfBase64 = '';
-    $archivo_temp = null;
-
-    // --- NUEVA LÓGICA: CONVERSIÓN A BASE64 ---
-    // --- NUEVA LÓGICA: ENVÍO COMO ARCHIVO REAL ---
-    if (!empty($pdfUrl)) {
-        // Intentamos obtener el contenido del PDF generado
-        // Usamos un timeout corto por si el servidor local no responde
-        $ctx = stream_context_create(['http' => ['timeout' => 5]]);
-        $pdfContenido = @file_get_contents($pdfUrl, false, $ctx);
-        
-        if ($pdfContenido !== false) {
-            $pdfBase64 = base64_encode($pdfContenido);
-            // Creamos un archivo temporal en el servidor
-            $archivo_temp = tempnam(sys_get_temp_dir(), 'tk_');
-            rename($archivo_temp, $archivo_temp .= '.pdf');
-            file_put_contents($archivo_temp, $pdfContenido);
-        } else {
-            error_log("No se pudo obtener el PDF desde la URL interna: " . $pdfUrl);
-        }
-    }
 
     if (empty($telefono) || empty($mensaje)) {
         echo json_encode(['success' => false, 'error' => 'Faltan datos (teléfono o mensaje).']);
         exit;
     }
 
-    // Tu configuración de Node-RED
     $nodeRedUrl = "http://10.80.7.95:1880/test-whatsapp";
     
-    // Preparamos el array de datos
     $payload = [
         "telefono" => $telefono,
         "mensaje"  => $mensaje
     ];
 
-    // Solo agregamos campos de PDF si realmente hay contenido
-    if (!empty($pdfBase64)) {
-        $payload["pdfBase64"] = $pdfBase64;
-        $payload["filename"] = "Comprobante_Lucyk.pdf";
-    }
+    // LOG DE DEPURECIÓN: Registramos qué vamos a enviar
+    error_log("WhatsApp Debug - Enviando a Node-RED: Tel: $telefono | Msg: $mensaje");
 
-    $headers = [];
-    // Si tenemos el archivo, lo adjuntamos usando CURLFile
-    if ($archivo_temp && file_exists($archivo_temp)) {
-        $payload['documento'] = new CURLFile($archivo_temp, 'application/pdf', 'Ticket_Venta.pdf');
-    }
-
-    // Configurar la petición POST via cURL (basado en tu código)
     $ch = curl_init($nodeRedUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5); // 5 segundos para conectar
-    curl_setopt($ch, CURLOPT_TIMEOUT, 25);        // 25 segundos máximo de espera
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
 
-    // Si no hay archivo físico (CURLFile), enviamos como JSON para mejor compatibilidad con Node-RED
-    if (!isset($payload['documento'])) {
-        $jsonPayload = json_encode($payload);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
-        $headers[] = 'Content-Type: application/json';
-    } else {
-        // cURL detecta automáticamente multipart si recibe un array (necesario para CURLFile)
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-    }
-
-    if (!empty($headers)) {
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    }
-
-    $response = curl_exec($ch);
-    $error_msg = curl_error($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $response  = curl_exec($ch);
+    $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
     curl_close($ch);
 
-    // Limpiamos el archivo temporal
-    if ($archivo_temp && file_exists($archivo_temp)) { @unlink($archivo_temp); }
+    // LOG DE DEPURECIÓN: Registramos la respuesta del servidor Node-RED
+    error_log("WhatsApp Debug - Respuesta Node-RED: HTTP $httpCode | Error: $curlError | Body: $response");
 
-    if (ob_get_length()) ob_clean(); // Asegurar que no haya basura antes del JSON
+    if (ob_get_level()) ob_clean();
+
     if ($httpCode >= 200 && $httpCode < 300) {
         echo json_encode(['success' => true]);
     } else {
-        $error_desc = $error_msg ?: "Código HTTP $httpCode";
-        echo json_encode(['success' => false, 'error' => "Error en servidor de mensajería: $error_desc"]);
+        $msg_error = $curlError ?: "Error servidor Node-RED (Status: $httpCode)";
+        echo json_encode(['success' => false, 'error' => $msg_error]);
     }
 } else {
     echo json_encode(['success' => false, 'error' => 'Método no permitido']);

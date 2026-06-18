@@ -56,8 +56,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_compra'])) 
             // ---------------------------------------------------------
             // A. INSERTAR CABECERA EN 'compras'
             // ---------------------------------------------------------
-            $sql_cabecera = "INSERT INTO compras (cod_proveedor, cond_pago, documento, n_documento, total_compra, fecha_compra, fecha_operacion) 
-                             VALUES (:prov, :cond, :doc_tipo, :n_doc, :total, :f_compra, :f_op)";
+            $sql_cabecera = "INSERT INTO compras (cod_proveedor, cond_pago, documento, n_documento, total_compra, fecha_compra, fecha_operacion, usuario_id) 
+                             VALUES (:prov, :cond, :doc_tipo, :n_doc, :total, :f_compra, :f_op, :user)";
             $stmt_cabecera = $pdo->prepare($sql_cabecera);
             $stmt_cabecera->execute([
                 ':prov' => $id_proveedor,
@@ -66,7 +66,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_compra'])) 
                 ':n_doc' => $n_documento,
                 ':total' => $total_compra,
                 ':f_compra' => $fecha_compra,
-                ':f_op' => $fecha_operacion
+                ':f_op' => $fecha_operacion,
+                ':user' => $usuario_id
             ]);
             
             $id_compra_generada = $pdo->lastInsertId();
@@ -83,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_compra'])) 
             $sql_get_stock = "SELECT stock FROM productos WHERE cod_prod = :cod"; 
             $stmt_get_stock = $pdo->prepare($sql_get_stock);
 
-            // B) Consulta para actualizar stock y costo
+            // B) Consulta para actualizar stock y precio de compra (costo)
             $sql_update_prod = "UPDATE productos SET 
                                     stock = stock + :cant_sumada, 
                                     p_compra = :nuevo_costo_unit  /* SOBREESCRIBIMOS con el nuevo precio */
@@ -109,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_compra'])) 
                     ':fecha' => $fecha_compra
                 ]);
 
-                // 2. Actualizar Stock y Costo (p_costo) en productos
+                // 2. Actualizar Stock y Costo (p_compra) en productos
                 
                 // NOTA: Para este método, solo necesitamos el UPDATE, 
                 // ya que el nuevo costo unitario (p_unit) sobrescribe el anterior.
@@ -127,16 +128,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_compra'])) 
             // C. CUENTA CORRIENTE DE PROVEEDORES
             // ---------------------------------------------------------
             if ($cond_pago === 'CRÉDITO') {
-                // Asume la tabla 'ctacte_proveedores'
-                $sql_ctacte = "INSERT INTO ctacte_proveedores (id_proveedor, movimiento, debe, haber, n_documento, fecha) 
-                               VALUES (:id_prov, :mov, 0, :total, :n_doc, :fecha_op)";
+                $sql_ctacte = "INSERT INTO ctacte_proveedores (id_proveedor, movimiento, debe, haber, n_documento, fecha, usuario_id, compra_id) 
+                               VALUES (:id_prov, :mov, 0, :total, :n_doc, :fecha_op, :user, :compra)";
                 $stmt_ctacte = $pdo->prepare($sql_ctacte);
                 $stmt_ctacte->execute([
                     ':id_prov' => $id_proveedor,
                     ':mov' => 'FACTURA COMPRA', 
                     ':total' => $total_compra, // El total va en HABER (deuda para nosotros)
                     ':n_doc' => $n_documento,
-                    ':fecha_op' => $fecha_operacion
+                    ':fecha_op' => $fecha_operacion,
+                    ':user' => $usuario_id,
+                    ':compra' => $id_compra_generada
                 ]);
             }
             
@@ -249,7 +251,10 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
     <?php include 'sidebar.php'; ?> 
     
     <div class="content">
-        <h1>Registro de Compra a Proveedores</h1>
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #00bcd4; margin-bottom: 30px; padding-bottom: 10px;">
+            <h1 style="border-bottom: none; margin-bottom: 0; padding-bottom: 0;">Registro de Compra a Proveedores</h1>
+            <a href="compras_rapidas.php" class="btn btn-yellow" style="text-decoration: none;"><i class="fas fa-bolt"></i> Carga Rápida (Sin Detalle)</a>
+        </div>
         
         <?php if ($mensaje): ?>
             <div class="alert <?php echo str_contains($mensaje, '❌') ? 'alert-error' : 'alert-success'; ?>">

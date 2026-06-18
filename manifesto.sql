@@ -47,3 +47,25 @@ ALTER TABLE ventas ADD COLUMN descuento_global DECIMAL(15,2) DEFAULT 0.00 AFTER 
 ALTER TABLE ventas ADD COLUMN tipo_descuento_global ENUM('fijo', 'porcentaje') DEFAULT 'fijo' AFTER descuento_global;
 
 ALTER TABLE ventas_detalle ADD COLUMN descuento_unitario DECIMAL(15,2) DEFAULT 0.00 AFTER p_unit;
+
+-- [2024-05-23] Agregar trazabilidad de usuario en compras
+ALTER TABLE compras 
+ADD COLUMN usuario_id INT(11) NULL AFTER fecha_operacion,
+ADD CONSTRAINT fk_compras_usuario 
+FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- [2024-05-24] Soporte para facturas de compra sin detalle (Carga rápida)
+ALTER TABLE compras ADD COLUMN fecha_vencimiento DATE NULL AFTER fecha_compra,
+                    ADD COLUMN observaciones TEXT NULL AFTER total_compra,
+                    ADD COLUMN es_sin_detalle TINYINT(1) DEFAULT 0;
+
+-- [2024-05-24] Registro del nuevo módulo para habilitar el acceso y visualización en el menú
+INSERT INTO modulos (nombre, archivo, icono, seccion) 
+VALUES ('Factura Rápida (Compras)', 'pages/compras_rapidas.php', 'fas fa-bolt', 'Transacciones');
+
+-- [2024-05-25] Agregar trazabilidad de usuario en Cta. Cte. Proveedores
+ALTER TABLE ctacte_proveedores ADD COLUMN usuario_id INT(11) NULL AFTER fecha,
+                               ADD COLUMN compra_id INT(11) NULL AFTER usuario_id;
+
+ALTER TABLE ctacte_proveedores ADD CONSTRAINT fk_ctacte_compra 
+FOREIGN KEY (compra_id) REFERENCES compras(id) ON DELETE SET NULL;

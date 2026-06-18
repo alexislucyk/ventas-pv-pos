@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
 
         // 1. Obtener datos de la venta (incluyendo tipo de pago y cliente)
         // Asegúrate de que el campo en tu tabla 'ventas' sea 'tipo_pago' o 'cond_pago'
-        $stmt = $pdo->prepare("SELECT id, estado, id_cliente, total_venta, cond_pago FROM ventas WHERE n_documento = ?");
+        $stmt = $pdo->prepare("SELECT id, estado, id_cliente, total_venta, cond_pago, pago_efectivo, pago_transf FROM ventas WHERE n_documento = ?");
         $stmt->execute([$n_doc]);
         $venta = $stmt->fetch();
 
@@ -121,17 +121,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
         } 
         // 5. Lógica de Caja (Si fue CONTADO o FINANCIADO, registramos un EGRESO por el reintegro)
         elseif ((strtoupper($venta['cond_pago']) === 'CONTADO' || strtoupper($venta['cond_pago']) === 'FINANCIADO') && $monto_a_reintegrar > 0) {
-            // Si es financiado y la anulación es total, debemos anular el plan de pagos
-            if (strtoupper($venta['cond_pago']) === 'FINANCIADO' && $es_anulacion_total) {
-                $pdo->prepare("UPDATE cuotas_seguimiento SET estado = 'Anulada' WHERE id_venta = ?")
-                    ->execute([$venta['id']]);
+            $monto_egreso_caja = $monto_a_reintegrar;
+
+            if (strtoupper($venta['cond_pago']) === 'FINANCIADO') {
+                // Si es financiado y la anulación es total, debemos anular el plan de pagos pendientes
+                if ($es_anulacion_total) {
+                    $pdo->prepare("UPDATE cuotas_seguimiento SET estado = 'Anulada' WHERE id_venta = ?")
+                        ->execute([$venta['id']]);
+
+                    // NEW LOGIC: Anular pagos de cuotas y revertir movimientos de caja
+                    // 1. Obtener todos los IDs de cuotas de esta venta
+                    $stmt_cuotas_ids = $pdo->prepare("SELECT id, nro_cuota FROM cuotas_seguimiento WHERE id_venta = ?");
+                    $stmt_cuotas_ids->execute([$venta['id']]);
+                    $cuotas_ids = $stmt_cuotas_ids->fetchAll(PDO::FETCH_ASSOC);
+
+                    foreach ($cuotas_ids as $cuota_info) {
+                        $id_cuota_actual = $cuota_info['id'];
+                        $nro_cuota_actual = $cuota_info['nro_cuota'];
+
+                        // 2. Obtener todos los pagos realizados para cada cuota
+                        $stmt_pagos_cuota = $pdo->prepare("SELECT id, monto, descuento, metodo_pago FROM cuotas_pagos WHERE id_cuota = ?");
+                        $stmt_pagos_cuota->execute([$id_cuota_actual]);
+                        $pagos_realizados = $stmt_pagos_cuota->fetchAll(PDO::FETCH_ASSOC);
+
+                        foreach ($pagos_realizados as $pago_cuota) {
+                            $monto_pagado_total = (float)$pago_cuota['monto'] + (float)($pago_cuota['descuento'] ?? 0);
+                            
+                            // Registrar EGRESO en movimientos para revertir el INGRESO original del pago
+                            $detalle_reversion = "REVERSIÓN PAGO CUOTA {$nro_cuota_actual} - VENTA N° {$n_doc} (ANULACIÓN TOTAL)";
+                            $pdo->prepare("INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado) 
+                                           VALUES ('EGRESO', ?, ?, ?, NOW(), ?, 0)")
+                                ->execute([$monto_pagado_total, $pago_cuota['metodo_pago'], $detalle_reversion, $usuario_actual]);
+                            
+                            // Eliminar el registro de pago de la cuota
+                            $pdo->prepare("DELETE FROM cuotas_pagos WHERE id = ?")->execute([$pago_cuota['id']]);
+                        }
+                    }
+                }
+
+                // IMPORTANTE: Solo devolvemos en EFECTIVO lo que realmente entró a caja (Entrega + Cuotas pagadas)
+                // Esta lógica ya estaba presente y es correcta para el cálculo del egreso de caja.
+                // No se modifica, ya que el egreso de los pagos de cuotas se maneja en el bloque anterior.
+                $pago_inicial = (float)$venta['pago_efectivo'] + (float)$venta['pago_transf'];
+                
+                
+                
+                // Vamos a ajustar la lógica para que `monto_egreso_caja` en este punto sea solo la entrega inicial
+                // si la anulación es total y ya se procesaron los pagos de cuotas.
+                if ($es_anulacion_total) {
+                    $monto_egreso_caja = $pago_inicial; // Solo la entrega inicial se devuelve aquí.
+                } else {
+                    // Si no es anulación total, la lógica original de `min($monto_a_reintegrar, $total_cobrado_real)` se mantiene.
+                    // Esto es para devoluciones parciales de ventas financiadas, donde se devuelve una parte del monto.
+                    // En este escenario, `pagado_cuotas` aún sería relevante.
+                    $stmt_p = $pdo->prepare("SELECT SUM(cp.monto) + SUM(cp.descuento) FROM cuotas_pagos cp JOIN cuotas_seguimiento cs ON cp.id_cuota = cs.id WHERE cs.id_venta = ?");
+                    $stmt_p->execute([$venta['id']]);
+                    $pagado_cuotas = (float)$stmt_p->fetchColumn();
+                    $total_cobrado_real = $pago_inicial + $pagado_cuotas;
+                    $monto_egreso_caja = min($monto_a_reintegrar, $total_cobrado_real);
+                }
+            }
+
+            // Determinar el método de pago original para reflejar el egreso correctamente en caja
+            $metodo_pago_reintegro = 'EFECTIVO';
+            if ((float)$venta['pago_efectivo'] > 0 && (float)$venta['pago_transf'] > 0) {
+                $metodo_pago_reintegro = 'MIXTO';
+            } elseif ((float)$venta['pago_transf'] > 0) {
+                $metodo_pago_reintegro = 'TRANSFERENCIA';
             }
 
             $pdo->prepare("INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado) VALUES (?, ?, ?, ?, ?, ?, 0)")
                 ->execute([
                     'EGRESO',
-                    $monto_a_reintegrar,
-                    'EFECTIVO', // Asumimos efectivo para devoluciones en contado, o se podría refinar
+                    $monto_egreso_caja,
+                    $metodo_pago_reintegro,
                     $detalle_final_db,
                     $fecha_hoy,
                     $usuario_actual
@@ -184,6 +247,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
 
     } catch (Exception $e) {
         $pdo->rollBack();
+        error_log("Error al anular venta (anulaciones.php): " . $e->getMessage());
         $mensaje = "❌ Error: " . $e->getMessage();
     }
 }

@@ -24,17 +24,37 @@ try {
     // 2. Consulta de movimientos
     // Ordenar por fecha para calcular el saldo en el frontend en orden cronológico
     $sql = "SELECT 
-                fecha,
-                movimiento,
-                n_documento,
-                haber,
-                debe
+                cc.id as ctacte_id, -- ID del movimiento en ctacte_proveedores
+                cc.fecha,
+                cc.movimiento,
+                cc.n_documento,
+                cc.haber,
+                cc.debe,
+                c.id as compra_id, -- ID de la compra (si es un movimiento de compra)
+                c.total_compra, -- Total de la compra (si es un movimiento de compra)
+                -- Calcular el saldo pendiente para esta factura específica (si es una factura)
+                CASE
+                    WHEN c.id IS NOT NULL THEN
+                        c.total_compra - (
+                            SELECT COALESCE(SUM(sub_cc.debe), 0) 
+                            FROM ctacte_proveedores sub_cc 
+                            WHERE sub_cc.compra_id = c.id 
+                               OR (sub_cc.compra_id IS NULL 
+                                   AND sub_cc.n_documento = c.n_documento 
+                                   AND sub_cc.id_proveedor = c.cod_proveedor)
+                        )
+                    ELSE 0
+                END as saldo_pendiente_factura,
+                c.fecha_vencimiento,
+                c.observaciones
             FROM 
-                ctacte_proveedores
+                ctacte_proveedores cc
+            LEFT JOIN
+                compras c ON (cc.compra_id = c.id OR (cc.compra_id IS NULL AND cc.n_documento = c.n_documento AND cc.id_proveedor = c.cod_proveedor))
             WHERE 
-                id_proveedor = :id_proveedor
+                cc.id_proveedor = :id_proveedor
             ORDER BY 
-                fecha ASC"; // La fecha debe estar en orden ascendente para el cálculo en JS
+                cc.fecha ASC"; // La fecha debe estar en orden ascendente para el cálculo en JS
 
     $stmt = $pdo->prepare($sql);
     $stmt->bindParam(':id_proveedor', $id_proveedor, PDO::PARAM_INT);
