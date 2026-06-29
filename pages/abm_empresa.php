@@ -135,7 +135,8 @@ $sucursales = $pdo->query("SELECT * FROM sucursales ORDER BY es_principal DESC")
 <body>
     <?php include 'sidebar.php'; ?>
     
-    <div class="content">
+    <div class="content" style="padding-top: 70px;">
+        <?php include 'topbar.php'; ?>
         <h1><i class="fas fa-industry"></i> Perfil del Negocio</h1>
 
         <?php if ($mensaje): ?>

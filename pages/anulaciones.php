@@ -297,7 +297,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
 <body>
     <?php include 'sidebar.php'; ?>
 
-    <div class="content">
+    <div class="content" style="padding-top: 70px;">
+        <?php include 'topbar.php'; ?>
         <h1>Anulación de Ventas</h1>
 
         <!-- MODAL DE RESULTADO (EXITO/ERROR) -->

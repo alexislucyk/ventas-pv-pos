@@ -5,6 +5,42 @@
 
 $nombre_usuario_top = isset($_SESSION['usuario_nombre']) ? htmlspecialchars($_SESSION['usuario_nombre']) : 'Usuario';
 $rol_usuario = isset($_SESSION['usuario_rol']) ? htmlspecialchars($_SESSION['usuario_rol']) : 'usuario';
+
+// Obtener cotización del dólar con caché de 1 hora
+$dolar_compra = "-";
+$dolar_venta = "-";
+$dolar_operativo = "-";
+$dolar_fecha = "";
+$cache_file = dirname(__FILE__) . '/../cache/dolar_cache.json';
+$cache_tiempo = 3600; // 1 hora
+
+if (file_exists($cache_file) && (time() - filemtime($cache_file)) < $cache_tiempo) {
+    $cache_data = json_decode(file_get_contents($cache_file), true);
+    $dolar_compra = $cache_data['compra'] ?? "-";
+    $dolar_venta = $cache_data['venta'] ?? "-";
+    $dolar_operativo = $dolar_venta * 1.02;
+    $dolar_fecha = date('H:i', filemtime($cache_file));
+} else {
+    $ch = curl_init("https://dolarapi.com/v1/dolares/oficial");
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+    $response = curl_exec($ch);
+    curl_close($ch);
+    
+    if ($response !== false) {
+        $data = json_decode($response, true);
+        if (isset($data['compra']) && isset($data['venta'])) {
+            $dolar_compra = $data['compra'];
+            $dolar_venta = $data['venta'];
+            $dolar_fecha = date('H:i');
+            // Guardar en caché
+            if (!is_dir(dirname($cache_file))) {
+                mkdir(dirname($cache_file), 0755, true);
+            }
+            file_put_contents($cache_file, json_encode(['compra' => $dolar_compra, 'venta' => $dolar_venta]));
+        }
+    }
+}
 ?>
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -22,10 +58,47 @@ $rol_usuario = isset($_SESSION['usuario_rol']) ? htmlspecialchars($_SESSION['usu
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
         display: flex;
         align-items: center;
-        justify-content: flex-end;
+        gap: 15px;
         padding: 0 20px;
         z-index: 899;
         box-sizing: border-box;
+    }
+
+    .topbar__dolar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        background: #1e1e24;
+        border-radius: 6px;
+        font-size: 0.85em;
+        color: #fff;
+    }
+
+    .topbar__dolar i {
+        color: #4caf50;
+    }
+
+    .topbar__dolar span {
+        color: #4caf50;
+    }
+
+    .topbar__dolar .venta {
+        color: #ff5722;
+    }
+
+    .topbar__refresh {
+        background: none;
+        border: none;
+        color: #00bcd4;
+        cursor: pointer;
+        font-size: 0.9em;
+        padding: 5px;
+        transition: transform 0.2s;
+    }
+
+    .topbar__refresh:hover {
+        transform: rotate(180deg);
     }
 
     .topbar__user {
@@ -53,7 +126,6 @@ $rol_usuario = isset($_SESSION['usuario_rol']) ? htmlspecialchars($_SESSION['usu
         text-transform: capitalize;
     }
 
-    /* Ajuste para móviles - cuando el sidebar está oculto */
     @media (max-width: 1100px) {
         .topbar {
             left: 0;
@@ -62,9 +134,47 @@ $rol_usuario = isset($_SESSION['usuario_rol']) ? htmlspecialchars($_SESSION['usu
 </style>
 
 <div class="topbar">
-    <a href="<?php echo URL_BASE; ?>pages/perfil.php" class="topbar__user" title="Ver Perfil">
+    <div class="topbar__dolar">
+        <i class="">U$S Nación</i>
+        <span>Compra: <strong>$<?php echo $dolar_compra; ?></strong></span>
+        <span class="venta">Venta: <strong>$<?php echo $dolar_venta; ?></strong></span>
+        <?php if ($dolar_fecha): ?>
+            <small style="color: #666; margin-left: 5px;">(<?php echo $dolar_fecha; ?>)</small>
+        <?php endif; ?>
+        <button class="topbar__refresh" onclick="refreshDolar()" title="Actualizar cotización">
+            <i class="fas fa-sync-alt"></i>
+        </button>
+        <span class="venta">Operativo: <strong>$<?php echo $dolar_operativo; ?></strong></span>
+    </div>
+    
+    <a href="<?php echo URL_BASE; ?>pages/perfil.php" class="topbar__user" title="Ver Perfil" style="margin-left: auto;">
         <i class="fas fa-user-circle"></i>
         <span><?php echo $nombre_usuario_top; ?></span>
         <span class="topbar__rol">(<?php echo $rol_usuario; ?>)</span>
     </a>
 </div>
+
+<script>
+function refreshDolar() {
+    const btn = document.querySelector('.topbar__refresh i');
+    btn.style.opacity = '0.5';
+    fetch('<?php echo URL_BASE; ?>funciones/obtener_dolar.php', { cache: 'no-cache' })
+        .then(response => response.text())
+        .then(html => {
+            // Buscar valores en el response y actualizar
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const compraEl = doc.querySelector('span strong');
+            const ventaEl = doc.querySelectorAll('span strong')[1];
+            
+            if (compraEl && ventaEl) {
+                document.querySelector('.topbar__dolar span strong').innerHTML = compraEl.innerHTML.replace('$', '');
+                document.querySelectorAll('.topbar__dolar .venta strong')[0].innerHTML = ventaEl.innerHTML.replace('$', '');
+            }
+        })
+        .catch(err => console.log('Error al actualizar dólar:', err))
+        .finally(() => {
+            btn.style.opacity = '1';
+        });
+}
+</script>

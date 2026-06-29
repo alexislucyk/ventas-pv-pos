@@ -91,7 +91,8 @@ $proveedores = $stmt_p->fetchAll(PDO::FETCH_ASSOC);
 </head>
 <body>
     <?php include 'sidebar.php'; ?>
-    <div class="content">
+    <div class="content" style="padding-top: 70px;">
+        <?php include 'topbar.php'; ?>
         <h1>Registrar Compra Rápida (Sin Detalle)</h1>
         
         <?php if ($mensaje): ?>

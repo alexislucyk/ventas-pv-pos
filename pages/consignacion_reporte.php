@@ -72,7 +72,8 @@ if ($prov_sel) {
 </head>
 <body>
     <?php include 'sidebar.php'; ?>
-    <div class="content">
+    <div class="content" style="padding-top: 70px;">
+        <?php include 'topbar.php'; ?>
         <h1><i class="fas fa-handshake"></i> Reporte de Consignación (50/50)</h1>
 
         <div class="card">

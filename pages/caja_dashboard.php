@@ -95,7 +95,8 @@ try {
 </head>
 <body>
     <?php include 'sidebar.php'; ?>
-    <div class="content">
+    <div class="content" style="padding-top: 70px;">
+        <?php include 'topbar.php'; ?>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; gap: 10px;">
             <h1>Estado de Caja (Hoy)</h1>
             <div>

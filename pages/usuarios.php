@@ -159,7 +159,8 @@ $usuarios = $pdo->query("SELECT * FROM usuarios ORDER BY id DESC")->fetchAll(PDO
 </head>
 <body>
     <?php include 'sidebar.php'; ?>
-    <div class="content">
+    <div class="content" style="padding-top: 70px;">
+        <?php include 'topbar.php'; ?>
         <div class="user-container">
             <h1 style="color: var(--accent); margin-bottom: 30px;">
                 <i class="fas fa-user-shield"></i> Seguridad y Usuarios

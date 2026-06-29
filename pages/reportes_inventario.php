@@ -87,7 +87,8 @@ if (isset($_GET['buscar_prod']) && !empty($_GET['cod_prod_historial'])) {
 <body>
     <?php include 'sidebar.php'; ?> 
     
-    <div class="content">
+    <div class="content" style="padding-top: 70px;">
+        <?php include 'topbar.php'; ?>
         <h1 style="color: var(--accent); margin-bottom: 25px;"><i class="fas fa-chart-line"></i> Reportes de Inventario y Costos</h1>
 
         <?php if ($mensaje_error): ?>

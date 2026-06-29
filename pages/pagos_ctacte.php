@@ -62,7 +62,8 @@ try {
 </head>
 <body>
     <?php include 'sidebar.php'; ?>
-    <div class="content">
+    <div class="content" style="padding-top: 70px;">
+        <?php include 'topbar.php'; ?>
         <h1><i class="fas fa-hand-holding-usd"></i> Registrar Pago a Cuenta Corriente</h1>
         
         <?php echo $mensaje; // Mostrar mensaje de éxito/error ?>

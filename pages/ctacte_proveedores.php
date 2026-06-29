@@ -91,7 +91,8 @@ try {
 
     <?php include 'sidebar.php'; ?> 
     
-    <div class="content">
+    <div class="content" style="padding-top: 70px;">
+        <?php include 'topbar.php'; ?>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h1><i class="fas fa-truck-loading"></i> Cuentas Corrientes Proveedores</h1>
             <button id="btn_pagar_cc" class="btn btn-primary" style="padding: 8px 18px; font-weight: bold;" disabled>

@@ -52,7 +52,8 @@ try {
 </head>
 <body>
     <?php include 'sidebar.php'; ?>
-    <div class="content">
+    <div class="content" style="padding-top: 70px;">
+        <?php include 'topbar.php'; ?>
         <h1>Cierre de Caja Diario</h1>
         
         <form action="procesar_cierre.php" method="POST">

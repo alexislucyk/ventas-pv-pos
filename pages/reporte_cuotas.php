@@ -101,7 +101,8 @@ foreach ($cuotas as $c) {
 </head>
 <body>
     <?php include 'sidebar.php'; ?>
-    <div class="content">
+    <div class="content" style="padding-top: 70px;">
+        <?php include 'topbar.php'; ?>
         <h1>Cuentas a Cobrar (Financiación)</h1>
 
         <!-- Panel de Filtros -->

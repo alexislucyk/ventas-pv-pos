@@ -104,7 +104,8 @@ try {
 </head>
 <body>
     <?php include 'sidebar.php'; ?>
-    <div class="content">
+    <div class="content" style="padding-top: 70px;">
+        <?php include 'topbar.php'; ?>
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <h1>📊 Cuentas Corrientes</h1>
             <a href="pagos_ctacte.php" class="btn-primary" style="padding: 10px 20px; text-decoration: none; border-radius: 5px;">

@@ -250,7 +250,8 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
     <button id="menuToggle" aria-label="Abrir Menú">☰ Menú</button>
     <?php include 'sidebar.php'; ?> 
     
-    <div class="content">
+    <div class="content" style="padding-top: 70px;">
+        <?php include 'topbar.php'; ?>
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #00bcd4; margin-bottom: 30px; padding-bottom: 10px;">
             <h1 style="border-bottom: none; margin-bottom: 0; padding-bottom: 0;">Registro de Compra a Proveedores</h1>
             <a href="compras_rapidas.php" class="btn btn-yellow" style="text-decoration: none;"><i class="fas fa-bolt"></i> Carga Rápida (Sin Detalle)</a>

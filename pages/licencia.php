@@ -41,7 +41,8 @@ $info = obtenerEstadoLicencia();
 </head>
 <body>
     <?php include 'sidebar.php'; ?>
-    <div class="content">
+    <div class="content" style="padding-top: 70px;">
+        <?php include 'topbar.php'; ?>
         <h1>🔐 Sistema de Gestion de Licencias</h1>
 
         <div class="card licencia-card">

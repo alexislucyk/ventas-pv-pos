@@ -402,7 +402,8 @@ unset($_SESSION['ticket_a_imprimir_doc']);
 </head>
 <body>
     <?php include 'sidebar.php'; ?>
-    <div class="content">
+    <div class="content" style="padding-top: 70px;">
+        <?php include 'topbar.php'; ?>
         <h1>Nueva Venta</h1>
 
         <?php if ($mensaje): ?>

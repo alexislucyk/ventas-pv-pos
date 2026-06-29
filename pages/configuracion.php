@@ -60,7 +60,8 @@ $ticket_msg      = isset($config_raw['ticket_footer_msg']) ? $config_raw['ticket
 </head>
 <body>
     <?php include 'sidebar.php'; ?>
-    <div class="content">
+    <div class="content" style="padding-top: 70px;">
+        <?php include 'topbar.php'; ?>
         <h1><i class="fas fa-cogs"></i> Configuración del Sistema</h1>
 
         <?php if ($mensaje): ?>

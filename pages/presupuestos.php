@@ -138,7 +138,8 @@ require '../config/db_config.php';
 <body>
     <?php include 'sidebar.php'; ?>
 
-    <div class="content">
+    <div class="content" style="padding-top: 70px;">
+        <?php include 'topbar.php'; ?>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h1 class="main-title" style="margin: 0;">📑 Crear Nuevo Presupuesto</h1>
             <a href="consultar_presupuestos.php" class="btn btn-primary" style="text-decoration: none; padding: 10px 20px; border-radius: 5px; font-weight: bold;">

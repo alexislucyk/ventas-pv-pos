@@ -196,7 +196,8 @@ try {
 </head>
 <body>
     <?php include 'sidebar.php'; ?>
-    <div class="content">
+    <div class="content" style="padding-top: 70px;">
+        <?php include 'topbar.php'; ?>
         <h1>📊 Resumen Histórico de Ventas</h1>
 
         <div class="card" style="margin-bottom: 20px; padding: 15px;">

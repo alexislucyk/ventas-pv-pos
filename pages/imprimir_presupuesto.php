@@ -27,7 +27,8 @@ require '../config/db_config.php';
 <body>
     <?php include 'sidebar.php'; ?>
     
-    <div class="content">
+    <div class="content" style="padding-top: 70px;">
+        <?php include 'topbar.php'; ?>
         <h1>📑 Nuevo Presupuesto</h1>
 
         <div class="presupuesto-header">
