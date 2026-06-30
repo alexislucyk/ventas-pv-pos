@@ -79,7 +79,7 @@ $usuarios = $pdo->query("SELECT * FROM usuarios ORDER BY id DESC")->fetchAll(PDO
 
         .form-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(3, 1fr);
             gap: 20px;
             align-items: flex-end;
         }
@@ -95,8 +95,15 @@ $usuarios = $pdo->query("SELECT * FROM usuarios ORDER BY id DESC")->fetchAll(PDO
             border-radius: 6px;
             outline: none;
             transition: border 0.3s;
+            width: 100%;
+            box-sizing: border-box;
         }
-        .input-dark:focus { border-color: var(--accent); }
+.input-dark:focus { border-color: var(--accent); }
+
+        .btn-submit-container {
+            grid-column: 3;
+            justify-self: end;
+        }
 
         /* Tabla Estilizada */
         .table-custom {
@@ -197,9 +204,11 @@ $usuarios = $pdo->query("SELECT * FROM usuarios ORDER BY id DESC")->fetchAll(PDO
                             <?php endif; ?>
                         </select>
                     </div>
-                    <button type="submit" name="nuevo_usuario" class="btn-toggle btn-on" style="height: 45px; width: 100%;">
-                        <i class="fas fa-plus"></i> REGISTRAR USUARIO
-                    </button>
+                    <div class="btn-submit-container">
+                        <button type="submit" name="nuevo_usuario" class="btn-toggle btn-on" style="height: 45px;">
+                            <i class="fas fa-plus"></i> REGISTRAR USUARIO
+                        </button>
+                    </div>
                 </form>
             </div>
 

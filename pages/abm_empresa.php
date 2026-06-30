@@ -1,16 +1,42 @@
 <?php
 include 'infosesion.php';
 require_once '../config/validar_permisos.php';
-restringirPagina('developer');
+restringirPagina('admin');
 require '../config/db_config.php';
 
+// Iniciar sesión para CSRF token
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Generar token CSRF si no existe
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 $mensaje = '';
+$tipo_mensaje = 'success';
 
 // LÓGICA DE GUARDADO
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
+        // Validar CSRF token
+        if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+            throw new Exception("Token de seguridad inválido.");
+        }
+
         if (isset($_POST['guardar_empresa'])) {
-            // Usamos una consulta que inserta si no existe o actualiza si existe
+            // Validaciones
+            $cuit = trim($_POST['cuit']);
+            if (!empty($cuit) && !preg_match('/^\d{2}-\d{8}-\d{1}$/', $cuit)) {
+                throw new Exception("El CUIT debe tener formato XX-XXXXXXXX-X");
+            }
+
+            $telefono = trim($_POST['telefono']);
+            if (!empty($telefono) && !preg_match('/^[\d\s\+\-\(\)]+$/', $telefono)) {
+                throw new Exception("El teléfono contiene caracteres inválidos");
+            }
+
             $sql = "INSERT INTO datos_empresa (id, nombre_fantasia, razon_social, cuit, condicion_iva, ingresos_brutos, inicio_actividades, direccion, localidad, telefono) 
                     VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON DUPLICATE KEY UPDATE 
@@ -26,56 +52,123 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $stmt = $pdo->prepare($sql);
             $stmt->execute([
-                $_POST['nombre_fantasia'], $_POST['razon_social'], $_POST['cuit'],
-                $_POST['condicion_iva'], $_POST['ingresos_brutos'], $_POST['inicio_actividades'],
-                $_POST['direccion'], $_POST['localidad'], $_POST['telefono']
+                $_POST['nombre_fantasia'], 
+                $_POST['razon_social'], 
+                $cuit,
+                $_POST['condicion_iva'], 
+                $_POST['ingresos_brutos'], 
+                $_POST['inicio_actividades'] ?: null,
+                $_POST['direccion'], 
+                $_POST['localidad'], 
+                $telefono
             ]);
             $mensaje = "✅ Datos de la empresa guardados correctamente.";
         }
 
         if (isset($_POST['guardar_sucursal'])) {
-            // Si el ID viene vacío, es una inserción nueva. Si viene con número, es edición.
             $id_suc = !empty($_POST['id_sucursal']) ? $_POST['id_sucursal'] : null;
 
-            $sql = "INSERT INTO sucursales (id, nombre_sucursal, direccion, telefono, email, web, es_principal) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE 
-                    nombre_sucursal = VALUES(nombre_sucursal), 
-                    direccion = VALUES(direccion), 
-                    telefono = VALUES(telefono), 
-                    email = VALUES(email), 
-                    web = VALUES(web), 
-                    es_principal = VALUES(es_principal)";
-            
-            $stmt = $pdo->prepare($sql);
-            
-            // Si es nueva y queremos que sea principal, primero reseteamos las otras
-            if ($_POST['es_principal'] == 1) {
-                $pdo->query("UPDATE sucursales SET es_principal = 0");
+            // Validaciones
+            $email = trim($_POST['email']);
+            if (!empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                throw new Exception("El email no tiene formato válido");
             }
 
-            $stmt->execute([
-                $id_suc, 
-                $_POST['nombre_sucursal'], 
-                $_POST['direccion'], 
-                $_POST['telefono'], 
-                $_POST['email'], 
-                isset($_POST['web']) ? $_POST['web'] : '', 
-                $_POST['es_principal']
-            ]);
+            $telefono = trim($_POST['telefono']);
+            if (!empty($telefono) && !preg_match('/^[\d\s\+\-\(\)]+$/', $telefono)) {
+                throw new Exception("El teléfono contiene caracteres inválidos");
+            }
+
+            // Iniciar transacción para evitar race conditions
+            $pdo->beginTransaction();
+
+            try {
+                // Si se marca como principal, resetear las otras primero
+                if ($_POST['es_principal'] == 1) {
+                    $pdo->query("UPDATE sucursales SET es_principal = 0");
+                }
+
+                $sql = "INSERT INTO sucursales (id, nombre_sucursal, direccion, telefono, email, web, es_principal) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        ON DUPLICATE KEY UPDATE 
+                        nombre_sucursal = VALUES(nombre_sucursal), 
+                        direccion = VALUES(direccion), 
+                        telefono = VALUES(telefono), 
+                        email = VALUES(email), 
+                        web = VALUES(web), 
+                        es_principal = VALUES(es_principal)";
+                
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute([
+                    $id_suc, 
+                    $_POST['nombre_sucursal'], 
+                    $_POST['direccion'], 
+                    $telefono, 
+                    $email, 
+                    isset($_POST['web']) ? trim($_POST['web']) : '', 
+                    $_POST['es_principal']
+                ]);
+
+                $pdo->commit();
+                $mensaje = "✅ Sucursal guardada correctamente.";
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
+        }
+
+        // Manejo de upload de logo
+        if (isset($_POST['guardar_empresa']) && isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
+            $upload_dir = '../img/logos/';
+            if (!file_exists($upload_dir)) {
+                mkdir($upload_dir, 0755, true);
+            }
+
+            $file_extension = strtolower(pathinfo($_FILES['logo']['name'], PATHINFO_EXTENSION));
+            $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
             
-            $mensaje = "✅ Sucursal guardada y sincronizada correctamente.";
+            if (!in_array($file_extension, $allowed_extensions)) {
+                $mensaje = "⚠️ Logo guardado, pero el formato debe ser JPG, PNG, GIF o WebP";
+                $tipo_mensaje = 'warning';
+            } else {
+                $file_name = 'logo_' . time() . '.' . $file_extension;
+                $file_path = $upload_dir . $file_name;
+                
+                if (move_uploaded_file($_FILES['logo']['tmp_name'], $file_path)) {
+                    // Eliminar logo anterior si existe
+                    $empresa_actual = $pdo->query("SELECT logo_path FROM datos_empresa WHERE id = 1")->fetch(PDO::FETCH_ASSOC);
+                    if ($empresa_actual && !empty($empresa_actual['logo_path']) && file_exists('../' . $empresa_actual['logo_path'])) {
+                        unlink('../' . $empresa_actual['logo_path']);
+                    }
+                    
+                    // Actualizar ruta en BD
+                    $stmt = $pdo->prepare("UPDATE datos_empresa SET logo_path = ? WHERE id = 1");
+                    $stmt->execute(['img/logos/' . $file_name]);
+                    
+                    if (empty($mensaje)) {
+                        $mensaje = "✅ Datos y logo guardados correctamente.";
+                    }
+                } else {
+                    $mensaje = "⚠️ Datos guardados, pero error al subir logo";
+                    $tipo_mensaje = 'warning';
+                }
+            }
         }
     } catch (Exception $e) {
         $mensaje = "❌ Error: " . $e->getMessage();
+        $tipo_mensaje = 'error';
     }
 }
 
 // OBTENER DATOS
 $empresa = $pdo->query("SELECT * FROM datos_empresa WHERE id = 1")->fetch(PDO::FETCH_ASSOC);
-$sucursales = $pdo->query("SELECT * FROM sucursales ORDER BY es_principal DESC")->fetchAll(PDO::FETCH_ASSOC);
-?>
+$sucursales = $pdo->query("SELECT * FROM sucursales ORDER BY es_principal DESC, id ASC")->fetchAll(PDO::FETCH_ASSOC);
 
+// Regenerar token CSRF después de POST
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -116,6 +209,12 @@ $sucursales = $pdo->query("SELECT * FROM sucursales ORDER BY es_principal DESC")
             width: 100%; padding: 10px; margin-top: 5px; border-radius: 4px; box-sizing: border-box;
         }
         
+        .input-field:focus {
+            outline: none;
+            border-color: #00bcd4;
+            box-shadow: 0 0 0 2px rgba(0, 188, 212, 0.2);
+        }
+        
         label { color: #00bcd4; font-size: 0.85rem; margin-top: 15px; display: block; font-weight: bold; }
         
         .btn-save { 
@@ -125,11 +224,75 @@ $sucursales = $pdo->query("SELECT * FROM sucursales ORDER BY es_principal DESC")
         
         .btn-save:hover { background: #008ba3; }
 
+        .btn-secondary {
+            background: #333; color: #00bcd4; border: 1px solid #00bcd4; padding: 8px 16px;
+            border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: bold;
+        }
+
+        .btn-secondary:hover { background: #444; }
+
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th { text-align: left; color: #00bcd4; border-bottom: 2px solid #333; padding: 10px; }
         td { padding: 10px; border-bottom: 1px solid #222; font-size: 0.9rem; }
         
         .badge-principal { background: #4caf50; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; }
+
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            border: 1px solid;
+        }
+
+        .alert-success {
+            background: #1b5e20;
+            color: white;
+            border-color: #2e7d32;
+        }
+
+        .alert-error {
+            background: #b71c1c;
+            color: white;
+            border-color: #c62828;
+        }
+
+        .alert-warning {
+            background: #f57c00;
+            color: white;
+            border-color: #ef6c00;
+        }
+
+        .logo-preview {
+            max-width: 200px;
+            max-height: 200px;
+            border: 2px dashed #333;
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        .logo-preview img {
+            max-width: 100%;
+            max-height: 180px;
+            border-radius: 4px;
+        }
+
+        .logo-upload {
+            margin-top: 10px;
+        }
+
+        .help-text {
+            font-size: 0.75rem;
+            color: #888;
+            margin-top: 3px;
+        }
+
+        .error-text {
+            color: #f44336;
+            font-size: 0.8rem;
+            margin-top: 3px;
+        }
     </style>
 </head>
 <body>
@@ -140,7 +303,7 @@ $sucursales = $pdo->query("SELECT * FROM sucursales ORDER BY es_principal DESC")
         <h1><i class="fas fa-industry"></i> Perfil del Negocio</h1>
 
         <?php if ($mensaje): ?>
-            <div class="alert alert-success" style="background: #1b5e20; color: white; padding: 15px; margin-bottom: 20px; border-radius: 5px; border: 1px solid #2e7d32;">
+            <div class="alert alert-<?php echo $tipo_mensaje; ?>" style="background: <?php echo $tipo_mensaje === 'error' ? '#b71c1c' : ($tipo_mensaje === 'warning' ? '#f57c00' : '#1b5e20'); ?>; color: white; padding: 15px; margin-bottom: 20px; border-radius: 5px; border: 1px solid <?php echo $tipo_mensaje === 'error' ? '#c62828' : ($tipo_mensaje === 'warning' ? '#ef6c00' : '#2e7d32'); ?>;">
                 <?php echo $mensaje; ?>
             </div>
         <?php endif; ?>
@@ -159,24 +322,31 @@ $sucursales = $pdo->query("SELECT * FROM sucursales ORDER BY es_principal DESC")
                 </div>
             </div>
             <div style="text-align: right; border-left: 1px solid #333; padding-left: 20px;">
-                <i class="fas fa-store-alt" style="font-size: 3.5rem; color: #333;"></i>
+                <?php if (!empty($empresa['logo_path']) && file_exists('../' . $empresa['logo_path'])): ?>
+                    <img src="../<?php echo htmlspecialchars($empresa['logo_path']); ?>" alt="Logo" style="max-width: 150px; max-height: 150px;">
+                <?php else: ?>
+                    <i class="fas fa-store-alt" style="font-size: 3.5rem; color: #333;"></i>
+                <?php endif; ?>
             </div>
         </div>
 
         <div class="grid-config">
             <div class="card">
                 <h3 style="color: #fff; margin-top:0;"><i class="fas fa-edit"></i> Editar Información General</h3>
-                <form method="POST">
-                    <label>Nombre de Fantasía (Sale en Ticket)</label>
-                    <input type="text" name="nombre_fantasia" class="input-field" value="<?php echo htmlspecialchars(isset($empresa['nombre_fantasia']) ? $empresa['nombre_fantasia'] : ''); ?>">
+                <form method="POST" enctype="multipart/form-data" id="formEmpresa">
+                    <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
                     
-                    <label>Razón Social</label>
-                    <input type="text" name="razon_social" class="input-field" value="<?php echo htmlspecialchars(isset($empresa['razon_social']) ? $empresa['razon_social'] : ''); ?>">
+                    <label>Nombre de Fantasía (Sale en Ticket) *</label>
+                    <input type="text" name="nombre_fantasia" class="input-field" value="<?php echo htmlspecialchars(isset($empresa['nombre_fantasia']) ? $empresa['nombre_fantasia'] : ''); ?>" required>
+                    
+                    <label>Razón Social *</label>
+                    <input type="text" name="razon_social" class="input-field" value="<?php echo htmlspecialchars(isset($empresa['razon_social']) ? $empresa['razon_social'] : ''); ?>" required>
                     
                     <div style="display: flex; gap: 10px;">
                         <div style="flex: 1;">
-                            <label>CUIT</label>
-                            <input type="text" name="cuit" class="input-field" value="<?php echo htmlspecialchars(isset($empresa['cuit']) ? $empresa['cuit'] : ''); ?>">
+                            <label>CUIT (XX-XXXXXXXX-X)</label>
+                            <input type="text" name="cuit" class="input-field" value="<?php echo htmlspecialchars(isset($empresa['cuit']) ? $empresa['cuit'] : ''); ?>" placeholder="00-00000000-0" maxlength="13">
+                            <div class="help-text">Formato: XX-XXXXXXXX-X</div>
                         </div>
                         <div style="flex: 1;">
                             <label>Inicio Actividades</label>
@@ -184,23 +354,24 @@ $sucursales = $pdo->query("SELECT * FROM sucursales ORDER BY es_principal DESC")
                         </div>
                     </div>
 
-                    <label>Condición frente al IVA</label>
-                    <select name="condicion_iva" class="input-field">
+                    <label>Condición frente al IVA *</label>
+                    <select name="condicion_iva" class="input-field" required>
+                        <option value="">Seleccione...</option>
                         <option value="Responsable Inscripto" <?php echo (isset($empresa['condicion_iva']) ? $empresa['condicion_iva'] : '') == 'Responsable Inscripto' ? 'selected' : ''; ?>>Responsable Inscripto</option>
-                        <option value="Responsable Monotributo" <?php echo (isset($empresa['condicion_iva']) ? $empresa['condicion_iva'] : '') == 'Monotributista' ? 'selected' : ''; ?>>Monotributista</option>
+                        <option value="Responsable Monotributo" <?php echo (isset($empresa['condicion_iva']) ? $empresa['condicion_iva'] : '') == 'Responsable Monotributo' ? 'selected' : ''; ?>>Responsable Monotributo</option>
                         <option value="IVA Exento" <?php echo (isset($empresa['condicion_iva']) ? $empresa['condicion_iva'] : '') == 'IVA Exento' ? 'selected' : ''; ?>>IVA Exento</option>
                     </select>
 
                     <label>Ingresos Brutos</label>
                     <input type="text" name="ingresos_brutos" class="input-field" value="<?php echo htmlspecialchars(isset($empresa['ingresos_brutos']) ? $empresa['ingresos_brutos'] : ''); ?>">
 
-                    <label>Dirección</label>
-                    <input type="text" name="direccion" class="input-field" value="<?php echo htmlspecialchars(isset($empresa['direccion']) ? $empresa['direccion'] : ''); ?>">
+                    <label>Dirección *</label>
+                    <input type="text" name="direccion" class="input-field" value="<?php echo htmlspecialchars(isset($empresa['direccion']) ? $empresa['direccion'] : ''); ?>" required>
 
                     <div style="display: flex; gap: 10px;">
                         <div style="flex: 1;">
-                            <label>Localidad</label>
-                            <input type="text" name="localidad" class="input-field" value="<?php echo htmlspecialchars(isset($empresa['localidad']) ? $empresa['localidad'] : ''); ?>">
+                            <label>Localidad *</label>
+                            <input type="text" name="localidad" class="input-field" value="<?php echo htmlspecialchars(isset($empresa['localidad']) ? $empresa['localidad'] : ''); ?>" required>
                         </div>
                         <div style="flex: 1;">
                             <label>Teléfono de Contacto</label>
@@ -208,7 +379,22 @@ $sucursales = $pdo->query("SELECT * FROM sucursales ORDER BY es_principal DESC")
                         </div>
                     </div>
 
-                    <button type="submit" name="guardar_empresa" class="btn-save">
+                    <label>Logo de la Empresa</label>
+                    <div class="logo-preview" id="logoPreview">
+                        <?php if (!empty($empresa['logo_path']) && file_exists('../' . $empresa['logo_path'])): ?>
+                            <img src="../<?php echo htmlspecialchars($empresa['logo_path']); ?>" alt="Logo actual">
+                            <div class="help-text">Logo actual</div>
+                        <?php else: ?>
+                            <i class="fas fa-image" style="font-size: 3rem; color: #444;"></i>
+                            <div class="help-text">Sin logo</div>
+                        <?php endif; ?>
+                    </div>
+                    <div class="logo-upload">
+                        <input type="file" name="logo" id="logo" class="input-field" accept="image/jpeg,image/png,image/gif,image/webp">
+                        <div class="help-text">Formatos: JPG, PNG, GIF, WebP. Tamaño máximo: 2MB</div>
+                    </div>
+
+                    <button type="submit" name="guardar_empresa" class="btn-save" onclick="return confirm('¿Guardar cambios en datos de empresa?')">
                         <i class="fas fa-sync-alt"></i> ACTUALIZAR FICHA
                     </button>
                 </form>
@@ -218,15 +404,17 @@ $sucursales = $pdo->query("SELECT * FROM sucursales ORDER BY es_principal DESC")
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                     <h3 style="color: #fff; margin: 0;"><i class="fas fa-map-marker-alt"></i> Sucursales y Contacto</h3>
                     
-                    <button type="button" onclick="limpiarFormSucursal()" style="background: #333; color: #00bcd4; border: 1px solid #00bcd4; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; font-weight: bold;">
+                    <button type="button" onclick="limpiarFormSucursal()" class="btn-secondary">
                         <i class="fas fa-plus"></i> NUEVA SUCURSAL
                     </button>
                 </div>
-                <form method="POST">
+                <form method="POST" id="formSucursal">
+                    <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
                     <input type="hidden" name="id_sucursal" id="id_sucursal">
                     
-                    <label>Nombre Sucursal</label>
+                    <label>Nombre Sucursal *</label>
                     <input type="text" name="nombre_sucursal" id="nombre_sucursal" class="input-field" required placeholder="Ej: Casa Central">
+                    <div id="error_nombre_sucursal" class="error-text"></div>
 
                     <label>Dirección Física</label>
                     <input type="text" name="direccion" id="direccion" class="input-field" placeholder="Calle, Número, Localidad">
@@ -237,18 +425,21 @@ $sucursales = $pdo->query("SELECT * FROM sucursales ORDER BY es_principal DESC")
                             <input type="text" name="telefono" id="telefono" class="input-field">
                         </div>
                         <div style="flex: 1;">
-                            <label>Principal?</label>
+                            <label>Principal? (Para tickets)</label>
                             <select name="es_principal" id="es_principal" class="input-field">
                                 <option value="0">No</option>
-                                <option value="1">Sí (Para tickets)</option>
+                                <option value="1">Sí</option>
                             </select>
                         </div>
                     </div>
 
                     <label>Email de contacto</label>
-                    <input type="email" name="email" id="email" class="input-field">
+                    <input type="email" name="email" id="email" class="input-field" placeholder="info@empresa.com">
 
-                    <button type="submit" name="guardar_sucursal" class="btn-save" style="background: #4caf50;">
+                    <label>Sitio Web</label>
+                    <input type="url" name="web" id="web" class="input-field" placeholder="https://www.empresa.com">
+
+                    <button type="submit" name="guardar_sucursal" class="btn-save" style="background: #4caf50;" onclick="return confirm('¿Guardar sucursal?')">
                         <i class="fas fa-plus"></i> GUARDAR / EDITAR SUCURSAL
                     </button>
                 </form>
@@ -258,28 +449,43 @@ $sucursales = $pdo->query("SELECT * FROM sucursales ORDER BY es_principal DESC")
                         <tr>
                             <th>Sucursal</th>
                             <th>Contacto</th>
-                            <th>-</th>
+                            <th style="text-align: right;">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($sucursales as $s): ?>
-                        <tr>
-                            <td>
-                                <strong><?php echo htmlspecialchars($s['nombre_sucursal']); ?></strong><br>
-                                <small style="color:#777;"><?php echo htmlspecialchars($s['direccion']); ?></small>
-                                <?php if($s['es_principal']) echo '<br><span class="badge-principal">Ticket Default</span>'; ?>
-                            </td>
-                            <td>
-                                <i class="fas fa-phone-alt" style="font-size:0.7rem;"></i> <?php echo htmlspecialchars($s['telefono']); ?><br>
-                                <i class="fas fa-envelope" style="font-size:0.7rem;"></i> <?php echo htmlspecialchars($s['email']); ?>
-                            </td>
-                            <td style="text-align: right;">
-                                <button onclick='editarSucursal(<?php echo json_encode($s); ?>)' style="background:none; border:none; color:#00bcd4; cursor:pointer; font-size:1.1rem;">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
+                        <?php if (empty($sucursales)): ?>
+                            <tr>
+                                <td colspan="3" style="text-align: center; color: #777; padding: 20px;">
+                                    No hay sucursales registradas
+                                </td>
+                            </tr>
+                        <?php else: ?>
+                            <?php foreach ($sucursales as $s): ?>
+                            <tr>
+                                <td>
+                                    <strong><?php echo htmlspecialchars($s['nombre_sucursal']); ?></strong><br>
+                                    <small style="color:#777;"><?php echo htmlspecialchars($s['direccion']); ?></small>
+                                    <?php if($s['es_principal']) echo '<br><span class="badge-principal">Ticket Default</span>'; ?>
+                                </td>
+                                <td>
+                                    <?php if ($s['telefono']): ?>
+                                        <i class="fas fa-phone-alt" style="font-size:0.7rem;"></i> <?php echo htmlspecialchars($s['telefono']); ?><br>
+                                    <?php endif; ?>
+                                    <?php if ($s['email']): ?>
+                                        <i class="fas fa-envelope" style="font-size:0.7rem;"></i> <?php echo htmlspecialchars($s['email']); ?>
+                                    <?php endif; ?>
+                                    <?php if ($s['web']): ?>
+                                        <br><i class="fas fa-globe" style="font-size:0.7rem;"></i> <?php echo htmlspecialchars($s['web']); ?>
+                                    <?php endif; ?>
+                                </td>
+                                <td style="text-align: right;">
+                                    <button onclick='editarSucursal(<?php echo json_encode($s); ?>)' class="btn-secondary" style="padding: 5px 10px; font-size: 0.9rem;" title="Editar">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
                     </tbody>
                 </table>
             </div>
@@ -287,15 +493,40 @@ $sucursales = $pdo->query("SELECT * FROM sucursales ORDER BY es_principal DESC")
     </div>
 
     <script>
+        // Preview de logo antes de subir
+        document.getElementById('logo').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const preview = document.getElementById('logoPreview');
+            
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.innerHTML = '<img src="' + e.target.result + '" alt="Preview"><div class="help-text">Vista previa</div>';
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Formatear CUIT automáticamente
+        document.querySelector('input[name="cuit"]').addEventListener('blur', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.length === 11) {
+                value = value.substring(0, 2) + '-' + value.substring(2, 10) + '-' + value.substring(10, 11);
+                e.target.value = value;
+            }
+        });
+
         function editarSucursal(data) {
             document.getElementById('id_sucursal').value = data.id;
             document.getElementById('nombre_sucursal').value = data.nombre_sucursal;
-            document.getElementById('direccion').value = data.direccion;
-            document.getElementById('telefono').value = data.telefono;
-            document.getElementById('email').value = data.email;
+            document.getElementById('direccion').value = data.direccion || '';
+            document.getElementById('telefono').value = data.telefono || '';
+            document.getElementById('email').value = data.email || '';
+            document.getElementById('web').value = data.web || '';
             document.getElementById('es_principal').value = data.es_principal;
             
-            // Hacer scroll suave hacia el formulario de sucursal
+            // Scroll suave hacia el formulario
+            document.getElementById('nombre_sucursal').scrollIntoView({ behavior: 'smooth', block: 'center' });
             document.getElementById('nombre_sucursal').focus();
         }
 
@@ -305,8 +536,26 @@ $sucursales = $pdo->query("SELECT * FROM sucursales ORDER BY es_principal DESC")
             document.getElementById('direccion').value = '';
             document.getElementById('telefono').value = '';
             document.getElementById('email').value = '';
+            document.getElementById('web').value = '';
             document.getElementById('es_principal').value = '0';
+            document.getElementById('nombre_sucursal').focus();
         }
+
+        // Validación del formulario de sucursal
+        document.getElementById('formSucursal').addEventListener('submit', function(e) {
+            const nombre = document.getElementById('nombre_sucursal').value.trim();
+            const errorDiv = document.getElementById('error_nombre_sucursal');
+            
+            if (nombre.length < 2) {
+                e.preventDefault();
+                errorDiv.textContent = 'El nombre debe tener al menos 2 caracteres';
+                document.getElementById('nombre_sucursal').focus();
+                return false;
+            }
+            
+            errorDiv.textContent = '';
+            return true;
+        });
     </script>
 </body>
 </html>

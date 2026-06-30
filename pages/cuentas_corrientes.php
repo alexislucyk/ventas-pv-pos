@@ -13,9 +13,9 @@ try {
             CONCAT(c.apellido, ', ', c.nombre) AS nombre_completo,
             c.cuit,
             c.telefono,
-            SUM(m.debe) AS total_debe,
-            SUM(m.haber) AS total_haber,
-            (SUM(m.debe) - SUM(m.haber)) AS saldo_actual
+            COALESCE(SUM(m.debe), 0) AS total_debe,
+            COALESCE(SUM(m.haber), 0) AS total_haber,
+            COALESCE(SUM(m.debe), 0) - COALESCE(SUM(m.haber), 0) AS saldo_actual
         FROM clientes c
         INNER JOIN ctacte m ON c.id = m.id_cliente
         GROUP BY c.id
@@ -80,6 +80,31 @@ try {
 
         .btn-view { background: #3498db; color: white; border-radius: 4px; text-decoration: none; cursor: pointer; border:none; }
         .btn-whatsapp-nodered { background: #25d366; color: white; border-radius: 4px; text-decoration: none; margin-left: 5px; border: none; cursor: pointer; }
+
+        /* Toast Notifications */
+        .toast-notificacion {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #2ecc71;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            z-index: 2147483647;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            animation: toast-slide-in 0.3s ease;
+        }
+        .toast-fade-out {
+            animation: toast-fade-out 0.5s ease forwards;
+        }
+        @keyframes toast-slide-in {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes toast-fade-out {
+            to { transform: translateX(100%); opacity: 0; }
+        }
 
         table { width: 100%; border-collapse: collapse; margin-top: 10px; background: #1f1f1f; color: #eee; font-size: 0.82rem; }
         th { background: #333; color: #fff; padding: 6px 10px !important; text-align: left; }
@@ -200,15 +225,15 @@ try {
                                     $ <?php echo number_format($c['saldo_actual'], 2, ',', '.'); ?>
                                 </td>
                                 <td style="text-align: center;">
-                                    <button class="btn-view" onclick="verDetalle(<?php echo $c['id_cliente']; ?>, '<?php echo $c['nombre_completo']; ?>')">
-                                        👁️ Ver Historial
-                                    </button>
-                                    <?php if (tiene_permiso('whatsapp_enviar')): ?>
-                                        <button class="btn-whatsapp-nodered" title="Enviar saldo vía Node-RED"
-                                                onclick="enviarWhatsAppNodeRed('<?php echo $c['telefono']; ?>', '<?php echo addslashes($c['nombre_completo']); ?>', <?php echo $c['saldo_actual']; ?>)">
-                                            <i class="fab fa-whatsapp"></i> WhatsApp
+<button class="btn-view" onclick="verDetalle(<?php echo $c['id_cliente']; ?>, '<?php echo htmlspecialchars($c['nombre_completo'], ENT_QUOTES); ?>')" aria-label="Ver historial de <?php echo htmlspecialchars($c['nombre_completo'], ENT_QUOTES); ?>">
+                                            <i class="fas fa-eye" aria-hidden="true"></i> Ver Historial
                                         </button>
-                                    <?php endif; ?>
+<?php if (tiene_permiso('whatsapp_enviar')): ?>
+                                            <button class="btn-whatsapp-nodered" title="Enviar saldo vía Node-RED" aria-label="Enviar WhatsApp a <?php echo htmlspecialchars($c['nombre_completo'], ENT_QUOTES); ?>"
+                                                    onclick="enviarWhatsAppNodeRed('<?php echo htmlspecialchars($c['telefono'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($c['nombre_completo'], ENT_QUOTES); ?>', <?php echo $c['saldo_actual']; ?>)">
+                                                <i class="fab fa-whatsapp" aria-hidden="true"></i> WhatsApp
+                                            </button>
+                                        <?php endif; ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -542,28 +567,45 @@ try {
         document.getElementById('mensajeWhatsAppPreview').innerText = msg;
         document.getElementById('modalWhatsApp').style.display = 'flex';
     }
-    // --- BUSCADOR MANUAL ---
+    // --- BUSCADOR MANUAL CON DEBOUNCE ---
     const inputCC = document.getElementById('buscar_cliente_cc');
     const resCC = document.getElementById('resultadosBusquedaCC');
+    let searchTimeout = null;
+    
     if (inputCC) {
         inputCC.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
             const q = this.value.trim();
-            if (q.length < 3) { resCC.style.display = 'none'; return; }
-            fetch('buscar_cliente_ajax.php?q=' + encodeURIComponent(q))
-                .then(res => res.json())
-                .then(data => {
-                    resCC.innerHTML = '';
-                    if (data && data.length > 0) {
+            
+            if (q.length < 3) { 
+                resCC.style.display = 'none'; 
+                resCC.innerHTML = '';
+                return; 
+            }
+            
+            searchTimeout = setTimeout(() => {
+                fetch('buscar_cliente_ajax.php?q=' + encodeURIComponent(q))
+                    .then(res => res.json())
+                    .then(data => {
+                        resCC.innerHTML = '';
+                        if (data && data.length > 0) {
+                            resCC.style.display = 'block';
+                            data.forEach(c => {
+                                const div = document.createElement('div');
+                                div.style.padding = '12px'; div.style.cursor = 'pointer'; div.style.borderBottom = '1px solid #333'; div.style.color = '#fff';
+                                div.innerHTML = `<strong>${c.nombre_completo}</strong> <small style="color:#888;">(Doc: ${c.num_documento || 'S/D'})</small>`;
+                                div.onclick = () => { verDetalle(c.id_cliente, c.nombre_completo); inputCC.value = ''; resCC.style.display = 'none'; };
+                                resCC.appendChild(div);
+                            });
+                        } else {
+                            resCC.innerHTML = '<div style="padding:12px; color:#888;">No se encontraron clientes</div>';
+                            resCC.style.display = 'block';
+                        }
+                    }).catch(() => {
+                        resCC.innerHTML = '<div style="padding:12px; color:#e74c3c;">Error de conexión</div>';
                         resCC.style.display = 'block';
-                        data.forEach(c => {
-                            const div = document.createElement('div');
-                            div.style.padding = '12px'; div.style.cursor = 'pointer'; div.style.borderBottom = '1px solid #333'; div.style.color = '#fff';
-                            div.innerHTML = `<strong>${c.nombre_completo}</strong> <small style="color:#888;">(Doc: ${c.num_documento || 'S/D'})</small>`;
-                            div.onclick = () => { verDetalle(c.id_cliente, c.nombre_completo); inputCC.value = ''; resCC.style.display = 'none'; };
-                            resCC.appendChild(div);
-                        });
-                    } else resCC.style.display = 'none';
-                });
+                    });
+            }, 300); // Debounce 300ms
         });
         document.addEventListener('click', (e) => { if (!inputCC.contains(e.target) && !resCC.contains(e.target)) resCC.style.display = 'none'; });
     }
@@ -572,6 +614,16 @@ try {
         const modales = [document.getElementById('modalFactura'), document.getElementById('modalWhatsApp'), document.getElementById('modalHistorial'), document.getElementById('modalRegistrarPagoCliente')];
         modales.forEach(m => { if (m && e.target == m) m.style.display = 'none'; });
     }
+
+    // Cerrar modales con ESC
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            document.getElementById('modalHistorial').style.display = 'none';
+            document.getElementById('modalFactura').style.display = 'none';
+            document.getElementById('modalWhatsApp').style.display = 'none';
+            document.getElementById('modalRegistrarPagoCliente').style.display = 'none';
+        }
+    });
 </script>
 </body>
 </html>
