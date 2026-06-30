@@ -1,15 +1,14 @@
 <?php
 include 'infosesion.php';
 require_once '../config/validar_permisos.php';
-//restringirPagina('developer');
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 require '../config/db_config.php';
 
-// Inicializar variables - PHP 5 compatible
+// Inicializar variables
 $accion = isset($_GET['accion']) ? $_GET['accion'] : 'listar';
 $id = isset($_GET['id']) ? $_GET['id'] : null;
 $mensaje = '';
-$cliente_editar = array(); 
+$cliente_editar = array();
 
 // Mapeo de tipos de IVA para ARCA/AFIP
 $tipos_iva = [
@@ -19,24 +18,23 @@ $tipos_iva = [
     4  => 'Exento'
 ];
 
-// --- LÓGICA PARA AUTOGENERAR ID (Solo si es creación) ---
+// --- LÓGICA PARA AUTOGENERAR ID ---
 $nuevo_id_sugerido = '';
 if ($accion === 'crear') {
     try {
-        // Buscamos el ID más alto
         $stmt_id = $pdo->query("SELECT id FROM clientes ORDER BY id DESC LIMIT 1");
         $ultimo = $stmt_id->fetch();
         $nuevo_id_sugerido = $ultimo ? (intval($ultimo['id']) + 1) : 1;
     } catch (Exception $e) {
-        $nuevo_id_sugerido = ''; 
+        $nuevo_id_sugerido = '';
     }
 }
 
 // --- LÓGICA DEL CONTROLADOR ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
-        $nombre = trim($_POST['nombre']); 
-        $apellido = trim($_POST['apellido']); 
+        $nombre = trim($_POST['nombre']);
+        $apellido = trim($_POST['apellido']);
         $dni = trim($_POST['dni']);
         $id_tipo_iva = isset($_POST['id_tipo_iva']) ? intval($_POST['id_tipo_iva']) : 99;
         $cuit = trim($_POST['cuit']);
@@ -45,6 +43,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $estado = isset($_POST['estado']) ? $_POST['estado'] : 'Activo';
         $habilita_cta = isset($_POST['habilita_cta']) ? $_POST['habilita_cta'] : 'No';
         $relacion = trim($_POST['relacion']);
+        $email = trim($_POST['email']);
+        $localidad = trim($_POST['localidad']);
         
         $id_post = isset($_POST['id_cliente']) ? $_POST['id_cliente'] : null;
         $accion_post = $_POST['accion_post'];
@@ -53,20 +53,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new Exception("El Apellido es obligatorio.");
         }
 
+        // Validación de CUIT formato XX-XXXXXXXX-X
+        if (!empty($cuit)) {
+            $cuit_clean = preg_replace('/[^0-9]/', '', $cuit);
+            if (strlen($cuit_clean) > 0 && strlen($cuit_clean) !== 11) {
+                // Solo advertir, no bloquear
+            }
+        }
+
         if ($accion_post === 'crear') {
-            // Usamos el ID autogenerado en el INSERT
-            $id_a_insertar = $_POST['id_visual']; 
+            $id_a_insertar = $_POST['id_visual'];
             $sql = "INSERT INTO clientes (id, nombre, apellido, dni, id_tipo_iva, cuit, telefono, direccion, estado, habilita_cta, relacion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = $pdo->prepare($sql);
             $stmt->execute(array($id_a_insertar, $nombre, $apellido, $dni, $id_tipo_iva, $cuit, $telefono, $direccion, $estado, $habilita_cta, $relacion));
             $mensaje = "✅ Cliente #$id_a_insertar registrado con éxito.";
-            $accion = 'listar'; 
+            $accion = 'listar';
         } elseif ($accion_post === 'editar' && $id_post) {
             $sql = "UPDATE clientes SET nombre=?, apellido=?, dni=?, id_tipo_iva=?, cuit=?, telefono=?, direccion=?, estado=?, habilita_cta=?, relacion=? WHERE id=?";
             $stmt = $pdo->prepare($sql);
             $stmt->execute(array($nombre, $apellido, $dni, $id_tipo_iva, $cuit, $telefono, $direccion, $estado, $habilita_cta, $relacion, $id_post));
             $mensaje = "✅ Datos del cliente actualizados.";
-            $accion = 'listar'; 
+            $accion = 'listar';
         }
     } catch (Exception $e) {
         $mensaje = "❌ Error: " . $e->getMessage();
@@ -92,14 +99,75 @@ if ($accion === 'editar' && $id) {
     $cliente_editar = $stmt->fetch();
 }
 
-// --- LISTAR CLIENTES ---
+// --- LISTAR CLIENTES CON PAGINACIÓN Y FILTROS ---
 $clientes = array();
+$clientes_count = 0;
+$pagina = isset($_GET['pagina']) ? max(1, intval($_GET['pagina'])) : 1;
+$por_pagina = 50;
+$offset = ($pagina - 1) * $por_pagina;
+
 if ($accion === 'listar') {
-    $stmt = $pdo->query('SELECT * FROM clientes ORDER BY id DESC'); // Ordenados por el más reciente
+    // Construir WHERE dinámico
+    $where = array();
+    $params = array();
+    
+    $filtro_buscar = isset($_GET['buscar']) ? trim($_GET['buscar']) : '';
+    $filtro_estado = isset($_GET['estado']) ? $_GET['estado'] : '';
+    $filtro_iva = isset($_GET['iva']) ? $_GET['iva'] : '';
+    $filtro_cta = isset($_GET['cta_cte']) ? $_GET['cta_cte'] : '';
+    
+    if ($filtro_buscar) {
+        $where[] = "(apellido LIKE ? OR nombre LIKE ? OR cuit LIKE ? OR dni LIKE ? OR id = ?)";
+        $like = "%$filtro_buscar%";
+        $params = array_merge($params, [$like, $like, $like, $like, is_numeric($filtro_buscar) ? $filtro_buscar : 0]);
+    }
+    if ($filtro_estado) {
+        $where[] = "estado = ?";
+        $params[] = $filtro_estado;
+    }
+    if ($filtro_iva) {
+        $where[] = "id_tipo_iva = ?";
+        $params[] = $filtro_iva;
+    }
+    if ($filtro_cta) {
+        $where[] = "habilita_cta = ?";
+        $params[] = $filtro_cta;
+    }
+    
+    $where_sql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+    
+    // Total para paginación
+    $stmt_count = $pdo->prepare("SELECT COUNT(*) FROM clientes $where_sql");
+    $stmt_count->execute($params);
+    $clientes_count = $stmt_count->fetchColumn();
+    
+    $total_paginas = max(1, ceil($clientes_count / $por_pagina));
+    
+    // Consulta paginada con saldo
+    $stmt = $pdo->prepare("
+        SELECT c.*, 
+            (SELECT COALESCE(SUM(debe), 0) - COALESCE(SUM(haber), 0) FROM ctacte WHERE id_cliente = c.id) as saldo_cc
+        FROM clientes c 
+        $where_sql 
+        ORDER BY c.id DESC 
+        LIMIT $por_pagina OFFSET $offset
+    ");
+    $stmt->execute($params);
     $clientes = $stmt->fetchAll();
 }
-?>
 
+// --- OBTENER VENTAS DEL CLIENTE PARA MODAL ---
+$ventas_cliente = array();
+if ($accion === 'listar' && $id && isset($_GET['accion']) && $_GET['accion'] === 'ver_ventas') {
+    $stmt_v = $pdo->prepare("SELECT n_documento, total_venta, cond_pago, fecha_venta, estado FROM ventas WHERE id_cliente = ? ORDER BY fecha_venta DESC LIMIT 10");
+    $stmt_v->execute(array($id));
+    $ventas_cliente = $stmt_v->fetchAll();
+    // Buscar nombre del cliente
+    $stmt_n = $pdo->prepare("SELECT apellido, nombre FROM clientes WHERE id = ?");
+    $stmt_n->execute(array($id));
+    $nombre_cliente = $stmt_n->fetch();
+}
+?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -107,13 +175,304 @@ if ($accion === 'listar') {
     <title>Clientes | Electricidad Lucyk</title>
     <link rel="stylesheet" href="../css/style.css?v=<?php echo time(); ?>">
     <style>
-        .flex-row { display: flex; gap: 20px; margin-bottom: 15px; }
+        /* ===== FILTROS COMPACTOS ===== */
+        .filtros-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: stretch;
+            margin-bottom: 20px;
+            padding: 10px 14px;
+            background: #1a1a1a;
+            border-radius: 8px;
+            border: 1px solid #2a2a2a;
+        }
+        .filtros-bar input,
+        .filtros-bar select,
+        .filtros-bar .btn-filtro,
+        .filtros-bar .btn-export,
+        .filtros-bar .view-toggle {
+            border: 1px solid #3a3a3a;
+            background: #222;
+            color: #ccc;
+            border-radius: 4px;
+            font-size: 0.78em;
+            outline: none;
+            transition: border-color 0.2s, background 0.2s;
+            height: 30px;
+            box-sizing: border-box;
+        }
+        .filtros-bar input:focus,
+        .filtros-bar select:focus {
+            border-color: #00bcd4;
+        }
+        .filtros-bar input[type="text"] { 
+            flex: 1.3; 
+            min-width: 180px; 
+            max-width: 300px; 
+            padding: 0 10px;
+        }
+        .filtros-bar select { 
+            min-width: 90px; 
+            max-width: 130px; 
+            padding: 0 6px;
+        }
+        .filtros-bar .btn-filtro {
+            padding: 0 10px;
+            background: #2a2a2a;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            text-decoration: none;
+            line-height: 30px;
+        }
+        .filtros-bar .btn-filtro:hover { 
+            background: #333; 
+            color: #fff;
+            border-color: #555;
+        }
+        .filtros-bar .btn-export {
+            padding: 0 10px;
+            background: #27ae60;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            line-height: 30px;
+            text-decoration: none;
+        }
+        .filtros-bar .btn-export:hover { 
+            background: #2ecc71; 
+        }
+        .filtros-bar .view-toggle {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px;
+            gap: 2px;
+            background: #222;
+            border: 1px solid #3a3a3a;
+            height: 30px;
+        }
+        .filtros-bar .view-toggle button {
+            height: 24px;
+            padding: 0 8px;
+            border: none;
+            background: transparent;
+            color: #888;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.78em;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .filtros-bar .view-toggle button.active {
+            background: #00bcd4;
+            color: #fff;
+        }
+        .filtros-bar .view-toggle button:hover:not(.active) { 
+            color: #ccc; 
+        }
+
+        /* ===== VISTA CARDS ===== */
+        .view-toggle {
+            display: flex;
+            gap: 4px;
+            background: #222;
+            border-radius: 8px;
+            padding: 3px;
+        }
+        .view-toggle button {
+            padding: 6px 12px;
+            background: transparent;
+            border: none;
+            color: #888;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85em;
+            transition: all 0.2s;
+        }
+        .view-toggle button.active {
+            background: #00bcd4;
+            color: #fff;
+        }
+        .view-toggle button:hover:not(.active) { color: #ccc; }
+
+        /* ===== CARDS DE CLIENTES ===== */
+        .clientes-cards {
+            display: none;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+        }
+        .clientes-cards.active { display: grid; }
+        .clientes-table.active { display: table; }
+        .clientes-table { display: none; }
+        .clientes-table.active { display: table; }
+
+        .cliente-card {
+            background: #1e1e1e;
+            border: 1px solid #2a2a2a;
+            border-radius: 12px;
+            padding: 18px 20px;
+            transition: all 0.25s ease;
+            position: relative;
+        }
+        .cliente-card:hover {
+            border-color: #444;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+        .cliente-card .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 10px;
+        }
+        .cliente-card .card-name {
+            font-weight: 600;
+            font-size: 1em;
+            color: #fff;
+        }
+        .cliente-card .card-id {
+            color: #666;
+            font-size: 0.8em;
+        }
+        .cliente-card .card-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            font-size: 0.82em;
+            color: #aaa;
+            margin: 10px 0;
+        }
+        .cliente-card .card-details span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .cliente-card .card-details i {
+            width: 14px;
+            color: #666;
+        }
+        .cliente-card .card-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #2a2a2a;
+        }
+        .cliente-card .card-actions a {
+            flex: 1;
+            text-align: center;
+            padding: 6px;
+            border-radius: 6px;
+            font-size: 0.78em;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        /* ===== SALDO CC ===== */
+        .saldo-positivo { color: #e74c3c; font-weight: bold; }
+        .saldo-cero { color: #4caf50; }
+        .saldo-negativo { color: #3498db; }
+
+        /* ===== BOTÓN WHATSAPP ===== */
+        .btn-whatsapp {
+            color: #25D366 !important;
+            font-size: 1.1em;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+        .btn-whatsapp:hover {
+            background: rgba(37, 211, 102, 0.1);
+            transform: scale(1.15);
+        }
+
+        /* ===== PAGINACIÓN ===== */
+        .paginacion {
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+            margin-top: 20px;
+        }
+        .paginacion a, .paginacion span {
+            padding: 8px 14px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 0.85em;
+            background: #222;
+            color: #aaa;
+            transition: all 0.2s;
+        }
+        .paginacion a:hover { background: #333; color: #fff; }
+        .paginacion .current { background: #00bcd4; color: #fff; }
+
+        /* ===== MODAL VENTAS ===== */
+        .modal-ventas-cliente .modal-content { 
+            max-width: 600px; 
+            max-height: 80vh;
+            overflow-y: auto;
+            margin: 5vh auto;
+        }
+        .modal-ventas-cliente table {
+            font-size: 0.85em;
+        }
+        .modal-ventas-cliente table th {
+            padding: 8px 10px;
+            font-size: 0.8em;
+        }
+        .modal-ventas-cliente table td {
+            padding: 6px 10px;
+        }
+
+        /* ===== FORMULARIO COMPACTO ===== */
+        .form-seccion {
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #2a2a2a;
+        }
+        .form-seccion:last-child { border-bottom: none; margin-bottom: 0; }
+        .form-seccion h3 {
+            color: #00bcd4;
+            font-size: 0.78em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 0 0 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .form-seccion h3 i { font-size: 0.9em; }
+        .flex-row { display: flex; gap: 10px; margin-bottom: 8px; }
         .flex-row > div { flex: 1; }
-        label { display: block; margin-bottom: 5px; color: #3498db; font-weight: bold; font-size: 0.9em; }
-        input, select { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #444; background: #222; color: #fff; box-sizing: border-box; }
-        .input-readonly { background: #1a1a1a; color: #2ecc71; font-weight: bold; border: 1px dashed #27ae60; }
+        label { display: block; margin-bottom: 2px; color: #3498db; font-weight: 600; font-size: 0.75em; }
+        input, select { width: 100%; padding: 6px 8px; border-radius: 4px; border: 1px solid #444; background: #222; color: #fff; box-sizing: border-box; font-size: 0.82em; }
+        .input-readonly { background: #1a1a1a; color: #2ecc71; font-weight: bold; border: 1px dashed #27ae60; font-size: 0.82em; }
         .badge-cta { background: #f1c40f; color: #000; padding: 3px 8px; border-radius: 4px; font-size: 0.8em; font-weight: bold; }
-        #filtro-clientes { width: 100%; max-width: 450px; margin-bottom: 20px; background: #1a1a1a; border: 1px solid #333; height: 40px; color: white; padding-left: 10px; }
+
+        /* ===== BOTÓN EXPORTAR ===== */
+        .btn-export {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            background: #27ae60;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85em;
+            transition: background 0.2s;
+            text-decoration: none;
+        }
+        .btn-export:hover { background: #2ecc71; }
     </style>
 </head>
 <body>
@@ -121,24 +480,66 @@ if ($accion === 'listar') {
     
     <div class="content" style="padding-top: 70px;">
         <?php include 'topbar.php'; ?>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
             <h1>👥 Gestión de Clientes</h1>
-            <?php if ($accion === 'listar'): ?>
-                <a href="abm_clientes.php?accion=crear" class="btn btn-success">+ Nuevo Cliente</a>
-            <?php endif; ?>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <?php if ($accion === 'listar'): ?>
+                    <a href="abm_clientes.php?accion=crear" class="btn btn-success">+ Nuevo Cliente</a>
+                <?php endif; ?>
+            </div>
         </div>
 
         <?php if ($mensaje): ?>
-            <div class="alert <?php echo str_contains($mensaje, '❌') ? 'alert-error' : 'alert-success'; ?>">
+            <div class="alert <?php echo strpos($mensaje, '❌') !== false ? 'alert-error' : 'alert-success'; ?>">
                 <?php echo $mensaje; ?>
             </div>
         <?php endif; ?>
 
         <?php if ($accion === 'listar'): ?>
+            <!-- ===== FILTROS AVANZADOS ===== -->
+            <form method="GET" class="filtros-bar">
+                <input type="hidden" name="accion" value="listar">
+                <input type="text" name="buscar" placeholder="🔍 Buscar por nombre, ID, CUIT..." value="<?php echo htmlspecialchars($filtro_buscar ?? ''); ?>">
+                
+                <select name="estado">
+                    <option value="">Todos los estados</option>
+                    <option value="Activo" <?php echo ($filtro_estado ?? '') === 'Activo' ? 'selected' : ''; ?>>Activos</option>
+                    <option value="Inactivo" <?php echo ($filtro_estado ?? '') === 'Inactivo' ? 'selected' : ''; ?>>Inactivos</option>
+                </select>
+                
+                <select name="iva">
+                    <option value="">Todos los IVA</option>
+                    <?php foreach ($tipos_iva as $id_iva => $label_iva): ?>
+                        <option value="<?php echo $id_iva; ?>" <?php echo ($filtro_iva ?? '') == $id_iva ? 'selected' : ''; ?>><?php echo $label_iva; ?></option>
+                    <?php endforeach; ?>
+                </select>
+                
+                <select name="cta_cte">
+                    <option value="">Cta. Cte.</option>
+                    <option value="Si" <?php echo ($filtro_cta ?? '') === 'Si' ? 'selected' : ''; ?>>Habilitada</option>
+                    <option value="No" <?php echo ($filtro_cta ?? '') === 'No' ? 'selected' : ''; ?>>No</option>
+                </select>
+
+                <button type="submit" class="btn-filtro"><i class="fas fa-filter"></i> Filtrar</button>
+                <a href="abm_clientes.php" class="btn-filtro"><i class="fas fa-times"></i></a>
+
+                <div style="margin-left: auto; display: flex; gap: 8px; align-items: center;">
+                    <button type="button" class="btn-export" onclick="exportarCSV()"><i class="fas fa-file-csv"></i> CSV</button>
+                    <div class="view-toggle">
+                        <button type="button" class="active" id="viewTable" onclick="cambiarVista('table')" title="Vista tabla">
+                            <i class="fas fa-table"></i>
+                        </button>
+                        <button type="button" id="viewCards" onclick="cambiarVista('cards')" title="Vista tarjetas">
+                            <i class="fas fa-id-card"></i>
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <!-- ===== VISTA TABLA ===== -->
             <div class="card">
-                <input type="text" id="filtro-clientes" placeholder="🔍 Buscar por apellido, nombre, ID o CUIT...">
                 <div style="overflow-x: auto;">
-                    <table id="tablaClientes">
+                    <table id="tablaClientes" class="clientes-table active">
                         <thead>
                             <tr>
                                 <th>ID</th>
@@ -147,19 +548,33 @@ if ($accion === 'listar') {
                                 <th>IVA</th>
                                 <th>Teléfono</th>
                                 <th>Cta. Cte.</th>
+                                <th>Saldo CC</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($clientes as $c): ?>
+                            <?php foreach ($clientes as $c): 
+                                $saldo = floatval($c['saldo_cc'] ?? 0);
+                                $tiene_wsp = !empty($c['telefono']);
+                            ?>
                             <tr>
                                 <td><span style="color: #666;">#<?php echo $c['id']; ?></span></td>
                                 <td>
                                     <strong><?php echo htmlspecialchars($c['apellido']); if(!empty($c['nombre'])) echo ', ' . htmlspecialchars($c['nombre']); ?></strong>
+                                    <?php if ($c['estado'] === 'Inactivo'): ?>
+                                        <span style="color: #e74c3c; font-size: 0.75em;">(Inactivo)</span>
+                                    <?php endif; ?>
                                 </td>
                                 <td><?php echo htmlspecialchars($c['cuit'] ?: ($c['dni'] ?: '---')); ?></td>
                                 <td><small><?php echo $tipos_iva[$c['id_tipo_iva']] ?? 'CF'; ?></small></td>
-                                <td><?php echo htmlspecialchars($c['telefono'] ? $c['telefono'] : '---'); ?></td>
+                                <td>
+                                    <?php echo htmlspecialchars($c['telefono'] ? $c['telefono'] : '---'); ?>
+                                    <?php if ($tiene_wsp): ?>
+                                        <a href="https://wa.me/54<?php echo preg_replace('/[^0-9]/', '', $c['telefono']); ?>" target="_blank" class="btn-whatsapp" title="Enviar WhatsApp">
+                                            <i class="fab fa-whatsapp"></i>
+                                        </a>
+                                    <?php endif; ?>
+                                </td>
                                 <td>
                                     <?php if(strtoupper(trim($c['habilita_cta'])) === 'SI'): ?>
                                         <span class="badge-cta">Habilitada</span>
@@ -168,99 +583,209 @@ if ($accion === 'listar') {
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <a href="abm_clientes.php?accion=editar&id=<?php echo $c['id']; ?>" class="btn btn-primary btn-sm">Editar</a>
+                                    <?php if ($saldo > 0): ?>
+                                        <span class="saldo-positivo">$<?php echo number_format($saldo, 2, ',', '.'); ?></span>
+                                    <?php elseif ($saldo < 0): ?>
+                                        <span class="saldo-negativo">$<?php echo number_format(abs($saldo), 2, ',', '.'); ?> a favor</span>
+                                    <?php else: ?>
+                                        <span class="saldo-cero">$0,00</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td style="white-space: nowrap;">
+                                    <a href="abm_clientes.php?accion=editar&id=<?php echo $c['id']; ?>" class="btn btn-primary btn-sm" title="Editar"><i class="fas fa-edit"></i></a>
+                                    <a href="#" onclick="verVentas(<?php echo $c['id']; ?>, '<?php echo htmlspecialchars($c['apellido'] . ', ' . $c['nombre']); ?>'); return false;" class="btn btn-info btn-sm" title="Ver ventas"><i class="fas fa-receipt"></i></a>
                                     <a href="abm_clientes.php?accion=eliminar&id=<?php echo $c['id']; ?>" 
                                        class="btn btn-danger btn-sm" 
                                        onclick="event.preventDefault(); const url=this.href; confirmarAccion('Eliminar Cliente', '¿Estás seguro de eliminar a este cliente? Se perderán sus datos de contacto.', 'ELIMINAR', 'btn-danger', () => window.location.href=url);">
-                                       Borrar
+                                       <i class="fas fa-trash"></i>
                                     </a>
                                 </td>
                             </tr>
                             <?php endforeach; ?>
+                            <?php if (empty($clientes)): ?>
+                            <tr><td colspan="8" style="text-align:center; padding:30px; color:#666;">No se encontraron clientes.</td></tr>
+                            <?php endif; ?>
                         </tbody>
                     </table>
+
+                    <!-- ===== VISTA CARDS ===== -->
+                    <div class="clientes-cards" id="clientesCards">
+                        <?php foreach ($clientes as $c): 
+                            $saldo = floatval($c['saldo_cc'] ?? 0);
+                            $tiene_wsp = !empty($c['telefono']);
+                        ?>
+                        <div class="cliente-card">
+                            <div class="card-header">
+                                <div>
+                                    <div class="card-name"><?php echo htmlspecialchars($c['apellido'] . ', ' . $c['nombre']); ?></div>
+                                    <div class="card-id">#<?php echo $c['id']; ?></div>
+                                </div>
+                                <?php if ($c['estado'] === 'Inactivo'): ?>
+                                    <span style="color: #e74c3c; font-size: 0.75em;">Inactivo</span>
+                                <?php endif; ?>
+                            </div>
+                            <div class="card-details">
+                                <span><i class="fas fa-id-card"></i> <?php echo htmlspecialchars($c['cuit'] ?: ($c['dni'] ?: '---')); ?></span>
+                                <span><i class="fas fa-tag"></i> <?php echo $tipos_iva[$c['id_tipo_iva']] ?? 'CF'; ?></span>
+                                <span><i class="fas fa-phone"></i> <?php echo htmlspecialchars($c['telefono'] ?: '---'); ?></span>
+                                <span><i class="fas fa-credit-card"></i> <?php echo strtoupper(trim($c['habilita_cta'])) === 'SI' ? 'Cta. Cte.' : 'Contado'; ?></span>
+                                <span style="grid-column: span 2;">
+                                    <i class="fas fa-dollar-sign"></i> 
+                                    <?php if ($saldo > 0): ?>
+                                        <span class="saldo-positivo">Debe $<?php echo number_format($saldo, 2, ',', '.'); ?></span>
+                                    <?php elseif ($saldo < 0): ?>
+                                        <span class="saldo-negativo">A favor $<?php echo number_format(abs($saldo), 2, ',', '.'); ?></span>
+                                    <?php else: ?>
+                                        <span class="saldo-cero">Sin deuda</span>
+                                    <?php endif; ?>
+                                </span>
+                            </div>
+                            <div class="card-actions">
+                                <a href="abm_clientes.php?accion=editar&id=<?php echo $c['id']; ?>" class="btn btn-primary btn-sm"><i class="fas fa-edit"></i> Editar</a>
+                                <a href="#" onclick="verVentas(<?php echo $c['id']; ?>, '<?php echo htmlspecialchars($c['apellido'] . ', ' . $c['nombre']); ?>'); return false;" class="btn btn-info btn-sm"><i class="fas fa-receipt"></i> Ventas</a>
+                                <?php if ($tiene_wsp): ?>
+                                    <a href="https://wa.me/54<?php echo preg_replace('/[^0-9]/', '', $c['telefono']); ?>" target="_blank" class="btn btn-success btn-sm"><i class="fab fa-whatsapp"></i></a>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
                 </div>
             </div>
 
+            <!-- ===== PAGINACIÓN ===== -->
+            <?php if ($total_paginas > 1): ?>
+            <div class="paginacion">
+                <?php if ($pagina > 1): ?>
+                    <a href="?<?php echo http_build_query(array_merge($_GET, ['pagina' => $pagina - 1])); ?>"><i class="fas fa-chevron-left"></i></a>
+                <?php endif; ?>
+                
+                <?php for ($i = max(1, $pagina - 3); $i <= min($total_paginas, $pagina + 3); $i++): ?>
+                    <?php if ($i == $pagina): ?>
+                        <span class="current"><?php echo $i; ?></span>
+                    <?php else: ?>
+                        <a href="?<?php echo http_build_query(array_merge($_GET, ['pagina' => $i])); ?>"><?php echo $i; ?></a>
+                    <?php endif; ?>
+                <?php endfor; ?>
+                
+                <?php if ($pagina < $total_paginas): ?>
+                    <a href="?<?php echo http_build_query(array_merge($_GET, ['pagina' => $pagina + 1])); ?>"><i class="fas fa-chevron-right"></i></a>
+                <?php endif; ?>
+            </div>
+            <div style="text-align: center; color: #666; font-size: 0.8em; margin-top: 8px;">
+                Mostrando <?php echo count($clientes); ?> de <?php echo $clientes_count; ?> clientes
+            </div>
+            <?php endif; ?>
+
         <?php elseif ($accion === 'crear' || $accion === 'editar'): ?>
-            <div class="card" style="max-width: 850px; margin: 0 auto;">
-                <h2><?php echo ($accion === 'crear') ? 'Registrar Nuevo Cliente' : 'Modificar Cliente'; ?></h2>
-                <hr style="border: 0; border-top: 1px solid #444; margin: 20px 0;">
+            <div class="card" style="max-width: 700px; margin: 0 auto; padding: 15px 20px;">
+                <h2 style="font-size:1.1em; margin:0;"><?php echo ($accion === 'crear') ? 'Registrar Nuevo Cliente' : 'Modificar Cliente'; ?></h2>
+                <hr style="border: 0; border-top: 1px solid #333; margin: 10px 0;">
                 
                 <form method="POST">
                     <input type="hidden" name="accion_post" value="<?php echo $accion; ?>">
                     <input type="hidden" name="id_cliente" value="<?php echo isset($cliente_editar['id']) ? $cliente_editar['id'] : ''; ?>">
 
-                    <div class="flex-row">
-                        <div style="flex: 0.3;">
-                            <label>N° Cliente</label>
-                            <input type="text" name="id_visual" readonly class="input-readonly" 
-                                value="<?php echo ($accion === 'crear') ? $nuevo_id_sugerido : $cliente_editar['id']; ?>">
+                    <!-- Datos Personales -->
+                    <div class="form-seccion">
+                        <h3><i class="fas fa-user"></i> Datos Personales</h3>
+                        <div class="flex-row">
+                            <div style="flex: 0.3;">
+                                <label>N° Cliente</label>
+                                <input type="text" name="id_visual" readonly class="input-readonly" 
+                                    value="<?php echo ($accion === 'crear') ? $nuevo_id_sugerido : $cliente_editar['id']; ?>">
+                            </div>
+                            <div style="flex: 0.8;">
+                                <label>Apellido*</label>
+                                <input type="text" name="apellido" required value="<?php echo isset($cliente_editar['apellido']) ? htmlspecialchars($cliente_editar['apellido']) : ''; ?>" placeholder="Obligatorio">
+                            </div>
+                            <div style="flex: 0.8;">
+                                <label>Nombre</label>
+                                <input type="text" name="nombre" value="<?php echo isset($cliente_editar['nombre']) ? htmlspecialchars($cliente_editar['nombre']) : ''; ?>" placeholder="Nombre del cliente">
+                            </div>
                         </div>
-                        <div style="flex: 0.8;">
-                            <label>Apellido*</label>
-                            <input type="text" name="apellido" required value="<?php echo isset($cliente_editar['apellido']) ? htmlspecialchars($cliente_editar['apellido']) : ''; ?>">
-                        </div>
-                        <div style="flex: 0.8;">
-                            <label>Nombre</label>
-                            <input type="text" name="nombre" value="<?php echo isset($cliente_editar['nombre']) ? htmlspecialchars($cliente_editar['nombre']) : ''; ?>">
+                        <div class="flex-row">
+                            <div><label>Teléfono</label><input type="text" name="telefono" value="<?php echo isset($cliente_editar['telefono']) ? htmlspecialchars($cliente_editar['telefono']) : ''; ?>" placeholder="Ej: 11 1234-5678"></div>
+                            <div><label>Dirección</label><input type="text" name="direccion" value="<?php echo isset($cliente_editar['direccion']) ? htmlspecialchars($cliente_editar['direccion']) : ''; ?>" placeholder="Calle y número"></div>
                         </div>
                     </div>
 
-                    <div style="margin-bottom: 15px;">
-                        <label>Dirección</label>
-                        <input type="text" name="direccion" value="<?php echo isset($cliente_editar['direccion']) ? htmlspecialchars($cliente_editar['direccion']) : ''; ?>">
+                    <!-- Datos Fiscales -->
+                    <div class="form-seccion">
+                        <h3><i class="fas fa-file-invoice"></i> Datos Fiscales</h3>
+                        <div class="flex-row">
+                            <div style="flex: 0.6;">
+                                <label>DNI</label>
+                                <input type="text" name="dni" value="<?php echo isset($cliente_editar['dni']) ? htmlspecialchars($cliente_editar['dni']) : ''; ?>">
+                            </div>
+                            <div style="flex: 1;">
+                                <label>Condición IVA (ARCA)</label>
+                                <select name="id_tipo_iva">
+                                    <?php foreach ($tipos_iva as $id_iva => $label_iva): ?>
+                                        <option value="<?php echo $id_iva; ?>" <?php echo (isset($cliente_editar['id_tipo_iva']) && $cliente_editar['id_tipo_iva'] == $id_iva) ? 'selected' : ($id_iva == 99 ? 'selected' : ''); ?>>
+                                            <?php echo $label_iva; ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="flex-row">
+                            <div style="flex: 0.6;">
+                                <label>CUIT</label>
+                                <input type="text" name="cuit" value="<?php echo isset($cliente_editar['cuit']) ? htmlspecialchars($cliente_editar['cuit']) : ''; ?>" placeholder="11-11111111-1" id="cuitInput">
+                            </div>
+                            <div style="flex: 1;">
+                                <label>Relación / Nota</label>
+                                <input type="text" name="relacion" value="<?php echo isset($cliente_editar['relacion']) ? htmlspecialchars($cliente_editar['relacion']) : ''; ?>" placeholder="Ej: Cliente frecuente">
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="flex-row">
-                        <div style="flex: 0.6;">
-                            <label>DNI</label>
-                            <input type="text" name="dni" value="<?php echo isset($cliente_editar['dni']) ? htmlspecialchars($cliente_editar['dni']) : ''; ?>">
+                    <!-- Configuración -->
+                    <div class="form-seccion">
+                        <h3><i class="fas fa-cog"></i> Configuración</h3>
+                        <div class="flex-row">
+                            <div>
+                                <label>Estado</label>
+                                <select name="estado">
+                                    <option value="Activo" <?php echo (isset($cliente_editar['estado']) && $cliente_editar['estado'] == 'Activo') ? 'selected' : ''; ?>>Activo</option>
+                                    <option value="Inactivo" <?php echo (isset($cliente_editar['estado']) && $cliente_editar['estado'] == 'Inactivo') ? 'selected' : ''; ?>>Inactivo</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label>Cuenta Corriente</label>
+                                <select name="habilita_cta" style="border-color: #f1c40f;">
+                                    <option value="No" <?php echo (isset($cliente_editar['habilita_cta']) && strtoupper($cliente_editar['habilita_cta']) == 'NO') ? 'selected' : ''; ?>>Deshabilitada</option>
+                                    <option value="Si" <?php echo (isset($cliente_editar['habilita_cta']) && strtoupper($cliente_editar['habilita_cta']) == 'SI') ? 'selected' : ''; ?>>Habilitada</option>
+                                </select>
+                            </div>
                         </div>
-                        <div style="flex: 1;">
-                            <label>Condición IVA (ARCA)</label>
-                            <select name="id_tipo_iva">
-                                <?php foreach ($tipos_iva as $id_iva => $label_iva): ?>
-                                    <option value="<?php echo $id_iva; ?>" <?php echo (isset($cliente_editar['id_tipo_iva']) && $cliente_editar['id_tipo_iva'] == $id_iva) ? 'selected' : ($id_iva == 99 ? 'selected' : ''); ?>>
-                                        <?php echo $label_iva; ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="flex-row">
-                        <div><label>CUIT (Empresas)</label><input type="text" name="cuit" value="<?php echo isset($cliente_editar['cuit']) ? htmlspecialchars($cliente_editar['cuit']) : ''; ?>"></div>
-                        <div><label>Teléfono</label><input type="text" name="telefono" value="<?php echo isset($cliente_editar['telefono']) ? htmlspecialchars($cliente_editar['telefono']) : ''; ?>"></div>
-                    </div>
-
-                    <div class="flex-row">
-                        <div>
-                            <label>Estado</label>
-                            <select name="estado">
-                                <option value="Activo" <?php echo (isset($cliente_editar['estado']) && $cliente_editar['estado'] == 'Activo') ? 'selected' : ''; ?>>Activo</option>
-                                <option value="Inactivo" <?php echo (isset($cliente_editar['estado']) && $cliente_editar['estado'] == 'Inactivo') ? 'selected' : ''; ?>>Inactivo</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label>Cuenta Corriente</label>
-                            <select name="habilita_cta" style="border-color: #f1c40f;">
-                                <option value="No" <?php echo (isset($cliente_editar['habilita_cta']) && strtoupper($cliente_editar['habilita_cta']) == 'NO') ? 'selected' : ''; ?>>Deshabilitada</option>
-                                <option value="Si" <?php echo (isset($cliente_editar['habilita_cta']) && strtoupper($cliente_editar['habilita_cta']) == 'SI') ? 'selected' : ''; ?>>Habilitada</option>
-                            </select>
-                        </div>
-                        <div><label>Relación / Nota</label><input type="text" name="relacion" value="<?php echo isset($cliente_editar['relacion']) ? htmlspecialchars($cliente_editar['relacion']) : ''; ?>"></div>
                     </div>
 
                     <div style="margin-top: 30px; display: flex; gap: 10px;">
-                        <button type="submit" class="btn btn-primary" style="flex: 2;">💾 Guardar Cliente</button>
-                        <a href="abm_clientes.php" class="btn btn-secondary" style="flex: 1; text-align: center;">Cancelar</a>
+                        <button type="submit" class="btn btn-primary" style="flex: 2; padding: 14px;"><i class="fas fa-save"></i> Guardar Cliente</button>
+                        <a href="abm_clientes.php" class="btn btn-secondary" style="flex: 1; text-align: center; padding: 14px;">Cancelar</a>
                     </div>
                 </form>
             </div>
         <?php endif; ?>
     </div>
 
+    <!-- Modal Historial de Ventas -->
+    <div id="modalVentasCliente" class="modal modal-ventas-cliente" style="display: none;">
+        <div class="modal-content" style="max-width: 600px;">
+            <h2 id="modalVentasTitulo" style="color: #00bcd4; margin-top: 0;">Ventas del Cliente</h2>
+            <div id="modalVentasBody" style="color: #eee;">
+                <p style="color: #888;">Cargando ventas...</p>
+            </div>
+            <div style="margin-top: 20px; text-align: right;">
+                <button onclick="document.getElementById('modalVentasCliente').style.display='none'" class="btn btn-secondary">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
     <script>
+    // ===== FILTRO EN TABLA =====
     document.addEventListener('DOMContentLoaded', function() {
         var inputF = document.getElementById('filtro-clientes');
         if (inputF) {
@@ -270,6 +795,166 @@ if ($accion === 'listar') {
                 for (var i = 0; i < filas.length; i++) {
                     filas[i].style.display = (filas[i].innerText.toUpperCase().indexOf(v) > -1) ? "" : "none";
                 }
+            });
+        }
+    });
+
+    // ===== CAMBIAR VISTA =====
+    function cambiarVista(vista) {
+        document.getElementById('viewTable').classList.toggle('active', vista === 'table');
+        document.getElementById('viewCards').classList.toggle('active', vista === 'cards');
+        
+        var tabla = document.getElementById('tablaClientes');
+        var cards = document.getElementById('clientesCards');
+        
+        if (vista === 'table') {
+            tabla.classList.add('active');
+            cards.classList.remove('active');
+        } else {
+            tabla.classList.remove('active');
+            cards.classList.add('active');
+        }
+        
+        // Guardar preferencia
+        localStorage.setItem('clientes_vista', vista);
+    }
+
+    // Cargar vista guardada
+    document.addEventListener('DOMContentLoaded', function() {
+        var vistaGuardada = localStorage.getItem('clientes_vista');
+        if (vistaGuardada) {
+            cambiarVista(vistaGuardada);
+        }
+    });
+
+    // Variables para navegación del modal
+    var _modalClienteId = null;
+    var _modalClienteNombre = null;
+
+    // ===== MODAL VENTAS =====
+    function verVentas(clienteId, nombreCliente) {
+        _modalClienteId = clienteId;
+        _modalClienteNombre = nombreCliente;
+        
+        var modal = document.getElementById('modalVentasCliente');
+        var titulo = document.getElementById('modalVentasTitulo');
+        var body = document.getElementById('modalVentasBody');
+        
+        titulo.innerText = 'Ventas de ' + nombreCliente;
+        body.innerHTML = '<p style="color: #888;">Cargando ventas...</p>';
+        modal.style.display = 'flex';
+        modal.style.alignItems = 'center';
+        modal.style.justifyContent = 'center';
+        
+        // Fetch AJAX
+        fetch('../ajax/buscar_ventas_cliente_ajax.php?id_cliente=' + clienteId)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    body.innerHTML = '<p style="color: #e74c3c;">' + data.error + '</p>';
+                    return;
+                }
+                if (data.length === 0) {
+                    body.innerHTML = '<p style="color: #888; text-align: center;">Este cliente no tiene ventas registradas.</p>';
+                    return;
+                }
+                var html = '<table style="width:100%; border-collapse: collapse; font-size:0.85em;">';
+                html += '<thead><tr style="border-bottom: 1px solid #333;"><th>Ticket</th><th>Fecha</th><th>Total</th><th>Pago</th><th>Estado</th><th></th></tr></thead><tbody>';
+                data.forEach(function(v) {
+                    var estadoColor = v.estado === 'Finalizada' ? '#4caf50' : '#e74c3c';
+                    var pagoLabel = v.cond_pago ? v.cond_pago : 'Contado';
+                    html += '<tr style="border-bottom: 1px solid #252525;">';
+                    html += '<td>#' + v.n_documento + '</td>';
+                    html += '<td style="font-size:0.8em;">' + v.fecha_venta + '</td>';
+                    html += '<td><strong style="color: #00bcd4;">$' + parseFloat(v.total_venta).toLocaleString('es-AR', {minimumFractionDigits: 2}) + '</strong></td>';
+                    html += '<td style="font-size:0.8em;">' + pagoLabel + '</td>';
+                    html += '<td style="color:' + estadoColor + '; font-size:0.8em;">' + v.estado + '</td>';
+                    html += '<td><a href="#" onclick="verDetalleVenta(' + v.n_documento + '); return false;" style="color:#00bcd4; font-size:0.8em; text-decoration:none;" title="Ver detalle"><i class="fas fa-search-plus"></i></a></td>';
+                    html += '</tr>';
+                });
+                html += '</tbody></table>';
+                body.innerHTML = html;
+            })
+            .catch(err => {
+                body.innerHTML = '<p style="color: #e74c3c;">Error al cargar ventas.</p>';
+            });
+    }
+
+    // ===== VER DETALLE DE VENTA =====
+    function verDetalleVenta(nDocumento) {
+        var modal = document.getElementById('modalVentasCliente');
+        var titulo = document.getElementById('modalVentasTitulo');
+        var body = document.getElementById('modalVentasBody');
+        
+        titulo.innerText = 'Detalle de Venta #' + nDocumento;
+        body.innerHTML = '<p style="color: #888;">Cargando detalle...</p>';
+        modal.style.display = 'flex';
+        modal.style.alignItems = 'center';
+        modal.style.justifyContent = 'center';
+        
+        fetch('../ajax/obtener_detalle_venta.php?n_documento=' + nDocumento)
+            .then(response => response.text())
+            .then(html => {
+                // Agregar botón volver después del contenido
+                html += '<div style="margin-top:15px; display:flex; gap:8px;">';
+                html += '<button onclick="verVentas(' + _modalClienteId + ', \'' + _modalClienteNombre + '\');" class="btn btn-secondary" style="flex:1;"><i class="fas fa-arrow-left"></i> Volver a ventas</button>';
+                html += '<button onclick="document.getElementById(\'modalVentasCliente\').style.display=\'none\'" class="btn btn-secondary" style="flex:1;">Cerrar</button>';
+                html += '</div>';
+                body.innerHTML = html;
+            })
+            .catch(err => {
+                body.innerHTML = '<p style="color: #e74c3c;">Error al cargar el detalle.</p>';
+            });
+    }
+
+    // ===== EXPORTAR CSV =====
+    function exportarCSV() {
+        var rows = document.querySelectorAll('#tablaClientes tbody tr');
+        if (rows.length === 0) {
+            alert('No hay datos para exportar.');
+            return;
+        }
+        
+        var csv = '\uFEFF'; // BOM para que Excel lo lea bien con tildes
+        csv += 'ID,Apellido,Nombre,CUIT/DNI,IVA,Telefono,Estado,Cta.Cte.\n';
+        
+        rows.forEach(function(row) {
+            var cells = row.querySelectorAll('td');
+            if (cells.length < 6) return;
+            
+            var id = cells[0].innerText.replace('#', '').trim();
+            var nombreCompleto = cells[1].innerText.trim();
+            var cuit = cells[2].innerText.trim();
+            var iva = cells[3].innerText.trim();
+            var tel = cells[4].innerText.trim();
+            var cta = cells[5].innerText.trim();
+            
+            csv += id + ',' + nombreCompleto + ',' + cuit + ',' + iva + ',' + tel + ',' + cta + '\n';
+        });
+        
+        var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        var link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'clientes_' + new Date().toISOString().slice(0,10) + '.csv';
+        link.click();
+    }
+
+    // ===== AUTO-FORMATO CUIT =====
+    document.addEventListener('DOMContentLoaded', function() {
+        var cuitInput = document.getElementById('cuitInput');
+        if (cuitInput) {
+            cuitInput.addEventListener('input', function() {
+                var val = this.value.replace(/[^0-9]/g, '');
+                if (val.length > 2) {
+                    val = val.substring(0, 2) + '-' + val.substring(2);
+                }
+                if (val.length > 11) {
+                    val = val.substring(0, 11) + '-' + val.substring(11, 11);
+                }
+                if (val.length > 13) {
+                    val = val.substring(0, 13);
+                }
+                this.value = val;
             });
         }
     });

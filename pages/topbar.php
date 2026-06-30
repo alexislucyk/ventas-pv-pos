@@ -60,6 +60,22 @@ if (file_exists($cache_file) && (time() - filemtime($cache_file)) < $cache_tiemp
         padding: 0 20px;
         z-index: 899;
         box-sizing: border-box;
+        transition: left 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Botón menú hamburguesa para mobile */
+    #menuToggle {
+        display: none;
+        background: none;
+        border: none;
+        color: #f0f0f0;
+        font-size: 1.3em;
+        cursor: pointer;
+        padding: 5px;
+        transition: color 0.2s;
+    }
+    #menuToggle:hover {
+        color: #00bcd4;
     }
 
     .topbar__dolar {
@@ -103,6 +119,12 @@ if (file_exists($cache_file) && (time() - filemtime($cache_file)) < $cache_tiemp
         color: #00bcd4 !important;
     }
 
+    /* ========== USER DROPDOWN ========== */
+    .user-dropdown {
+        position: relative;
+        margin-left: auto;
+    }
+
     .topbar__user {
         display: flex;
         align-items: center;
@@ -111,21 +133,123 @@ if (file_exists($cache_file) && (time() - filemtime($cache_file)) < $cache_tiemp
         text-decoration: none;
         color: #fff;
         font-size: 0.95em;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+        user-select: none;
     }
-
     .topbar__user:hover {
         color: #00bcd4;
+        background: rgba(0, 188, 212, 0.08);
+        border-color: #333;
     }
-
-    .topbar__user i {
+    .topbar__user:active {
+        transform: scale(0.97);
+    }
+    .topbar__user i.fa-user-circle {
         color: #00bcd4;
         font-size: 1.2em;
+    }
+    .topbar__user .fa-chevron-down {
+        font-size: 0.7em;
+        color: #666;
+        transition: transform 0.25s ease;
+    }
+    .user-dropdown.open .topbar__user .fa-chevron-down {
+        transform: rotate(180deg);
     }
 
     .topbar__rol {
         font-size: 0.8em;
         color: #aaa;
         text-transform: capitalize;
+    }
+
+    /* Menú desplegable */
+    .user-dropdown-menu {
+        position: absolute;
+        top: calc(100% + 8px);
+        right: 0;
+        min-width: 220px;
+        background: #1e1e1e;
+        border: 1px solid #333;
+        border-radius: 12px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        padding: 6px;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(-8px);
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 1000;
+        pointer-events: none;
+    }
+    .user-dropdown.open .user-dropdown-menu {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+        pointer-events: all;
+    }
+
+    .user-dropdown-menu .user-header {
+        padding: 12px 14px;
+        border-bottom: 1px solid #2a2a2a;
+        margin-bottom: 4px;
+    }
+    .user-dropdown-menu .user-header strong {
+        display: block;
+        color: #fff;
+        font-size: 0.95em;
+    }
+    .user-dropdown-menu .user-header span {
+        color: #888;
+        font-size: 0.8em;
+        text-transform: capitalize;
+    }
+
+    .user-dropdown-menu a {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 14px;
+        color: #ccc;
+        text-decoration: none;
+        border-radius: 8px;
+        font-size: 0.88em;
+        transition: all 0.2s;
+    }
+    .user-dropdown-menu a:hover {
+        background: rgba(0, 188, 212, 0.08);
+        color: #fff;
+    }
+    .user-dropdown-menu a i {
+        width: 20px;
+        text-align: center;
+        font-size: 1em;
+    }
+    .user-dropdown-menu a.logout-option {
+        border-top: 1px solid #2a2a2a;
+        margin-top: 4px;
+        padding-top: 12px;
+        color: #ff6b6b;
+    }
+    .user-dropdown-menu a.logout-option:hover {
+        background: rgba(255, 82, 82, 0.1);
+        color: #ff5252;
+    }
+
+    /* Flechita del dropdown */
+    .user-dropdown-menu::before {
+        content: '';
+        position: absolute;
+        top: -6px;
+        right: 20px;
+        width: 12px;
+        height: 12px;
+        background: #1e1e1e;
+        border-left: 1px solid #333;
+        border-top: 1px solid #333;
+        transform: rotate(45deg);
     }
 
     @media (max-width: 1100px) {
@@ -136,6 +260,11 @@ if (file_exists($cache_file) && (time() - filemtime($cache_file)) < $cache_tiemp
 </style>
 
 <div class="topbar">
+    <!-- Botón menú hamburguesa para mobile -->
+    <button id="menuToggle" onclick="toggleSidebarMobile()" title="Menú">
+        <i class="fas fa-bars"></i>
+    </button>
+    
     <div class="topbar__dolar">
         <i class="fas fa-dollar-sign"></i>
         <span class="compra">Compra: <strong><?php echo $dolar_compra; ?></strong></span>
@@ -149,11 +278,26 @@ if (file_exists($cache_file) && (time() - filemtime($cache_file)) < $cache_tiemp
         </button>
     </div>
     
-    <a href="<?php echo URL_BASE; ?>pages/perfil.php" class="topbar__user" title="Ver Perfil" style="margin-left: auto;">
-        <i class="fas fa-user-circle"></i>
-        <span><?php echo $nombre_usuario_top; ?></span>
-        <span class="topbar__rol">(<?php echo $rol_usuario; ?>)</span>
-    </a>
+    <!-- User Dropdown -->
+    <div class="user-dropdown" id="userDropdown">
+        <div class="topbar__user" id="userDropdownToggle" title="Menú de usuario">
+            <i class="fas fa-user-circle"></i>
+            <span><?php echo $nombre_usuario_top; ?></span>
+            <span class="topbar__rol">(<?php echo $rol_usuario; ?>)</span>
+            <i class="fas fa-chevron-down"></i>
+        </div>
+        
+        <div class="user-dropdown-menu" id="userDropdownMenu">
+            <div class="user-header">
+                <strong><?php echo $nombre_usuario_top; ?></strong>
+                <span><?php echo $rol_usuario; ?></span>
+            </div>
+            <a href="<?php echo URL_BASE; ?>pages/perfil.php"><i class="fas fa-user-cog" style="color: #00bcd4;"></i> Mi Perfil</a>
+            <a href="<?php echo URL_BASE; ?>pages/perfil.php#cambiar-pass"><i class="fas fa-key" style="color: #f1c40f;"></i> Cambiar Contraseña</a>
+            <a href="<?php echo URL_BASE; ?>pages/infosesion.php"><i class="fas fa-info-circle" style="color: #888;"></i> Información de Sesión</a>
+            <a href="<?php echo URL_BASE; ?>logout.php" class="logout-option"><i class="fas fa-sign-out-alt"></i> Cerrar Sesión</a>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -178,4 +322,38 @@ function refreshDolar() {
 
 // Auto-refresh cada 1 hora
 setInterval(refreshDolar, 3600000);
+
+// ========== USER DROPDOWN TOGGLE ==========
+document.addEventListener('DOMContentLoaded', function() {
+    const dropdown = document.getElementById('userDropdown');
+    const toggle = document.getElementById('userDropdownToggle');
+    const menu = document.getElementById('userDropdownMenu');
+
+    // Toggle al hacer clic en el usuario
+    toggle.addEventListener('click', function(e) {
+        e.stopPropagation();
+        dropdown.classList.toggle('open');
+    });
+
+    // Cerrar al hacer clic fuera
+    document.addEventListener('click', function(e) {
+        if (!dropdown.contains(e.target)) {
+            dropdown.classList.remove('open');
+        }
+    });
+
+    // Cerrar con Escape
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            dropdown.classList.remove('open');
+        }
+    });
+
+    // Cerrar al hacer clic en cualquier link del menú
+    menu.querySelectorAll('a').forEach(link => {
+        link.addEventListener('click', function() {
+            dropdown.classList.remove('open');
+        });
+    });
+});
 </script>

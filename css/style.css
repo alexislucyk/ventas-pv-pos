@@ -24,113 +24,16 @@ html, body {
 }
 
 /* ==================== 2. SIDEBAR (MENÚ) ==================== */
-/* ==================== 2. SIDEBAR (MENÚ) ==================== */
-.sidebar {
-    height: 100vh;
-    width: 250px;
-    position: fixed;
-    top: 0;
-    left: 0;
-    background-color: #1a1a1a;
-    z-index: 900;
-    display: flex;         /* Activa el contenedor flexible */
-    flex-direction: column; /* Apila Header, Menú y Footer verticalmente */
-    overflow: hidden;      /* Evita scroll en el contenedor padre */
-}
+/* Los estilos del sidebar ahora están definidos en pages/sidebar.php */
+/* Solo mantenemos aquí los estilos base necesarios para el layout */
 
-/* El Header no se mueve */
-.sidebar-header {
-    padding: 20px 0 10px 0;
-    flex-shrink: 0;
+/* Transición del contenido cuando el sidebar se colapsa */
+body.sidebar-collapsed .content {
+    margin-left: 60px;
+    width: calc(100% - 60px);
 }
-
-/* ESTE ES EL SECRETO: El contenedor que hace scroll */
-.sidebar-menu-container {
-    flex-grow: 1;          /* Ocupa todo el espacio disponible en el centro */
-    overflow-y: auto;      /* Habilita el scroll solo aquí */
-    padding-bottom: 20px;
-}
-
-/* Estilos de los links para que NO se vean azules */
-.sidebar-menu-container a, .sidebar-footer a {
-    color: #f0f0f0 !important;
-    text-decoration: none;
-    display: block;
-    padding: 12px 20px;
-    transition: background-color 0.3s;
-    border-left: 5px solid transparent;
-}
-
-.sidebar-menu-container a:hover {
-    background-color: #383838;
-    border-left-color: #00bcd4;
-}
-/* Estilo para los títulos de sección en el menú */
-.sidebar h4, 
-.sidebar-menu-container h4 {
-    color: #f0f0f0;
-    font-size: 0.85em;
-    margin: 25px 0 10px 0; /* Aumentamos un poco el margen superior para separar grupos */
-    padding-left: 25px;    /* AUMENTADO: de 15px a 25px para alejarlo del borde */
-    border-bottom: 1px solid #383838;
-    padding-bottom: 5px;
-    text-transform: uppercase;
-    letter-spacing: 1.5px; /* Mejora la legibilidad en mayúsculas */
-    opacity: 0.8;          /* Un toque sutil para que no compita con los links */
-}
-
-/* El Footer se queda siempre abajo */
-.sidebar-footer {
-    padding: 2px 0;        /* Reducido significativamente */
-    margin-bottom: 5px;    /* Espacio mínimo inferior */
-    border-top: 1px solid #333;
-    background: #111;      /* Fondo un poco más oscuro para resaltar */
-    flex-shrink: 0;        /* Impide que el footer se achique */
-}
-
-/* Scrollbar estilo moderno y fino */
-.sidebar-menu-container::-webkit-scrollbar { width: 5px; }
-.sidebar-menu-container::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
-
-/* Bloque de Usuario (Adaptado a una sola línea y centrado) */
-.user-info {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 20px 10px;
-    width: 100%;
-    background-color: #1a1a1a; /* Color sólido para que no transparente */
-}
-
-.user-info i {
-    font-size: 1.2em;
-}
-
-/* El bloque de pie (Configuración y Cerrar Sesión) */
-.sidebar-footer {
-    padding: 10px 0;
-    margin-bottom: 45px; /* ESPACIO DE SEGURIDAD PARA BARRA DE WINDOWS */
-    border-top: 1px solid #333;
-    background: #111;    /* Color más oscuro para diferenciarlo */
-}
-
-.sidebar .logout {
-    color: #ff5252 !important;
-}
-
-.sidebar .logout:hover {
-    background-color: rgba(255, 82, 82, 0.1);
-    border-left-color: #ff5252;
-}
-
-/* Personalización del scrollbar para que no sea tosco */
-.sidebar-menu-container::-webkit-scrollbar {
-    width: 5px;
-}
-.sidebar-menu-container::-webkit-scrollbar-thumb {
-    background: #333;
-    border-radius: 10px;
+body.sidebar-collapsed .topbar {
+    left: 60px;
 }
 
 /* ==================== 3. CONTENT & CARDS ==================== */
@@ -364,11 +267,47 @@ th {
 
 /* ==================== 8. RESPONSIVE ==================== */
 @media (max-width: 1100px) {
-    .sidebar { width: 0; transition: width 0.3s; }
-    .sidebar.active { width: 250px; }
-    .content { margin-left: 0; width: 100%; padding-top: 70px; }
-    .topbar { left: 0; }
-    #menuToggle { display: block; }
+    .sidebar { 
+        width: 0; 
+        transition: width 0.3s ease;
+        box-shadow: none;
+        border-right: none;
+    }
+    .sidebar.active { 
+        width: 250px; 
+        box-shadow: 3px 0 20px rgba(0, 0, 0, 0.6);
+        border-right: 1px solid #333;
+    }
+    .sidebar.collapsed {
+        width: 0;
+    }
+    .sidebar.collapsed.active {
+        width: 250px;
+    }
+    .sidebar.collapsed .sidebar-toggle {
+        display: none;
+    }
+    .sidebar-toggle {
+        display: none;
+    }
+    .content { 
+        margin-left: 0; 
+        width: 100%; 
+        padding-top: 70px; 
+    }
+    .topbar { 
+        left: 0; 
+    }
+    #menuToggle { 
+        display: block; 
+    }
+    body.sidebar-collapsed .content {
+        margin-left: 0;
+        width: 100%;
+    }
+    body.sidebar-collapsed .topbar {
+        left: 0;
+    }
 }
 
 @media (min-width: 1101px) {

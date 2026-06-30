@@ -14,7 +14,7 @@ if ($id_cliente <= 0) {
 
 try {
     // Obtenemos las últimas ventas del cliente, incluyendo las anuladas para referencia
-    $stmt = $pdo->prepare("SELECT n_documento, fecha_venta, total_venta, estado 
+    $stmt = $pdo->prepare("SELECT n_documento, fecha_venta, total_venta, cond_pago, estado 
                            FROM ventas 
                            WHERE id_cliente = ? 
                            ORDER BY n_documento DESC");

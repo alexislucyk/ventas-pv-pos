@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cambiar_clave'])) {
 
             <?php echo $mensaje; ?>
 
-            <form method="POST">
+            <form method="POST" id="cambiar-pass">
                 <label>Contraseña Actual</label>
                 <input type="password" name="pass_actual" class="input-field" required>
                 
