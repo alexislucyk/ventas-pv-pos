@@ -9,6 +9,27 @@ const resultadosProd = document.getElementById('resultadosBusqueda');
 const inputBuscarCli = document.getElementById('buscar_cliente');
 const resultadosCli = document.getElementById('resultadosBusquedaClientes');
 
+// --- 0. COTIZACIÓN DÓLAR OPERATIVO (para mostrar productos en USD en pesos) ---
+(function initDolarOperativo() {
+    try {
+        // topbar.php calcula operativo como venta * 1.02
+        // Igual lo obtenemos desde la caché para no depender del DOM.
+        const cache = window.dolar_operativo_cache || null;
+        if (typeof window.dolar_operativo === 'number' && window.dolar_operativo > 0) return;
+
+        // Intentar leer cache/dolar_cache.json (contiene {compra, venta})
+        fetch('../cache/dolar_cache.json', { cache: 'no-store' })
+            .then(r => r.json())
+            .then(d => {
+                if (d && typeof d.venta === 'number' && d.venta > 0) {
+                    // Operativo = venta * 1.02 (como indica topbar.php)
+                    window.dolar_operativo = d.venta * 1.02;
+                }
+            })
+            .catch(()=>{});
+    } catch (e) {}
+})();
+
 // --- 1. BUSCADOR DE PRODUCTOS ---
 if (inputBuscarProd) {
     inputBuscarProd.addEventListener('input', function() {
@@ -32,11 +53,23 @@ if (inputBuscarProd) {
                     const stockColor = prod.stock <= 0 ? 'red' : 'green';
                     const stockTexto = prod.stock <= 0 ? 'SIN STOCK' : prod.stock;
 
+                    // Preparamos display de precios:
+                    // - Si moneda=dolar: mostrar USD a la izquierda y Pesos a la derecha/abajo.
+                    // - Si moneda=pesos: mostrar solo Pesos (sin referencia a USD).
+                    const precioVentaUSD = parseFloat(prod.p_venta) || 0;
+                    const precioVentaARS = (prod.p_venta_pesos !== null && prod.p_venta_pesos !== undefined)
+                        ? parseFloat(prod.p_venta_pesos)
+                        : null;
+                    // (si moneda=dolar) en la lista se muestra USD y Pesos
+                    const esDolar = (prod.moneda === 'dolar');
+
                     div.innerHTML = `
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <span><strong>${prod.cod_prod}</strong> - ${prod.descripcion}</span>
-                            <span style="font-size: 0.9em;">
-                                $${parseFloat(prod.p_venta).toFixed(2)} | 
+                            <span style="font-size: 0.9em; text-align:right; display:flex; gap:10px; align-items:flex-start; justify-content:flex-end;">
+                                ${esDolar ? `<span style="white-space:nowrap;color:#2ecc71">$${precioVentaUSD.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (USD)</span>` : ''}
+                                <span style="white-space:nowrap;color:#3498db">$${(precioVentaARS !== null ? precioVentaARS : precioVentaUSD).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Pesos)</span>
+
                                 <b style="color: ${stockColor};">Stock: ${stockTexto}</b>
                             </span>
                         </div>
@@ -117,8 +150,22 @@ if (inputBuscarCli) {
 // --- 3. FUNCIONES DEL CARRITO ---
 function agregarAlCarrito(prod) {
     const existe = carrito.find(item => item.cod_prod === prod.cod_prod);
-    const pVenta = parseFloat(prod.p_venta) || 0;
-    const pCosto = parseFloat(prod.p_compra) || parseFloat(prod.p_costo) || 0; 
+let pVenta = parseFloat(prod.p_venta) || 0;
+    let pCosto = parseFloat(prod.p_compra) || parseFloat(prod.p_costo) || 0;
+
+    // Si el producto viene marcado en dólares, convertimos para mostrar en pesos.
+    // (Moneda esperada: prod.moneda === 'dolar')
+    if (prod.moneda === 'dolar') {
+        const dolarOperativo = (typeof window.dolar_operativo === 'number' && window.dolar_operativo > 0)
+            ? window.dolar_operativo
+            : null;
+
+        if (dolarOperativo) {
+            pVenta = pVenta * dolarOperativo;
+            pCosto = pCosto * dolarOperativo;
+        }
+    }
+
 
     if (existe) {
         // Si existe, aumentamos cantidad y lo movemos al principio para que sea visible
@@ -160,9 +207,11 @@ function renderizarCarrito() {
         tr.innerHTML = `
             <td>${item.cod_prod}</td>
             <td>${item.descripcion}</td>
-            <td>$${item.p_unit.toFixed(2)}</td>
+            <td>$${item.p_unit.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+
             <td><input type="number" value="${item.cant}" min="1" step="any" style="width: 60px !important; padding: 6px !important; margin: 0 !important; text-align: center;" onchange="cambiarCant(${index}, this.value)"></td>
-            <td>$${item.total.toFixed(2)}</td>
+            <td>$${item.total.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+
             <td><input type="number" value="${item.desc || 0}" min="0" max="100" step="1" style="width: 45px !important; padding: 6px !important; margin: 0 !important; text-align: center;" onchange="cambiarDesc(${index}, this.value)"></td>
             <td><button type="button" class="btn btn-danger btn-sm" onclick="eliminarItem(${index})">X</button></td>
         `;
@@ -228,7 +277,7 @@ function actualizarTotal() {
         const valorCuota = montoAFinanciar / cantCuotas;
 
         const displayCuota = document.getElementById('info_valor_cuota');
-        if (displayCuota) displayCuota.innerText = `$ ${valorCuota.toFixed(2)}`;
+        if (displayCuota) displayCuota.innerText = `$ ${valorCuota.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         
         // El total final de la venta es lo que ya pagó + lo que debe pagar en cuotas
         finalTotal = entrega + montoAFinanciar;
@@ -240,7 +289,7 @@ function actualizarTotal() {
     const inputTotal = document.getElementById('total_venta_input');
     const inputDetalle = document.getElementById('detalle_productos_input');
     
-    if (display) display.innerText = `$ ${finalTotal.toFixed(2)}`;
+    if (display) display.innerText = `$ ${finalTotal.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     if (inputTotal) inputTotal.value = finalTotal.toFixed(2);
     if (inputDetalle) inputDetalle.value = JSON.stringify(carrito);
 

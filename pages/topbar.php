@@ -9,7 +9,6 @@ $rol_usuario = isset($_SESSION['usuario_rol']) ? htmlspecialchars($_SESSION['usu
 // Obtener cotización del dólar con caché de 1 hora
 $dolar_compra = "-";
 $dolar_venta = "-";
-$dolar_operativo = "-";
 $dolar_fecha = "";
 $cache_file = dirname(__FILE__) . '/../cache/dolar_cache.json';
 $cache_tiempo = 3600; // 1 hora
@@ -18,7 +17,6 @@ if (file_exists($cache_file) && (time() - filemtime($cache_file)) < $cache_tiemp
     $cache_data = json_decode(file_get_contents($cache_file), true);
     $dolar_compra = $cache_data['compra'] ?? "-";
     $dolar_venta = $cache_data['venta'] ?? "-";
-    $dolar_operativo = $dolar_venta * 1.02;
     $dolar_fecha = date('H:i', filemtime($cache_file));
 } else {
     $ch = curl_init("https://dolarapi.com/v1/dolares/oficial");
@@ -79,18 +77,21 @@ if (file_exists($cache_file) && (time() - filemtime($cache_file)) < $cache_tiemp
         color: #4caf50;
     }
 
-    .topbar__dolar span {
-        color: #4caf50;
+    .topbar__dolar .compra {
+        color: #6d6968;
     }
 
-    .topbar__dolar .venta {
-        color: #ff5722;
+    .topbar__dolar .venta{
+        color: #4caf50;
+    }
+    .topbar__dolar .operativo {
+        color: #ff9800;
     }
 
     .topbar__refresh {
         background: none;
         border: none;
-        color: #00bcd4;
+        color: #eee34e !important;
         cursor: pointer;
         font-size: 0.9em;
         padding: 5px;
@@ -99,6 +100,7 @@ if (file_exists($cache_file) && (time() - filemtime($cache_file)) < $cache_tiemp
 
     .topbar__refresh:hover {
         transform: rotate(180deg);
+        color: #00bcd4 !important;
     }
 
     .topbar__user {
@@ -135,16 +137,16 @@ if (file_exists($cache_file) && (time() - filemtime($cache_file)) < $cache_tiemp
 
 <div class="topbar">
     <div class="topbar__dolar">
-        <i class="">U$S Nación</i>
-        <span>Compra: <strong>$<?php echo $dolar_compra; ?></strong></span>
-        <span class="venta">Venta: <strong>$<?php echo $dolar_venta; ?></strong></span>
+        <i class="fas fa-dollar-sign"></i>
+        <span class="compra">Compra: <strong><?php echo $dolar_compra; ?></strong></span>
+        <span class="venta">Venta: <strong><?php echo $dolar_venta; ?></strong></span>
+        <span class="operativo">Operativo (+ 2%): <strong><?php echo $dolar_venta * 1.02; ?></strong></span>
         <?php if ($dolar_fecha): ?>
             <small style="color: #666; margin-left: 5px;">(<?php echo $dolar_fecha; ?>)</small>
         <?php endif; ?>
         <button class="topbar__refresh" onclick="refreshDolar()" title="Actualizar cotización">
             <i class="fas fa-sync-alt"></i>
         </button>
-        <span class="venta">Operativo: <strong>$<?php echo $dolar_operativo; ?></strong></span>
     </div>
     
     <a href="<?php echo URL_BASE; ?>pages/perfil.php" class="topbar__user" title="Ver Perfil" style="margin-left: auto;">
@@ -158,18 +160,14 @@ if (file_exists($cache_file) && (time() - filemtime($cache_file)) < $cache_tiemp
 function refreshDolar() {
     const btn = document.querySelector('.topbar__refresh i');
     btn.style.opacity = '0.5';
-    fetch('<?php echo URL_BASE; ?>funciones/obtener_dolar.php', { cache: 'no-cache' })
-        .then(response => response.text())
-        .then(html => {
-            // Buscar valores en el response y actualizar
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-            const compraEl = doc.querySelector('span strong');
-            const ventaEl = doc.querySelectorAll('span strong')[1];
-            
-            if (compraEl && ventaEl) {
-                document.querySelector('.topbar__dolar span strong').innerHTML = compraEl.innerHTML.replace('$', '');
-                document.querySelectorAll('.topbar__dolar .venta strong')[0].innerHTML = ventaEl.innerHTML.replace('$', '');
+    fetch('<?php echo URL_BASE; ?>funciones/actualizar_dolar.php', { cache: 'no-cache' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.compra && data.venta) {
+                document.querySelector('.topbar__dolar .compra strong').textContent = data.compra;
+                document.querySelector('.topbar__dolar .venta strong').textContent = data.venta;
+                document.querySelector('.topbar__dolar .operativo strong').textContent = (data.venta * 1.02).toFixed(2);
+                document.querySelector('.topbar__dolar small').textContent = '(' + String(new Date().getHours()).padStart(2, '0') + ':' + String(new Date().getMinutes()).padStart(2, '0') + ')';
             }
         })
         .catch(err => console.log('Error al actualizar dólar:', err))
@@ -177,4 +175,7 @@ function refreshDolar() {
             btn.style.opacity = '1';
         });
 }
+
+// Auto-refresh cada 1 hora
+setInterval(refreshDolar, 3600000);
 </script>

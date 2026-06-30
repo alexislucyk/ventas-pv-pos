@@ -20,7 +20,7 @@ $param_busqueda = '%' . $busqueda . '%';
 
 try {
     // 4. CONSULTA SQL CON SENTENCIA PREPARADA
-    $sql = "SELECT cod_prod, descripcion, p_compra, p_venta, stock 
+    $sql = "SELECT cod_prod, descripcion, p_compra, p_venta, stock, moneda 
             FROM productos 
             WHERE cod_prod LIKE ? OR descripcion LIKE ?
             ORDER BY descripcion
@@ -34,6 +34,25 @@ try {
 
     // 6. OBTENER Y DEVOLVER RESULTADOS (JSON)
     $productos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Agregar precio en pesos para productos en dolar (operativo = venta * 1.02, como en topbar.php)
+    $cache_path = dirname(__FILE__) . '/../cache/dolar_cache.json';
+    $dolar_operativo = null;
+    if (file_exists($cache_path)) {
+        $cache = json_decode(file_get_contents($cache_path), true);
+        if (is_array($cache) && isset($cache['venta']) && is_numeric($cache['venta'])) {
+            $dolar_operativo = (float)$cache['venta'] * 1.02;
+        }
+    }
+
+    foreach ($productos as &$p) {
+        $p['p_venta_pesos'] = null;
+        if (($p['moneda'] ?? '') === 'dolar' && $dolar_operativo && $dolar_operativo > 0) {
+            $p['p_venta_pesos'] = (float)$p['p_venta'] * $dolar_operativo;
+        }
+    }
+    unset($p);
+
     echo json_encode($productos);
 
 } catch (Exception $e) {

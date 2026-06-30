@@ -62,7 +62,7 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                 // --- RECALCULO Y VALIDACIÓN ---
                 $total_bruto = 0;
                 foreach ($detalle_productos as &$item) {
-                    $stmt_v = $pdo->prepare("SELECT p_venta, p_compra, stock, descripcion FROM productos WHERE cod_prod = ?");
+                    $stmt_v = $pdo->prepare("SELECT p_venta, p_compra, stock, descripcion, moneda FROM productos WHERE cod_prod = ?");
                     $stmt_v->execute([$item['cod_prod']]);
                     $prod_db = $stmt_v->fetch(PDO::FETCH_ASSOC);
 
@@ -73,8 +73,53 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                         $productos_sin_stock[] = $prod_db['descripcion'];
                     }
 
-                    $item['p_unit'] = (float)$prod_db['p_venta'];
-                    $item['p_costo_venta'] = (float)$prod_db['p_compra']; 
+                    // Soporte moneda del producto: si está en 'dolar', convertimos a pesos con el dólar operativo (dólar de venta).
+                    $moneda_prod = $prod_db['moneda'] ?? 'pesos';
+
+                    if ($moneda_prod === 'dolar') {
+                        $dolar_operativo = null;
+                        try {
+                            // obtener_dolar.php devuelve compra/venta y arma un caché en cache/dolar_cache.json
+                            $dolar_json = file_get_contents(__DIR__ . '/../funciones/obtener_dolar.php');
+                            // Nota: obtener_dolar.php es un PHP que además imprime HTML en algunos casos; por eso evitamos usarlo.
+                        } catch (Throwable $t) {
+                            $dolar_operativo = null;
+                        }
+
+                        // Alternativa robusta: usar el archivo cache/dolar_cache.json si existe; si no, intentar obtener vía endpoint.
+                        $cache_path = __DIR__ . '/../cache/dolar_cache.json';
+                        if (file_exists($cache_path)) {
+                            $cache = json_decode(file_get_contents($cache_path), true);
+                            if (is_array($cache) && isset($cache['venta'])) {
+                                $dolar_operativo = (float)$cache['venta'];
+                            }
+                        }
+
+                        // Si no hay caché válido, intentamos capturar llamando al endpoint actualizar_dolar.php (devuelve JSON).
+                        if ($dolar_operativo === null || $dolar_operativo <= 0) {
+                            try {
+                                $ctx = stream_context_create(['http' => ['timeout' => 5]]);
+                                $json = @file_get_contents((isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['SCRIPT_NAME']) . '/../funciones/actualizar_dolar.php', false, $ctx);
+                                $data_dolar = json_decode($json, true);
+                                if (is_array($data_dolar) && isset($data_dolar['venta'])) {
+                                    $dolar_operativo = (float)$data_dolar['venta'];
+                                }
+                            } catch (Throwable $t) {
+                                $dolar_operativo = null;
+                            }
+                        }
+
+                        if ($dolar_operativo === null || $dolar_operativo <= 0) {
+                            throw new Exception("No se pudo obtener el dólar operativo para convertir el producto en USD: {$item['cod_prod']}.");
+                        }
+
+                        $item['p_unit'] = (float)$prod_db['p_venta'] * $dolar_operativo;
+                        $item['p_costo_venta'] = (float)$prod_db['p_compra'] * $dolar_operativo;
+                    } else {
+                        $item['p_unit'] = (float)$prod_db['p_venta'];
+                        $item['p_costo_venta'] = (float)$prod_db['p_compra'];
+                    }
+
                     
                     // Descuento por producto (Tratado como porcentaje)
                     $desc_porc_item = isset($item['desc']) ? (float)$item['desc'] : 0;
