@@ -186,20 +186,34 @@ try {
 .sidebar-search {
     padding: 10px 12px;
     flex-shrink: 0;
+    position: relative;
+}
+.sidebar-search .search-icon {
+    position: absolute;
+    left: 24px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #666;
+    font-size: 0.9em;
+    pointer-events: none;
+    z-index: 1;
 }
 .sidebar-search input {
-    width: 100%;
-    padding: 10px 12px 10px 42px;
-    border: 1px solid #333;
-    background: #252525 url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="%23666" viewBox="0 0 16 16"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>') no-repeat 12px center;
-    color: #f0f0f0;
-    border-radius: 8px;
-    font-size: 0.85em;
+    width: 100% !important;
+    padding: 10px 12px 10px 38px !important;
+    border: 1px solid #333 !important;
+    background: #252525 !important;
+    color: #f0f0f0 !important;
+    border-radius: 8px !important;
+    font-size: 0.85em !important;
     outline: none;
     transition: border-color 0.3s, box-shadow 0.3s;
-    box-sizing: border-box;
+    box-sizing: border-box !important;
     display: block;
     line-height: 1.4;
+    position: relative;
+    z-index: 0;
+    margin-bottom: 0 !important;
 }
 .sidebar-search input:focus {
     border-color: #00bcd4;
@@ -427,9 +441,12 @@ body.sidebar-collapsed .topbar {
         </div>
     </a>
 
-    <!-- Buscador del menú -->
+    <?php include 'components/selector_empresa.php'; ?>
+
+    <!-- Buscador del menú - PRUEBA CAMBIO -->
     <div class="sidebar-search">
-        <input type="text" id="sidebarSearch" placeholder="Buscar en menú..." autocomplete="off">
+        <i class="fas fa-search search-icon" style="color: #4db64d !important; font-size: 1.5em !important;"></i>
+        <input type="text" id="sidebarSearch" placeholder="BUSCADOR MODIFICADO" autocomplete="off">
     </div>
 
     <div class="sidebar-menu-container" id="sidebarMenu">
