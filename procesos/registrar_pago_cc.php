@@ -3,9 +3,14 @@
 include '../pages/infosesion.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
-    // --- 1. Saneamiento y Captura de Datos ---
     $id_cliente = filter_input(INPUT_POST, 'id_cliente', FILTER_VALIDATE_INT);
     $monto_pago = filter_input(INPUT_POST, 'monto_pago', FILTER_VALIDATE_FLOAT);
     
@@ -17,28 +22,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $chq_vto = $_POST['chq_vto'] ?? '';
     $chq_emision = $_POST['chq_emision'] ?? '';
 
-    // Lógica para evitar el '0': 
-    // Si viene vacío, buscamos el último n_documento de un pago para seguir la correlatividad
     if ($n_recibo_raw === '') {
-        $stmt_max = $pdo->query("SELECT MAX(n_documento) FROM ctacte WHERE movimiento = 'Pago Cta.Cte.'");
+        $stmt_max = $pdo->query("SELECT MAX(n_documento) FROM ctacte WHERE movimiento = 'Pago Cta.Cte.' AND empresa_id = " . (int)$empresa_id);
         $ultimo_n = (int)$stmt_max->fetchColumn();
-        // Si nunca hubo un pago con número, empezamos en 1, sino sumamos 1
         $n_recibo = ($ultimo_n > 0) ? $ultimo_n + 1 : 1;
     } else {
-        // Si el usuario ingresó algo, lo usamos. 
-        // Quitamos el casteo (int) por si usas números con letras (ej: "R-001") 
         $n_recibo = $n_recibo_raw;
     }
 
-    $movimiento = "Pago Cta.Cte."; // Definimos el tipo de movimiento
+    $movimiento = "Pago Cta.Cte.";
 
-    // Validaciones básicas
     if (!$id_cliente || $monto_pago <= 0) {
         header('Location: /ruta/al/formulario.php?error=Datos inválidos.');
         exit();
     }
 
-    // Validación de Cheque (Servidor)
     if ($condicion_pago === 'Cheque' && (empty($chq_nro) || empty($chq_vto))) {
         $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
         if ($isAjax) {
@@ -51,54 +49,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     $fecha_movimiento = date('Y-m-d H:i:s');
-    $cero = 0; // El campo 'debe' es 0 para un pago
+    $cero = 0;
 
-    // --- 2. Preparar e Insertar SQL ---
     try {
         $sql = "
-            INSERT INTO ctacte (id_cliente, movimiento, n_documento, debe, haber, fecha, usuario)
-            VALUES (:id_cliente, :movimiento, :n_doc, :debe, :haber, :fecha, :usuario)
+            INSERT INTO ctacte (id_cliente, movimiento, n_documento, debe, haber, fecha, usuario, empresa_id)
+            VALUES (:id_cliente, :movimiento, :n_doc, :debe, :haber, :fecha, :usuario, :empresa_id)
         ";
         
         $stmt = $pdo->prepare($sql);
         
         $stmt->bindValue(':id_cliente', $id_cliente, PDO::PARAM_INT);
         $stmt->bindValue(':movimiento', $movimiento, PDO::PARAM_STR);
-        $stmt->bindValue(':n_doc', $n_recibo, PDO::PARAM_STR); // Cambiado a STR para mayor flexibilidad
+        $stmt->bindValue(':n_doc', $n_recibo, PDO::PARAM_STR);
         $stmt->bindValue(':debe', $cero, PDO::PARAM_INT);
         $stmt->bindValue(':haber', $monto_pago, PDO::PARAM_STR); 
         $stmt->bindParam(':fecha', $fecha_movimiento, PDO::PARAM_STR);
         $stmt->bindValue(':usuario', $usuario, PDO::PARAM_STR);
+        $stmt->bindValue(':empresa_id', $empresa_id, PDO::PARAM_INT);
         
         $stmt->execute();
 
-        // CAPTURAR EL ID DEL RECIBO/MOVIMIENTO RECIÉN CREADO
         $id_movimiento_generado = $pdo->lastInsertId();
 
-        // --- 2.1. REGISTRAR EN MOVIMIENTOS DE CAJA (Reflejo en Caja Dashboard) ---
         $detalle_mov = "PAGO RECIBIDO - CLIENTE #$id_cliente" . (!empty($n_recibo) ? " (Recibo $n_recibo)" : "");
         
-        // Si es cheque, agregamos info al detalle para el cajero
         if ($condicion_pago === 'Cheque' && !empty($chq_nro)) {
             $detalle_mov .= " | CHQ N° $chq_nro (Vto: " . date('d/m/y', strtotime($chq_vto)) . ")";
         }
 
-        $sql_mov = "INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado) 
-                    VALUES ('INGRESO', ?, ?, ?, ?, ?, 0)";
+        $sql_mov = "INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado, empresa_id, sucursal_id) 
+                    VALUES ('INGRESO', ?, ?, ?, ?, ?, 0, ?, ?)";
         $pdo->prepare($sql_mov)->execute([
             $monto_pago,
             strtoupper($condicion_pago),
             $detalle_mov,
             $fecha_movimiento,
-            $usuario
+            $usuario,
+            $empresa_id,
+            $sucursal_id
         ]);
 
-        // --- 3. Redirección de Éxito: REDIRIGIR A LA VISTA DEL RECIBO ---
-        // Detectar si es una solicitud AJAX
         $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
         
         if ($isAjax) {
-            if (ob_get_length()) ob_clean(); // Limpiamos cualquier "basura" o advertencia del buffer
+            if (ob_get_length()) ob_clean();
             header('Content-Type: application/json');
             echo json_encode(['success' => true, 'id_movimiento' => $id_movimiento_generado]);
         } else {
@@ -120,7 +115,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
 } else {
-    // Si se accede directamente sin POST
     header('Location: /ruta/al/formulario.php');
     exit();
 }

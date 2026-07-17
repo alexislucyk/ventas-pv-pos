@@ -2,7 +2,12 @@
 include 'infosesion.php';
 require '../config/db_config.php';
 
-// Validar permisos
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+}
+
 if (!tiene_permiso('pages/facturacion_arca.php')) {
     header("Location: " . URL_BASE . "index.php?error=acceso_denegado");
     exit();
@@ -11,7 +16,6 @@ if (!tiene_permiso('pages/facturacion_arca.php')) {
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 
 try {
-    // Listado de facturas generadas ante ARCA (AFIP)
     $sql = "
         SELECT 
             af.*, 
@@ -20,11 +24,12 @@ try {
             v.fecha_venta,
             CONCAT(c.apellido, ', ', c.nombre) as nombre_cliente
         FROM ventas_afip af
-        JOIN ventas v ON af.id_venta = v.id
-        LEFT JOIN clientes c ON v.id_cliente = c.id
+        JOIN ventas v ON af.id_venta = v.id AND v.empresa_id = :empresa_id1
+        LEFT JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = :empresa_id2
         ORDER BY af.fecha_proceso DESC
     ";
-    $stmt = $pdo->query($sql);
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([':empresa_id1' => $empresa_id, ':empresa_id2' => $empresa_id]);
     $facturas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     $facturas = [];
@@ -35,7 +40,7 @@ try {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Comprobantes ARCA | Electricidad Lucyk</title>
+    <title>Comprobantes ARCA | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>

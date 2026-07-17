@@ -15,6 +15,14 @@ $mensaje = '';
 $error = false;
 $id_compra_generada = null; // Para mostrar en el mensaje de éxito
 
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    $error = true;
+    $mensaje = '❌ ERROR CRÍTICO: Falta empresa_id en sesión.';
+    $pdo = null;
+}
+
 // -----------------------------------------------------
 // 2. BLOQUE DE PROCESAMIENTO DE REGISTRO DE COMPRA (POST)
 // -----------------------------------------------------
@@ -56,8 +64,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_compra'])) 
             // ---------------------------------------------------------
             // A. INSERTAR CABECERA EN 'compras'
             // ---------------------------------------------------------
-            $sql_cabecera = "INSERT INTO compras (cod_proveedor, cond_pago, documento, n_documento, total_compra, fecha_compra, fecha_operacion, usuario_id) 
-                             VALUES (:prov, :cond, :doc_tipo, :n_doc, :total, :f_compra, :f_op, :user)";
+            $sql_cabecera = "INSERT INTO compras (cod_proveedor, cond_pago, documento, n_documento, total_compra, fecha_compra, fecha_operacion, usuario_id, empresa_id, sucursal_id) 
+                             VALUES (:prov, :cond, :doc_tipo, :n_doc, :total, :f_compra, :f_op, :user, :empresa_id, :sucursal_id)";
             $stmt_cabecera = $pdo->prepare($sql_cabecera);
             $stmt_cabecera->execute([
                 ':prov' => $id_proveedor,
@@ -67,7 +75,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_compra'])) 
                 ':total' => $total_compra,
                 ':f_compra' => $fecha_compra,
                 ':f_op' => $fecha_operacion,
-                ':user' => $usuario_id
+                ':user' => $usuario_id,
+                ':empresa_id' => $empresa_id,
+                ':sucursal_id' => $sucursal_id
             ]);
             
             $id_compra_generada = $pdo->lastInsertId();
@@ -75,20 +85,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_compra'])) 
             // ---------------------------------------------------------
             // B. PROCESAR DETALLE E INVENTARIO (Último Costo de Compra)
             // ---------------------------------------------------------
-            $sql_detalle = "INSERT INTO compras_detalle (cod_prod, descripcion, cant, p_unit, total, n_documento, fecha) 
-                            VALUES (:cod, :desc, :cant, :punit, :total_linea, :n_doc, :fecha)";
+            $sql_detalle = "INSERT INTO compras_detalle (cod_prod, descripcion, cant, p_unit, total, n_documento, fecha, empresa_id) 
+                            VALUES (:cod, :desc, :cant, :punit, :total_linea, :n_doc, :fecha, :empresa_id)";
             $stmt_detalle = $pdo->prepare($sql_detalle);
 
             // 1. Preparamos las consultas que se usarán en el bucle
-            // A) Consulta para obtener el stock actual
-            $sql_get_stock = "SELECT stock FROM productos WHERE cod_prod = :cod"; 
+            // A) Consulta para obtener el stock actual por sucursal
+            $sql_get_stock = "SELECT stock_actual FROM stocks WHERE empresa_id = :empresa_id AND sucursal_id = :sucursal_id AND cod_prod = :cod"; 
             $stmt_get_stock = $pdo->prepare($sql_get_stock);
 
-            // B) Consulta para actualizar stock y precio de compra (costo)
+            // B) Upsert stock por sucursal en tabla stocks
+            $upsert_stock = "INSERT INTO stocks (empresa_id, sucursal_id, cod_prod, stock_actual) VALUES (?, ?, ?, ?) 
+                              ON DUPLICATE KEY UPDATE stock_actual = stock_actual + VALUES(stock_actual)";
+            $stmt_upsert_stock = $pdo->prepare($upsert_stock);
+
+            // C) Actualizar costo de compra (predeterminado)
             $sql_update_prod = "UPDATE productos SET 
-                                    stock = stock + :cant_sumada, 
-                                    p_compra = :nuevo_costo_unit  /* SOBREESCRIBIMOS con el nuevo precio */
-                                WHERE cod_prod = :cod";
+                                    p_compra = :nuevo_costo_unit
+                                WHERE cod_prod = :cod AND empresa_id = :empresa_id";
             $stmt_update_prod = $pdo->prepare($sql_update_prod);
 
 
@@ -107,18 +121,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_compra'])) 
                     ':punit' => $p_unit,
                     ':total_linea' => $total_linea,
                     ':n_doc' => $n_documento,
-                    ':fecha' => $fecha_compra
+                    ':fecha' => $fecha_compra,
+                    ':empresa_id' => $empresa_id
                 ]);
 
-                // 2. Actualizar Stock y Costo (p_compra) en productos
-                
-                // NOTA: Para este método, solo necesitamos el UPDATE, 
-                // ya que el nuevo costo unitario (p_unit) sobrescribe el anterior.
+                // 2. Actualizar stock en tabla stocks (por sucursal) y costo en productos
+                $stmt_upsert_stock->execute([
+                    $empresa_id,
+                    $sucursal_id,
+                    $cod_prod,
+                    $cant
+                ]);
 
                 $stmt_update_prod->execute([
-                    ':cant_sumada' => $cant,
                     ':nuevo_costo_unit' => $p_unit,
-                    ':cod' => $cod_prod
+                    ':cod' => $cod_prod,
+                    ':empresa_id' => $empresa_id
                 ]);
             }
             
@@ -128,8 +146,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_compra'])) 
             // C. CUENTA CORRIENTE DE PROVEEDORES
             // ---------------------------------------------------------
             if ($cond_pago === 'CRÉDITO') {
-                $sql_ctacte = "INSERT INTO ctacte_proveedores (id_proveedor, movimiento, debe, haber, n_documento, fecha, usuario_id, compra_id) 
-                               VALUES (:id_prov, :mov, 0, :total, :n_doc, :fecha_op, :user, :compra)";
+                $sql_ctacte = "INSERT INTO ctacte_proveedores (id_proveedor, movimiento, debe, haber, n_documento, fecha, usuario_id, compra_id, empresa_id) 
+                               VALUES (:id_prov, :mov, 0, :total, :n_doc, :fecha_op, :user, :compra, :empresa_id)";
                 $stmt_ctacte = $pdo->prepare($sql_ctacte);
                 $stmt_ctacte->execute([
                     ':id_prov' => $id_proveedor,
@@ -138,7 +156,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_compra'])) 
                     ':n_doc' => $n_documento,
                     ':fecha_op' => $fecha_operacion,
                     ':user' => $usuario_id,
-                    ':compra' => $id_compra_generada
+                    ':compra' => $id_compra_generada,
+                    ':empresa_id' => $empresa_id
                 ]);
             }
             
@@ -175,20 +194,23 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                                 razon AS nombre, 
                                 cuit 
                             FROM proveedores 
+                            WHERE empresa_id = :empresa_id
                             ORDER BY razon ASC";
-        $stmt_proveedores = $pdo->query($sql_proveedores);
+        $stmt_proveedores = $pdo->prepare($sql_proveedores);
+        $stmt_proveedores->execute([':empresa_id' => $empresa_id]);
         $proveedores = $stmt_proveedores->fetchAll(PDO::FETCH_ASSOC); 
 
-        // Listas para el modal de registro rápido de productos
         $rubros_list = $pdo->query("SELECT nombre FROM rubros ORDER BY nombre ASC")->fetchAll(PDO::FETCH_ASSOC);
-        $proveedores_list = $pdo->query("SELECT razon FROM proveedores ORDER BY razon ASC")->fetchAll(PDO::FETCH_ASSOC);
 
-        // Sugerir código para nuevo proveedor
-        $stmt_cod_prov = $pdo->query("SELECT cod_prov FROM proveedores ORDER BY (cod_prov + 0) DESC LIMIT 1");
+        $proveedores_list = $pdo->prepare("SELECT razon FROM proveedores WHERE empresa_id = :empresa_id ORDER BY razon ASC");
+        $proveedores_list->execute([':empresa_id' => $empresa_id]);
+        $proveedores_list = $proveedores_list->fetchAll(PDO::FETCH_ASSOC);
+
+        $stmt_cod_prov = $pdo->prepare("SELECT cod_prov FROM proveedores WHERE empresa_id = :empresa_id ORDER BY (cod_prov + 0) DESC LIMIT 1");
+        $stmt_cod_prov->execute([':empresa_id' => $empresa_id]);
         $ult_prov = $stmt_cod_prov->fetch();
         $nuevo_cod_prov_sugerido = $ult_prov ? (intval($ult_prov['cod_prov']) + 1) : 1;
 
-        // Obtener Ganancia Global de la configuración
         $stmt_conf = $pdo->query("SELECT valor FROM configuracion WHERE clave = 'ganancia_global'");
         $ganancia_config = (float)($stmt_conf->fetchColumn() ?: 60);
 
@@ -209,7 +231,7 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nueva Compra | Electricidad Lucyk</title>
+    <title>Nueva Compra | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css"> 
     <style>
         /* Estilos base responsive para la cuadrícula */

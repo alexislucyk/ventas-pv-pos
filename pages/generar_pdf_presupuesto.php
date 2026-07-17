@@ -1,10 +1,8 @@
 <?php
 // archivo: pages/generar_pdf_presupuesto.php
 
-// 1. Limpieza absoluta del buffer para evitar que el PDF salga dañado o vacío
 if (ob_get_contents()) ob_end_clean();
 
-// Silenciar avisos de funciones obsoletas
 error_reporting(E_ALL & ~E_DEPRECATED);
 ini_set('display_errors', 0);
 
@@ -13,24 +11,26 @@ date_default_timezone_set('America/Argentina/Buenos_Aires');
 require('../fpdf/fpdf.php');
 require('../config/db_config.php');
 
-// Helper moderno
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+}
+
 function to_iso($text) {
     return mb_convert_encoding($text, 'ISO-8859-1', 'UTF-8');
 }
 
-// Validar ID
 $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
 if ($id === 0) {
     die("ID de presupuesto no valido.");
 }
 
-// 2. Buscamos datos del presupuesto y del cliente
-// Usamos array($id) porque PHP 5 a veces falla con el corchete corto [] en execute
 $stmt = $pdo->prepare("SELECT p.*, c.* FROM presupuestos p 
-                       JOIN clientes c ON p.id_cliente = c.id 
-                       WHERE p.id = ?");
-$stmt->execute(array($id));
+                       JOIN clientes c ON p.id_cliente = c.id AND c.empresa_id = ?
+                       WHERE p.id = ? AND p.empresa_id = ?");
+$stmt->execute([$empresa_id, $id, $empresa_id]);
 $presu = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$presu) {
@@ -46,7 +46,7 @@ try {
     $stmt_suc = $pdo->query("SELECT email FROM sucursales WHERE es_principal = 1 LIMIT 1");
     $suc_d = $stmt_suc->fetch(PDO::FETCH_ASSOC);
     
-    $nombreEmpresa = !empty($emp_d['nombre_fantasia']) ? $emp_d['nombre_fantasia'] : 'Electricidad Lucyk';
+    $nombreEmpresa = !empty($emp_d['nombre_fantasia']) ? $emp_d['nombre_fantasia'] : 'Mi Negocio';
     
     // Construimos la dirección completa usando los nuevos campos de datos_empresa
     $dirEmpresa    = !empty($emp_d['direccion']) ? $emp_d['direccion'] . (!empty($emp_d['localidad']) ? ' - ' . $emp_d['localidad'] : '') : 'Dirección no configurada';
@@ -54,7 +54,7 @@ try {
     $telEmpresa    = !empty($emp_d['telefono']) ? $emp_d['telefono'] : '';
     $emailEmpresa  = !empty($suc_d['email']) ? $suc_d['email'] : '';
 } catch (Exception $e) {
-    $nombreEmpresa = 'Electricidad Lucyk';
+    $nombreEmpresa = 'Mi Negocio';
     $dirEmpresa = 'Error al cargar dirección';
 }
 
@@ -97,6 +97,7 @@ $pdf->Ln(5);
 //$pdf->Cell(0, 6, utf8_decode('DATOS DEL CLIENTE:'), 0, 1);
 $pdf->SetFont('Arial', '', 11);
 $pdf->Cell(0, 7, to_iso('Nombre: ' . $clienteNombre), 0, 1);
+$pdf->Cell(0, 7, to_iso('Domicilio: ' . (!empty($presu['direccion']) ? $presu['direccion'] : '-')), 0, 1);
 $pdf->Cell(0, 7, to_iso('CUIT/DNI: ' . $clienteDoc), 0, 1);
 $pdf->Cell(0, 7, to_iso('Fecha: ' . $fechaFormateada), 0, 1);
 $pdf->Ln(5);
@@ -104,8 +105,7 @@ $pdf->Ln(5);
 // 5. Tabla de productos
 $pdf->SetFillColor(230, 230, 230);
 $pdf->SetFont('Arial', 'B', 10);
-$pdf->Cell(25, 10, 'Cod', 1, 0, 'C', true);
-$pdf->Cell(85, 10, to_iso('Descripción'), 1, 0, 'C', true);
+$pdf->Cell(110, 10, to_iso('Descripción'), 1, 0, 'C', true);
 $pdf->Cell(15, 10, 'Cant', 1, 0, 'C', true);
 $pdf->Cell(30, 10, 'Precio U.', 1, 0, 'C', true);
 $pdf->Cell(35, 10, 'Subtotal', 1, 1, 'C', true);
@@ -114,8 +114,8 @@ $pdf->SetFont('Arial', '', 10);
 
 // Buscamos los productos del detalle
 // OJO: Asegurate que la tabla se llame 'presupuestos_detalle' y no 'presupuesto_detalle'
-$stmtDetalle = $pdo->prepare("SELECT * FROM presupuestos_detalle WHERE id_presupuesto = ?");
-$stmtDetalle->execute(array($id));
+$stmtDetalle = $pdo->prepare("SELECT * FROM presupuestos_detalle WHERE id_presupuesto = ? AND empresa_id = ?");
+$stmtDetalle->execute(array($id, $empresa_id));
 
 while ($row = $stmtDetalle->fetch(PDO::FETCH_ASSOC)) {
     // Verificamos nombres de columnas del detalle según tu tabla
@@ -126,8 +126,7 @@ while ($row = $stmtDetalle->fetch(PDO::FETCH_ASSOC)) {
     $monto_desc = $sub_bruto * ($desc_porc / 100);
     $sub_neto = $sub_bruto - $monto_desc;
 
-    $pdf->Cell(25, 8, $row['cod_prod'], 1);
-    $pdf->Cell(85, 8, to_iso($row['descripcion']), 1);
+    $pdf->Cell(110, 8, to_iso($row['descripcion']), 1);
     $pdf->Cell(15, 8, $cant, 1, 0, 'C');
     $pdf->Cell(30, 8, '$ ' . number_format((float)($prec ?? 0), 2, ',', '.'), 1, 0, 'R');
     $pdf->Cell(35, 8, '$ ' . number_format((float)($sub_neto ?? 0), 2, ',', '.'), 1, 1, 'R');

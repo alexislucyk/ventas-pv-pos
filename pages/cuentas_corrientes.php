@@ -4,9 +4,17 @@ include 'infosesion.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 require '../config/db_config.php'; 
 
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+}
+
 // --- 1. CONSULTA PARA OBTENER SALDOS GENERALES ---
+$deuda_total = 0;
+$saldo_favor_total = 0;
+$clientes_cc = [];
 try {
-    // Calculamos el saldo directamente en la consulta: SUM(debe) - SUM(haber)
     $sql_saldos = "
         SELECT 
             c.id AS id_cliente,
@@ -17,18 +25,17 @@ try {
             COALESCE(SUM(m.haber), 0) AS total_haber,
             COALESCE(SUM(m.debe), 0) - COALESCE(SUM(m.haber), 0) AS saldo_actual
         FROM clientes c
-        INNER JOIN ctacte m ON c.id = m.id_cliente
+        INNER JOIN ctacte m ON c.id = m.id_cliente AND m.empresa_id = :empresa_id1
+        WHERE c.empresa_id = :empresa_id2
         GROUP BY c.id
         HAVING saldo_actual != 0
-        ORDER BY saldo_actual DESC;
+        ORDER BY saldo_actual DESC
     ";
     
-    $stmt_saldos = $pdo->query($sql_saldos);
+    $stmt_saldos = $pdo->prepare($sql_saldos);
+    $stmt_saldos->execute([':empresa_id1' => $empresa_id, ':empresa_id2' => $empresa_id]);
     $clientes_cc = $stmt_saldos->fetchAll(PDO::FETCH_ASSOC);
 
-    // Calcular deuda total de la calle y saldo a favor acumulado
-    $deuda_total = 0;
-    $saldo_favor_total = 0;
     foreach($clientes_cc as $c) { 
         if($c['saldo_actual'] > 0) $deuda_total += $c['saldo_actual']; 
         else $saldo_favor_total += abs($c['saldo_actual']);
@@ -36,7 +43,6 @@ try {
 
 } catch (Exception $e) {
     error_log("Error en CC: " . $e->getMessage());
-    $clientes_cc = [];
 }
 ?>
 
@@ -44,7 +50,7 @@ try {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Cuentas Corrientes | Electricidad Lucyk</title>
+    <title>Cuentas Corrientes | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="../css/style.css"> 
     <style>
@@ -69,8 +75,26 @@ try {
         .saldo-deudor { color: #ff5e5e; font-weight: bold; }
         .saldo-favor { color: #2ecc71; font-weight: bold; }
         
+        /* Estilos para tabla de historial */
+        #cuerpoHistorial tr { border-bottom: 1px solid #444; }
+        #cuerpoHistorial td { padding: 8px 10px; }
+        .saldo-cero { color: #bbb; }
+        .saldo-negativo { color: #ff5e5e; font-weight: bold; }
+        .saldo-positivo { color: #2ecc71; font-weight: bold; }
+        
         /* Reducción de Escala General */
-        .content { padding: 20px 30px; }
+        .content { 
+            padding: 20px 30px; 
+            min-height: 100vh;
+        }
+        
+        /* Asegurar que la tabla principal sea visible */
+        #tablaSaldos {
+            width: 100%;
+            position: relative;
+            z-index: 1;
+        }
+        
         .content h1 { font-size: 1.6rem; margin-bottom: 20px; padding-bottom: 8px; }
         .card { padding: 12px 15px; margin-bottom: 15px; }
         .card h2, .card h3 { font-size: 1.1rem; }
@@ -246,7 +270,7 @@ try {
     <!-- Modales (Cerrados por defecto) -->
     
     <!-- 1. Modal de Historial -->
-    <div id="modalHistorial" class="modal" style="display:none;">
+    <div id="modalHistorial" class="modal" style="display: none;">
         <div class="modal-content" style="border-top: 4px solid #3498db;">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #444; padding-bottom: 15px; margin-bottom: 20px;">
                 <h2 id="tituloHistorial" style="margin: 0; color: #3498db;">Historial de Movimientos</h2>
@@ -384,7 +408,7 @@ try {
 
     // --- LÓGICA DE DETALLE Y PAGO ---
 
-    function verDetalle(id, nombre) {
+    window.verDetalle = function(id, nombre) {
         currentClientId = id;
         currentClientName = nombre;
         const modalEl = document.getElementById('modalHistorial');
@@ -395,13 +419,27 @@ try {
         titulo.innerHTML = '<i class="fas fa-history"></i> Historial: ' + nombre;
         cuerpo.innerHTML = '<tr><td colspan="7" style="text-align:center;">Cargando movimientos...</td></tr>';
 
+        console.log('Cargando movimientos para cliente ID:', id);
+        
         fetch('../ajax/obtener_movimientos_cc.php?id_cliente=' + id)
-            .then(res => res.text())
-            .then(html => cuerpo.innerHTML = html)
-            .catch(() => cuerpo.innerHTML = '<tr><td colspan="7" style="color:red;">Error al cargar.</td></tr>');
+            .then(res => {
+                console.log('Respuesta recibida, status:', res.status);
+                if (!res.ok) {
+                    throw new Error('Error HTTP: ' + res.status);
+                }
+                return res.text();
+            })
+            .then(html => {
+                console.log('HTML recibido:', html);
+                cuerpo.innerHTML = html;
+            })
+            .catch(err => {
+                console.error('Error al cargar movimientos:', err);
+                cuerpo.innerHTML = '<tr><td colspan="7" style="color:red;">Error al cargar: ' + err.message + '</td></tr>';
+            });
     }
 
-    function abrirDetalleOperacion(id, tipo, etiqueta) {
+    window.abrirDetalleOperacion = function(id, tipo, etiqueta) {
         const modal = document.getElementById('modalFactura');
         const cuerpo = document.getElementById('cuerpoDetalleFactura');
         const labelDoc = document.getElementById('detalleNdocumento');
@@ -417,6 +455,36 @@ try {
         else if (tipo === 'PAGO') url = '../ajax/obtener_detalle_pago.php?id=' + id;
 
         fetch(url).then(res => res.text()).then(html => { cuerpo.innerHTML = html; });
+    }
+
+    window.imprimirTicket = function(nDocumento) {
+        const doc = String(nDocumento).replace(/[^\d]/g, '');
+        if (!doc) { alert("Número de documento inválido."); return; }
+        window.open('vista_previa_ticket.php?n_documento=' + doc, '_blank', 'width=400,height=700');
+    }
+
+    window.descargarPDFVenta = function(nDocumento) {
+        const doc = String(nDocumento).replace(/[^\d]/g, '');
+        if (!doc) { alert("Número de documento inválido."); return; }
+        window.location.href = 'generar_pdf_ticket.php?n_documento=' + doc + '&download=1';
+    }
+
+    window.imprimirRecibo = function(idMovimiento, esDevolucion = false) {
+        const id = String(idMovimiento).replace(/[^\d]/g, '');
+        if (!id) { alert("ID de movimiento inválido."); return; }
+        const url = esDevolucion 
+            ? 'vista_previa_ticket_devolucion.php?id=' + id + '&tipo=CUENTA CORRIENTE'
+            : 'vista_recibo.php?id_mov=' + id + '&formato=ticket';
+        window.open(url, '_blank', 'width=400,height=700');
+    }
+
+    window.imprimirReciboPDF = function(idMovimiento, esDevolucion = false) {
+        const id = String(idMovimiento).replace(/[^\d]/g, '');
+        if (!id) { alert("ID de movimiento inválido."); return; }
+        const url = esDevolucion 
+            ? 'generar_pdf_devolucion.php?id=' + id + '&tipo=CUENTA CORRIENTE&download=1'
+            : 'generar_pdf_recibo.php?id_mov=' + id + '&download=1';
+        window.location.href = url;
     }
 
     function accionImprimirModal(formato) {
@@ -560,7 +628,7 @@ try {
         
         const saldoAbs = Math.abs(saldo).toLocaleString('es-AR', {minimumFractionDigits: 2});
         const tipoSaldo = saldo > 0 ? "deudor de $" : "a favor de $";
-        const msg = `Hola ${nombre}, te informamos que tu estado de cuenta en Electricidad Lucyk registra un saldo ${tipoSaldo}${saldoAbs}. ¡Saludos!`;
+        const msg = `Hola ${nombre}, te informamos que tu estado de cuenta en <?php echo $nombre_empresa_sistema; ?> registra un saldo ${tipoSaldo}${saldoAbs}. ¡Saludos!`;
         
         document.getElementById('wa_destino_tel').value = telefono;
         document.getElementById('wa_destino_msg').value = msg;
@@ -584,13 +652,23 @@ try {
             }
             
             searchTimeout = setTimeout(() => {
-                fetch('buscar_cliente_ajax.php?q=' + encodeURIComponent(q))
+                fetch('buscar_cliente_ajax.php?q=' + encodeURIComponent(q) + '&_=' + Date.now(), { cache: 'no-store' })
                     .then(res => res.json())
                     .then(data => {
                         resCC.innerHTML = '';
+
+                        // Si el backend devolvió error como objeto, lo mostramos.
+                        if (data && data.error) {
+                            const detalle = data.detalle ? ('<br><small style="color:#777;">' + data.detalle + '</small>') : '';
+                            resCC.innerHTML = '<div style="padding:12px; color:#e74c3c;">' + data.error + detalle + '</div>';
+                            resCC.style.display = 'block';
+                            return;
+                        }
+
                         if (data && data.length > 0) {
                             resCC.style.display = 'block';
                             data.forEach(c => {
+
                                 const div = document.createElement('div');
                                 div.style.padding = '12px'; div.style.cursor = 'pointer'; div.style.borderBottom = '1px solid #333'; div.style.color = '#fff';
                                 div.innerHTML = `<strong>${c.nombre_completo}</strong> <small style="color:#888;">(Doc: ${c.num_documento || 'S/D'})</small>`;
@@ -601,8 +679,9 @@ try {
                             resCC.innerHTML = '<div style="padding:12px; color:#888;">No se encontraron clientes</div>';
                             resCC.style.display = 'block';
                         }
-                    }).catch(() => {
-                        resCC.innerHTML = '<div style="padding:12px; color:#e74c3c;">Error de conexión</div>';
+                    }).catch(err => {
+                        console.error('BUSCADOR ERROR', err);
+                        resCC.innerHTML = '<div style="padding:12px; color:#e74c3c;">Error: ' + err.message + '</div>';
                         resCC.style.display = 'block';
                     });
             }, 300); // Debounce 300ms

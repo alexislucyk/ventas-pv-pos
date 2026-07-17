@@ -4,12 +4,17 @@ require_once '../config/validar_permisos.php';
 //restringirPagina('developer');
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+}
+
 $accion = isset($_GET['accion']) ? $_GET['accion'] : 'listar';
 $cod_prov = isset($_GET['cod_prov']) ? $_GET['cod_prov'] : null;
 $mensaje = '';
 $proveedor_editar = array(); 
 
-// Cargar rubros y configuración para el alta rápida de productos desde el catálogo
 try {
     $rubros_list = $pdo->query("SELECT nombre FROM rubros ORDER BY nombre ASC")->fetchAll(PDO::FETCH_ASSOC);
     $stmt_conf = $pdo->query("SELECT valor FROM configuracion WHERE clave = 'ganancia_global'");
@@ -19,30 +24,24 @@ try {
     $ganancia_config = 60;
 }
 
-// --- LÓGICA PARA AUTOGENERAR CÓDIGO (Solo si es creación) ---
 $nuevo_codigo_sugerido = '';
 if ($accion === 'crear') {
     try {
-        // Buscamos el valor máximo. Ajusta el nombre de la columna si es necesario.
-        // Esta consulta intenta obtener el número más alto incluso si el campo es texto.
-        $stmt_cod = $pdo->query("SELECT cod_prov FROM proveedores ORDER BY (cod_prov + 0) DESC LIMIT 1");
+        $stmt_cod = $pdo->prepare("SELECT cod_prov FROM proveedores WHERE empresa_id = :empresa_id ORDER BY (cod_prov + 0) DESC LIMIT 1");
+        $stmt_cod->execute([':empresa_id' => $empresa_id]);
         $ultimo = $stmt_cod->fetch();
         
         if ($ultimo) {
-            // Si el último código es "10", el siguiente será "11"
-            // El (+ 0) en SQL fuerza a tratar el campo como número para la ordenación
             $nuevo_codigo_sugerido = intval($ultimo['cod_prov']) + 1;
         } else {
-            // Si la tabla está vacía, empezamos en 1
             $nuevo_codigo_sugerido = 1;
         }
     } catch (Exception $e) {
-        $nuevo_codigo_sugerido = ''; // En caso de error, queda vacío para carga manual
+        $nuevo_codigo_sugerido = '';
     }
 }
 
 try {
-    // --- CONTROLADOR POST ---
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $cod_prov_post = trim($_POST['cod_prov']); 
         $razon = trim($_POST['razon']);
@@ -57,36 +56,65 @@ try {
         }
 
         if ($accion_post === 'crear') {
-            $sql = "INSERT INTO proveedores (cod_prov, razon, cuit, telefono) VALUES (?, ?, ?, ?)";
+            $stmt_check = $pdo->prepare("SELECT COUNT(*) FROM proveedores WHERE empresa_id = ? AND cod_prov = ?");
+            $stmt_check->execute([$empresa_id, $cod_prov_post]);
+            if ($stmt_check->fetchColumn() > 0) {
+                throw new Exception("Ya existe un proveedor con ese código en esta empresa.");
+            }
+
+            if (!empty($cuit)) {
+                $stmt_check = $pdo->prepare("SELECT COUNT(*) FROM proveedores WHERE empresa_id = ? AND cuit = ?");
+                $stmt_check->execute([$empresa_id, $cuit]);
+                if ($stmt_check->fetchColumn() > 0) {
+                    throw new Exception("Ya existe un proveedor con ese CUIT en esta empresa.");
+                }
+            }
+            
+            $sql = "INSERT INTO proveedores (cod_prov, razon, cuit, telefono, empresa_id) VALUES (?, ?, ?, ?, ?)";
             $stmt = $pdo->prepare($sql);
-            $stmt->execute(array($cod_prov_post, $razon, $cuit, $telefono));
+            $stmt->execute(array($cod_prov_post, $razon, $cuit, $telefono, $empresa_id));
             $mensaje = "✅ Proveedor registrado con éxito.";
             $accion = 'listar'; 
         } elseif ($accion_post === 'editar' && $cod_prov_original) {
-            $sql = "UPDATE proveedores SET cod_prov = ?, razon = ?, cuit = ?, telefono = ? WHERE cod_prov = ?";
+            $stmt_check = $pdo->prepare("SELECT COUNT(*) FROM proveedores WHERE empresa_id = ? AND cod_prov = ? AND cod_prov != ?");
+            $stmt_check->execute([$empresa_id, $cod_prov_post, $cod_prov_original]);
+            if ($stmt_check->fetchColumn() > 0) {
+                throw new Exception("Ya existe otro proveedor con ese código en esta empresa.");
+            }
+
+            if (!empty($cuit)) {
+                $stmt_check = $pdo->prepare("SELECT COUNT(*) FROM proveedores WHERE empresa_id = ? AND cuit = ? AND cod_prov != ?");
+                $stmt_check->execute([$empresa_id, $cuit, $cod_prov_original]);
+                if ($stmt_check->fetchColumn() > 0) {
+                    throw new Exception("Ya existe otro proveedor con ese CUIT en esta empresa.");
+                }
+            }
+            
+            $sql = "UPDATE proveedores SET cod_prov = ?, razon = ?, cuit = ?, telefono = ? WHERE cod_prov = ? AND empresa_id = ?";
             $stmt = $pdo->prepare($sql);
-            $stmt->execute(array($cod_prov_post, $razon, $cuit, $telefono, $cod_prov_original));
+            $stmt->execute(array($cod_prov_post, $razon, $cuit, $telefono, $cod_prov_original, $empresa_id));
             $mensaje = "✅ Proveedor actualizado con éxito.";
             $accion = 'listar'; 
         }
     }
 
     if ($accion === 'eliminar' && $cod_prov) {
-        $stmt = $pdo->prepare('DELETE FROM proveedores WHERE cod_prov = ?');
-        $stmt->execute(array($cod_prov));
+        $stmt = $pdo->prepare('DELETE FROM proveedores WHERE cod_prov = ? AND empresa_id = ?');
+        $stmt->execute(array($cod_prov, $empresa_id));
         $mensaje = "🗑️ Proveedor eliminado.";
         $accion = 'listar';
     }
 
     if ($accion === 'editar' && $cod_prov) {
-        $stmt = $pdo->prepare('SELECT * FROM proveedores WHERE cod_prov = ?');
-        $stmt->execute(array($cod_prov));
+        $stmt = $pdo->prepare('SELECT * FROM proveedores WHERE cod_prov = ? AND empresa_id = ?');
+        $stmt->execute(array($cod_prov, $empresa_id));
         $proveedor_editar = $stmt->fetch();
     }
 
     $proveedores = array();
     if ($accion === 'listar') {
-        $stmt = $pdo->query('SELECT * FROM proveedores ORDER BY (cod_prov + 0) ASC, razon ASC');
+        $stmt = $pdo->prepare('SELECT * FROM proveedores WHERE empresa_id = :empresa_id ORDER BY (cod_prov + 0) ASC, razon ASC');
+        $stmt->execute([':empresa_id' => $empresa_id]);
         $proveedores = $stmt->fetchAll();
     }
 
@@ -98,7 +126,7 @@ try {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Proveedores | Electricidad Lucyk</title>
+    <title>Proveedores | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css?v=<?php echo time(); ?>">
     <style>
         .flex-row { display: flex; gap: 20px; margin-bottom: 15px; }

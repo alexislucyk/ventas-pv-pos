@@ -1,18 +1,16 @@
 <?php
 header('Content-Type: application/json');
-session_start();
+include '../pages/infosesion.php';
 
-if (!isset($_SESSION['usuario_id'])) {
-    http_response_code(401);
-    echo json_encode(['success' => false, 'mensaje' => 'Acceso no autorizado.']);
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    echo json_encode(['success' => false, 'mensaje' => 'Falta empresa_id en sesión.']);
     exit();
 }
 
-date_default_timezone_set('America/Argentina/Buenos_Aires');
-require '../config/db_config.php';
-
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405); // Method Not Allowed
+    http_response_code(405);
     echo json_encode(['success' => false, 'mensaje' => 'Método no permitido.']);
     exit();
 }
@@ -34,9 +32,8 @@ if (!$id_proveedor || empty($n_documento) || $monto_pendiente <= 0) {
 try {
     $pdo->beginTransaction();
 
-    // Insertar un movimiento de "pago" en ctacte_proveedores para saldar la factura
-    $sql_pago_ajuste = "INSERT INTO ctacte_proveedores (id_proveedor, movimiento, debe, haber, n_documento, fecha, usuario_id, compra_id)
-                        VALUES (?, ?, ?, 0, ?, NOW(), ?, ?)";
+    $sql_pago_ajuste = "INSERT INTO ctacte_proveedores (id_proveedor, movimiento, debe, haber, n_documento, fecha, usuario_id, compra_id, empresa_id)
+                        VALUES (?, ?, ?, 0, ?, NOW(), ?, ?, ?)";
     $stmt_pago_ajuste = $pdo->prepare($sql_pago_ajuste);
     $stmt_pago_ajuste->execute([
         $id_proveedor,
@@ -44,19 +41,21 @@ try {
         $monto_pendiente,
         $n_documento,
         $usuario_id,
-        $id_compra
+        $id_compra,
+        $empresa_id
     ]);
-
-    // Registrar un egreso en movimientos de caja (asumiendo que el pago se hizo "fuera de sistema" o se regulariza)
-    $sql_mov_caja = "INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado)
-                     VALUES ('EGRESO', ?, 'AJUSTE', ?, NOW(), ?, 0)";
+    
+    $sql_mov_caja = "INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado, empresa_id, sucursal_id)
+                     VALUES ('EGRESO', ?, 'AJUSTE', ?, NOW(), ?, 0, ?, ?)";
     $stmt_mov_caja = $pdo->prepare($sql_mov_caja);
     $stmt_mov_caja->execute([
         $monto_pendiente,
         "AJUSTE - PAGO FACTURA PROVEEDOR $n_documento (MARCADO COMO PAGADO)",
-        $usuario_nombre
+        $usuario_nombre,
+        $empresa_id,
+        $sucursal_id
     ]);
-
+    
     $pdo->commit();
     echo json_encode(['success' => true, 'mensaje' => "Factura N° $n_documento marcada como pagada con éxito."]);
 

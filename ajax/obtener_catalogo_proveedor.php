@@ -6,7 +6,11 @@
 
 include '../pages/infosesion.php';
 
-// VALIDACIÓN DE PERMISOS
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+if (!$empresa_id) {
+    exit("<p style='padding:20px; color:red;'>Falta empresa_id en sesión.</p>");
+}
+
 if (!tiene_permiso('prov_ver_catalogo')) {
     exit("<p style='padding:20px; color:red;'>Acceso denegado.</p>");
 }
@@ -19,16 +23,15 @@ if (empty($cod_prov)) {
 }
 
 try {
-    // Necesitamos la razón social del proveedor para el alta rápida
-    $stmt_p = $pdo->prepare("SELECT razon FROM proveedores WHERE cod_prov = ?");
-    $stmt_p->execute([$cod_prov]);
+    $stmt_p = $pdo->prepare("SELECT razon FROM proveedores WHERE cod_prov = ? AND empresa_id = ?");
+    $stmt_p->execute([$cod_prov, $empresa_id]);
     $razon_prov = $stmt_p->fetchColumn() ?: 'GENERAL';
 
     $stmt = $pdo->prepare("SELECT codigo, descripcion, precio 
                            FROM proveedores_catalogos 
-                           WHERE cod_prov = ? 
+                           WHERE cod_prov = ? AND empresa_id = ?
                            ORDER BY descripcion ASC");
-    $stmt->execute([$cod_prov]);
+    $stmt->execute([$cod_prov, $empresa_id]);
     $productos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     if (empty($productos)) {
@@ -51,7 +54,6 @@ try {
             </thead>
             <tbody>';
     foreach ($productos as $p) {
-        // Preparamos los datos para JS evitando problemas con comillas
         $js_cod = json_encode($p['codigo']);
         $js_desc = json_encode($p['descripcion']);
         $js_precio = (float)$p['precio'];

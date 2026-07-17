@@ -1,12 +1,18 @@
 <?php
 require '../config/db_config.php';
+$empresa_id = $_SESSION['empresa_id'] ?? null;
 $id = (int)($_GET['id'] ?? 0);
 $tipo = $_GET['tipo'] ?? '';
+$id = (int)$id;
+
+if (!$empresa_id || $id <= 0 || empty($tipo)) {
+    echo "<p>Parámetros inválidos.</p>";
+    exit;
+}
 
 try {
-    // Consulta la tabla 'devoluciones' directamente usando op_n y cond_pago
-    $stmt = $pdo->prepare("SELECT total_reintegrado as monto, motivo as detalle, fecha, usuario FROM devoluciones WHERE op_n = ? AND cond_pago = ?");
-    $stmt->execute([$id, $tipo]);
+    $stmt = $pdo->prepare("SELECT total_reintegrado as monto, motivo as detalle, fecha, usuario FROM devoluciones WHERE op_n = ? AND cond_pago = ? AND empresa_id = ?");
+    $stmt->execute([$id, $tipo, $empresa_id]);
     $res = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$res) echo "<p>No se encontró información.</p>";

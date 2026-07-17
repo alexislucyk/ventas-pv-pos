@@ -2,7 +2,12 @@
 include 'infosesion.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 
-// Opcional: Manejo de mensajes de éxito/error después del POST
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+}
+
 $mensaje = '';
 if (isset($_GET['success'])) {
     $mensaje = '<p style="color: green; font-weight: bold;">✅ ' . htmlspecialchars($_GET['success']) . '</p>';
@@ -10,14 +15,15 @@ if (isset($_GET['success'])) {
     $mensaje = '<p style="color: red; font-weight: bold;">❌ Error: ' . htmlspecialchars($_GET['error']) . '</p>';
 }
 
-// Cargar lista de clientes habilitados para Cta. Cte.
 $clientes_cc = [];
 try {
     $sql_clientes = "SELECT id, CONCAT(apellido, ', ', nombre) as nombre_completo, cuit 
                      FROM clientes 
-                     WHERE habilita_cta = 'Si' 
+                     WHERE habilita_cta = 'Si' AND empresa_id = ?
                      ORDER BY nombre_completo ASC";
-    $clientes_cc = $pdo->query($sql_clientes)->fetchAll(PDO::FETCH_ASSOC);
+    $stmt_clientes = $pdo->prepare($sql_clientes);
+    $stmt_clientes->execute([$empresa_id]);
+    $clientes_cc = $stmt_clientes->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     error_log("Error cargando clientes en pagos_ctacte: " . $e->getMessage());
 }
@@ -26,7 +32,7 @@ try {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Pagos Cta. Cte. | Electricidad Lucyk</title>
+    <title>Pagos Cta. Cte. | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>

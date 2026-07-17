@@ -8,20 +8,21 @@ require '../config/db_config.php';
 // Configurar zona horaria por las dudas
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+}
+
 echo "<body style='background:#1a1a1a; color:#eee; font-family:sans-serif; padding:20px;'>";
 echo "<h2>🛠️ Procesando Regularización de Caja</h2>";
 
 try {
-    // Sugerencia: Podrías verificar si ya existen movimientos para evitar duplicados accidentales
-    // 1. Opcional: Limpiar la tabla de movimientos (ya que mencionaste que quieres ordenarla de cero)
-    // $pdo->exec("TRUNCATE TABLE movimientos");
-    // echo "<p style='color:#f1c40f;'>> Tabla movimientos vaciada.</p>";
-
     $pdo->beginTransaction();
 
-    // 2. Traemos TODAS las ventas finalizadas ordenadas por fecha
-    $sql = "SELECT * FROM ventas WHERE estado = 'Finalizada' ORDER BY fecha_venta ASC";
-    $stmt = $pdo->query($sql);
+    $sql = "SELECT * FROM ventas WHERE estado = 'Finalizada' AND empresa_id = :empresa_id ORDER BY fecha_venta ASC";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([':empresa_id' => $empresa_id]);
     $ventas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     if (empty($ventas)) {
@@ -36,33 +37,21 @@ try {
         $fecha     = $v['fecha_venta'];
         $usuario   = $v['usuario'];
         $condicion = $v['cond_pago'];
-        // Forzamos el parseo a float asegurando que el string de la DB (que viene con punto) no se altere
         $total_v   = floatval($v['total_venta']);
         $pago_efe  = floatval($v['pago_efectivo']);
         $pago_tra  = floatval($v['pago_transf']);
         
         $monto_ingresado = $pago_efe + $pago_tra;
 
-        // --- LÓGICA DE MONTO PARA CAJA ---
         if ($condicion === 'CONTADO') {
-            /** * Si pagó $1500 una venta de $1000, en caja solo entran $1000.
-             * El min() asegura que si el pago fue menor al total (error de carga), 
-             * tome el pago, pero si fue mayor, tome solo el total de la venta.
-             */
             $monto_a_caja = min($monto_ingresado, $total_v);
             $detalle      = "VENTA CONTADO N° $n_doc";
         } else {
-            /**
-             * En CUENTA CORRIENTE, todo lo que entregó el cliente entra a caja 
-             * como un pago a cuenta, sin importar si supera o no el total.
-             */
             $monto_a_caja = $monto_ingresado;
             $detalle      = "ENTREGA/PAGO - VENTA N° $n_doc (CTA. CTE.)";
         }
 
-        // Solo insertamos si realmente hubo movimiento de dinero (efectivo o transf)
         if ($monto_a_caja > 0) {
-            // Determinar método de pago para el registro
             $metodo = 'EFECTIVO';
             if ($pago_efe > 0 && $pago_tra > 0) {
                 $metodo = 'MIXTO';
@@ -70,18 +59,18 @@ try {
                 $metodo = 'TRANSFERENCIA';
             }
 
-            $sql_ins = "INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado) 
-                        VALUES ('INGRESO', ?, ?, ?, ?, ?, 0)";
-            
-            $stmt_ins = $pdo->prepare($sql_ins);
-            $stmt_ins->execute([
-                $monto_a_caja, 
-                $metodo, 
-                $detalle, 
-                $fecha, 
-                $usuario
+            $sql_ins = "INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado, empresa_id, sucursal_id) 
+                        VALUES ('INGRESO', ?, ?, ?, ?, ?, 0, ?, ?)";
+            $pdo->prepare($sql_ins)->execute([
+                $monto_a_caja,
+                $metodo,
+                $detalle,
+                $fecha,
+                $usuario,
+                $empresa_id,
+                $sucursal_id
             ]);
-            
+
             $insertados++;
             $total_dinero += $monto_a_caja;
         }

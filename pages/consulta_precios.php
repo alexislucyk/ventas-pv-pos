@@ -10,7 +10,7 @@ $ganancia_config = (float)($stmt_conf->fetchColumn() ?: 60);
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Consulta de Precios | Electricidad Lucyk</title>
+    <title>Consulta de Precios | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>

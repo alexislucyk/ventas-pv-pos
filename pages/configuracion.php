@@ -11,6 +11,15 @@ if (!tiene_permiso('pages/configuracion.php')) {
 $mensaje = '';
 $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'configuracion';
 
+// Verificar si el usuario es developer para la pestaña sistema
+$es_developer = isset($_SESSION['usuario_rol']) && $_SESSION['usuario_rol'] === 'developer';
+
+// Si intentan acceder a la pestaña sistema sin ser developer, redirigir
+if ($active_tab === 'sistema' && !$es_developer) {
+    header("Location: " . URL_BASE . "pages/configuracion.php?tab=configuracion&error=acceso_denegado");
+    exit();
+}
+
 // 1. PROCESAR GUARDADO DE CONFIGURACIÓN
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar_config'])) {
     try {
@@ -29,6 +38,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar_config'])) {
         if (isset($_POST['ganancia_global'])) {
             $configs['ganancia_global'] = str_replace(',', '.', $_POST['ganancia_global']);
         }
+        if (isset($_POST['dolar_margen'])) {
+            $configs['dolar_margen'] = str_replace(',', '.', $_POST['dolar_margen']);
+        }
         if (isset($_POST['nombre_empresa'])) {
             $configs['nombre_empresa'] = $_POST['nombre_empresa'];
         }
@@ -37,6 +49,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar_config'])) {
         }
         if (isset($_POST['direccion_empresa'])) {
             $configs['direccion_empresa'] = $_POST['direccion_empresa'];
+        }
+        if (isset($_POST['app_version'])) {
+            $configs['app_version'] = $_POST['app_version'];
         }
 
         $stmt = $pdo->prepare("INSERT INTO configuracion (clave, valor) VALUES (?, ?) 
@@ -62,15 +77,17 @@ $config_raw = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 $ticket_ancho     = isset($config_raw['ticket_ancho']) ? $config_raw['ticket_ancho'] : '80mm';
 $ticket_msg       = isset($config_raw['ticket_footer_msg']) ? $config_raw['ticket_footer_msg'] : 'Gracias por su compra!';
 $ganancia_global  = isset($config_raw['ganancia_global']) ? $config_raw['ganancia_global'] : '60';
+$dolar_margen     = isset($config_raw['dolar_margen']) ? $config_raw['dolar_margen'] : '2';
 $nombre_empresa   = isset($config_raw['nombre_empresa']) ? $config_raw['nombre_empresa'] : '';
 $cuit_empresa     = isset($config_raw['cuit_empresa']) ? $config_raw['cuit_empresa'] : '';
 $direccion_empresa = isset($config_raw['direccion_empresa']) ? $config_raw['direccion_empresa'] : '';
+$app_version      = isset($config_raw['app_version']) ? $config_raw['app_version'] : '1.0.0';
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Configuración | Electricidad Lucyk</title>
+    <title>Configuración | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -270,6 +287,11 @@ $direccion_empresa = isset($config_raw['direccion_empresa']) ? $config_raw['dire
             <li><a href="?tab=parametros" class="<?php echo $active_tab === 'parametros' ? 'active' : ''; ?>">
                 <i class="fas fa-tachometer-alt"></i> <span class="tab-label">Parámetros</span>
             </a></li>
+            <?php if ($es_developer): ?>
+            <li><a href="?tab=sistema" class="<?php echo $active_tab === 'sistema' ? 'active' : ''; ?>">
+                <i class="fas fa-code-branch"></i> <span class="tab-label">Sistema</span>
+            </a></li>
+            <?php endif; ?>
         </ul>
 
         <form method="POST">
@@ -321,6 +343,24 @@ $direccion_empresa = isset($config_raw['direccion_empresa']) ? $config_raw['dire
                         <span>%</span>
                     </div>
                     <p class="helper-text">Porcentaje de ganancia aplicado automáticamente al cargar productos. Se usa para calcular precio de venta sugerido.</p>
+
+                    <label>Margen Dólar Operativo (%)</label>
+                    <div class="input-group">
+                        <input type="number" name="dolar_margen" value="<?php echo htmlspecialchars($dolar_margen); ?>" min="0" max="100" step="0.1">
+                        <span>%</span>
+                    </div>
+                    <p class="helper-text">Porcentaje que se suma al valor de venta del dólar para obtener el "Dólar Operativo" mostrado en la barra superior.</p>
+                </div>
+            </div>
+
+            <!-- ===== TAB: SISTEMA ===== -->
+            <div class="tab-content <?php echo $active_tab === 'sistema' ? 'active' : ''; ?>" id="tab-sistema">
+                <div class="config-section">
+                    <h3><i class="fas fa-code-branch"></i> Versión de la Aplicación</h3>
+                    
+                    <label>Versión Actual</label>
+                    <input type="text" name="app_version" value="<?php echo htmlspecialchars($app_version); ?>" placeholder="Ej: 1.0.0">
+                    <p class="helper-text">Esta versión se muestra en el sidebar del sistema. Formato: X.Y o X.Y.Z (ej: 1.0, 2.1.0)</p>
                 </div>
             </div>
 

@@ -1,7 +1,12 @@
 <?php
 include '../pages/infosesion.php';
 
-// VALIDACIÓN DE PERMISOS
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    exit("<p style='padding:20px; color:red;'>Falta empresa_id en sesión.</p>");
+}
+
 if (!tiene_permiso('pages/cobro_cuotas.php')) {
     exit("<p style='padding:20px; color:red;'>Acceso denegado.</p>");
 }
@@ -11,17 +16,15 @@ $id_venta = (int)($_GET['id_venta'] ?? 0);
 if ($id_venta <= 0) exit("ID de venta no válido.");
 
 try {
-    $stmt = $pdo->prepare("SELECT * FROM cuotas_seguimiento WHERE id_venta = ? ORDER BY nro_cuota ASC");
-    $stmt->execute([$id_venta]);
+    $stmt = $pdo->prepare("SELECT * FROM cuotas_seguimiento WHERE id_venta = ? AND empresa_id = ? ORDER BY nro_cuota ASC");
+    $stmt->execute([$id_venta, $empresa_id]);
     $cuotas = $stmt->fetchAll();
 
-    // Obtenemos todos los pagos parciales de estas cuotas para evitar consultas en bucle
     $stmt_p = $pdo->prepare("SELECT id_cuota, id, monto, fecha, metodo_pago, usuario FROM cuotas_pagos 
-                             WHERE id_cuota IN (SELECT id FROM cuotas_seguimiento WHERE id_venta = ?) 
+                             WHERE id_cuota IN (SELECT id FROM cuotas_seguimiento WHERE id_venta = ? AND empresa_id = ?) 
                              ORDER BY fecha DESC");
-    $stmt_p->execute([$id_venta]);
+    $stmt_p->execute([$id_venta, $empresa_id]);
     $todos_pagos = $stmt_p->fetchAll(PDO::FETCH_GROUP | PDO::FETCH_ASSOC); 
-    // Nota: FETCH_GROUP agrupa por la primera columna (id_cuota)
 
     if (!$cuotas) exit("<p>No se encontró el plan de cuotas.</p>");
 

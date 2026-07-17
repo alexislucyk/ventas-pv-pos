@@ -3,10 +3,17 @@ include 'infosesion.php';
 require_once '../config/db_config.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+}
+
 // 1. Cargar lista de proveedores que tienen productos cargados
 $proveedores = [];
 try {
-    $stmt_p = $pdo->query("SELECT DISTINCT TRIM(proveedor) as proveedor_nombre FROM productos WHERE proveedor IS NOT NULL AND TRIM(proveedor) != '' ORDER BY proveedor_nombre ASC");
+    $stmt_p = $pdo->prepare("SELECT DISTINCT TRIM(proveedor) as proveedor_nombre FROM productos WHERE empresa_id = :empresa_id AND proveedor IS NOT NULL AND TRIM(proveedor) != '' ORDER BY proveedor_nombre ASC");
+    $stmt_p->execute([':empresa_id' => $empresa_id]);
     $proveedores = $stmt_p->fetchAll(PDO::FETCH_COLUMN);
 } catch (Exception $e) {
     error_log("Error cargando proveedores: " . $e->getMessage());
@@ -32,16 +39,16 @@ if ($prov_sel) {
                     SUM(COALESCE(p.p_compra, 0) * vd.cant) as subtotal_costo,
                     SUM(vd.total - (COALESCE(p.p_compra, 0) * vd.cant)) as ganancia_total
                 FROM ventas_detalle vd
-                JOIN ventas v ON vd.n_documento = v.n_documento
-                JOIN productos p ON vd.cod_prod = p.cod_prod
+                JOIN ventas v ON vd.n_documento = v.n_documento AND v.empresa_id = :empresa_id1
+                JOIN productos p ON vd.cod_prod COLLATE utf8mb4_unicode_ci = p.cod_prod COLLATE utf8mb4_unicode_ci AND p.empresa_id = :empresa_id2
                 WHERE v.estado = 'Finalizada' 
-                  AND TRIM(p.proveedor) = ?
-                  AND DATE(v.fecha_venta) BETWEEN ? AND ?
+                  AND TRIM(p.proveedor) = :proveedor
+                  AND DATE(v.fecha_venta) BETWEEN :desde AND :hasta
                 GROUP BY vd.cod_prod, vd.descripcion, vd.p_unit, p.p_compra
                 ORDER BY vd.descripcion ASC";
         
         $stmt = $pdo->prepare($sql);
-        $stmt->execute([$prov_sel, $desde, $hasta]);
+        $stmt->execute([':empresa_id1' => $empresa_id, ':empresa_id2' => $empresa_id, ':proveedor' => $prov_sel, ':desde' => $desde, ':hasta' => $hasta]);
         $resultados = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         foreach ($resultados as $r) {
@@ -50,7 +57,7 @@ if ($prov_sel) {
             $totales['ganancia'] += $r['ganancia_total'];
         }
     } catch (Exception $e) {
-        $mensaje_error = $e->getMessage(); // Capturamos el error para mostrarlo
+        $mensaje_error = $e->getMessage();
     }
 }
 ?>
@@ -58,7 +65,7 @@ if ($prov_sel) {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Reporte de Consignación | Electricidad Lucyk</title>
+    <title>Reporte de Consignación | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css">
     <style>
         .resumen-consignacion { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
@@ -95,7 +102,7 @@ if ($prov_sel) {
                     <label>Hasta:</label>
                     <input type="date" name="hasta" class="input-field" value="<?php echo $hasta; ?>">
                 </div>
-                <button type="submit" class="btn btn-primary" style="height: 40px; margin-bottom: 15px;">Generar Reporte</button>
+                <button type="submit" class="btn btn-primary" style="height: 40px; margin-bottom: 15px;">Consultar</button>
             </form>
         </div>
 
@@ -167,7 +174,8 @@ if ($prov_sel) {
                 </table>
             </div>
 
-            <div style="margin-top: 20px; text-align: right;">
+            <div style="margin-top: 20px; text-align: right; display: flex; gap: 10px; justify-content: flex-end;">
+                <a href="generar_pdf_consignacion.php?proveedor=<?php echo urlencode($prov_sel); ?>&desde=<?php echo urlencode($desde); ?>&hasta=<?php echo urlencode($hasta); ?>" class="btn btn-danger" target="_blank"><i class="fas fa-file-pdf"></i> Generar PDF</a>
                 <button class="btn btn-secondary" onclick="window.print()"><i class="fas fa-print"></i> Imprimir Liquidación</button>
             </div>
         <?php else: ?>

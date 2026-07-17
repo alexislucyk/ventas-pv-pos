@@ -7,6 +7,12 @@ date_default_timezone_set('America/Argentina/Buenos_Aires');
 
 require '../config/db_config.php'; 
 
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+}
+
 $fecha_inicio = isset($_GET['fecha_inicio']) ? $_GET['fecha_inicio'] : date('Y-m-01');
 $fecha_fin = isset($_GET['fecha_fin']) ? $_GET['fecha_fin'] : date('Y-m-d');
 $fecha_fin_inclusive = $fecha_fin . ' 23:59:59';
@@ -16,7 +22,6 @@ $total_ingresos_ventas = 0;
 $total_costos_cmv = 0;
 $mensaje_error = '';
 
-// Resumen de Caja Real
 $caja_real = [
     'ventas_contado' => 0,
     'cobros_ctacte' => 0,
@@ -26,7 +31,6 @@ $caja_real = [
 ];
 
 try {
-    // 1. UTILIDAD BRUTA (Ventas - Costo Histórico)
     $sql_utilidad = "
         SELECT 
             vd.cod_prod,
@@ -35,14 +39,16 @@ try {
             SUM(vd.cant * vd.p_costo_venta) AS total_costo,
             (SUM(vd.total) - SUM(vd.cant * vd.p_costo_venta)) AS utilidad_bruta_linea
         FROM ventas_detalle vd
-        JOIN ventas v ON vd.n_documento = v.n_documento
+        JOIN ventas v ON vd.n_documento = v.n_documento AND v.empresa_id = :empresa_id
+        JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = :empresa_id2
         WHERE v.fecha_venta BETWEEN :f1 AND :f2
           AND v.estado = 'Finalizada'
+          AND vd.empresa_id = :empresa_id3
         GROUP BY vd.cod_prod, vd.descripcion
         ORDER BY utilidad_bruta_linea DESC";
 
     $stmt = $pdo->prepare($sql_utilidad);
-    $stmt->execute([':f1' => $fecha_inicio, ':f2' => $fecha_fin_inclusive]);
+    $stmt->execute([':f1' => $fecha_inicio, ':f2' => $fecha_fin_inclusive, ':empresa_id' => $empresa_id, ':empresa_id2' => $empresa_id, ':empresa_id3' => $empresa_id]);
     $reporte_utilidad = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     foreach ($reporte_utilidad as $item) {
@@ -50,31 +56,24 @@ try {
         $total_costos_cmv += (float)$item['total_costo'];
     }
 
-    // 2. FLUJO DE CAJA (Dinero Tangible)
-    
-    // A) Ventas al contado (Efectivo + Transferencia en el momento)
     $sql_contado = "SELECT SUM(pago_efectivo + pago_transf) FROM ventas 
-                    WHERE fecha_venta BETWEEN :f1 AND :f2 AND estado = 'Finalizada'";
+                    WHERE fecha_venta BETWEEN :f1 AND :f2 AND estado = 'Finalizada' AND empresa_id = :empresa_id";
     $stmt_contado = $pdo->prepare($sql_contado);
-    $stmt_contado->execute([':f1' => $fecha_inicio, ':f2' => $fecha_fin_inclusive]);
+    $stmt_contado->execute([':f1' => $fecha_inicio, ':f2' => $fecha_fin_inclusive, ':empresa_id' => $empresa_id]);
     $caja_real['ventas_contado'] = (float)$stmt_contado->fetchColumn() ?: 0;
 
-    // B) Cobros de Cuentas Corrientes (Clientes pagando deudas)
-    // En tu tabla 'ctacte', el dinero que ENTRA es lo que se registra en HABER
     $sql_cobros = "SELECT SUM(haber) FROM ctacte 
-                   WHERE movimiento LIKE 'PAGO%' AND fecha BETWEEN :f1 AND :f2";
+                   WHERE movimiento LIKE 'PAGO%' AND fecha BETWEEN :f1 AND :f2 AND empresa_id = :empresa_id";
     $stmt_cobros = $pdo->prepare($sql_cobros);
-    $stmt_cobros->execute([':f1' => $fecha_inicio, ':f2' => $fecha_fin_inclusive]);
+    $stmt_cobros->execute([':f1' => $fecha_inicio, ':f2' => $fecha_fin_inclusive, ':empresa_id' => $empresa_id]);
     $caja_real['cobros_ctacte'] = (float)$stmt_cobros->fetchColumn() ?: 0;
 
-    // C) Pagos a Proveedores
     $sql_pagos = "SELECT SUM(debe) FROM ctacte_proveedores 
-                  WHERE movimiento LIKE 'PAGO%' AND fecha BETWEEN :f1 AND :f2";
+                  WHERE movimiento LIKE 'PAGO%' AND fecha BETWEEN :f1 AND :f2 AND empresa_id = :empresa_id";
     $stmt_pagos = $pdo->prepare($sql_pagos);
-    $stmt_pagos->execute([':f1' => $fecha_inicio, ':f2' => $fecha_fin_inclusive]);
+    $stmt_pagos->execute([':f1' => $fecha_inicio, ':f2' => $fecha_fin_inclusive, ':empresa_id' => $empresa_id]);
     $caja_real['pagos_proveedores'] = (float)$stmt_pagos->fetchColumn() ?: 0;
 
-    // Cálculos Finales de Caja
     $caja_real['total_entrada'] = $caja_real['ventas_contado'] + $caja_real['cobros_ctacte'];
     $caja_real['neto_caja'] = $caja_real['total_entrada'] - $caja_real['pagos_proveedores'];
 
@@ -87,7 +86,7 @@ try {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Reportes | Electricidad Lucyk</title>
+    <title>Reportes | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css">
     <style>
         .reporte-container { display: flex; flex-wrap: wrap; gap: 20px; }

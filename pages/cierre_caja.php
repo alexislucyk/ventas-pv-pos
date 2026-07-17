@@ -7,18 +7,23 @@ require_once '../config/validar_permisos.php';
 require '../config/db_config.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+}
+
 // Calculamos los totales actuales para mostrar como "Esperado"
 try {
-    // CRÍTICO: No filtramos por hoy, sino por movimientos NO CERRADOS (cerrado = 0)
-    // Esto asegura que si se olvidó cerrar la caja ayer, los montos se acumulen correctamente.
     $sql_sistema = "SELECT 
         SUM(CASE WHEN tipo = 'INGRESO' AND (metodo_pago = 'EFECTIVO' OR metodo_pago = 'MIXTO') THEN monto ELSE 0 END) as ingresos_efectivo,
         SUM(CASE WHEN tipo = 'INGRESO' AND metodo_pago = 'TRANSFERENCIA' THEN monto ELSE 0 END) as ingresos_transf,
         SUM(CASE WHEN tipo = 'EGRESO' THEN monto ELSE 0 END) as egresos
     FROM movimientos 
-    WHERE cerrado = 0";
+    WHERE cerrado = 0 AND empresa_id = :empresa_id AND sucursal_id = :sucursal_id";
     
-    $stmt = $pdo->query($sql_sistema);
+    $stmt = $pdo->prepare($sql_sistema);
+    $stmt->execute([':empresa_id' => $empresa_id, ':sucursal_id' => $sucursal_id]);
     $sistema = $stmt->fetch(PDO::FETCH_ASSOC);
 
     $ingresos_efectivo = $sistema['ingresos_efectivo'] ?: 0;
@@ -37,7 +42,7 @@ try {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Cierre de Caja | Electricidad Lucyk</title>
+    <title>Cierre de Caja | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css">
     <style>
         .cierre-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }

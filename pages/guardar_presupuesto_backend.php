@@ -27,16 +27,20 @@ try {
     $idPresupuesto = $pdo->lastInsertId();
 
     // 2. Insertar Detalles
-    $sqlD = "INSERT INTO presupuestos_detalle (id_presupuesto, cod_prod, descripcion, cantidad, precio_unitario) VALUES (?, ?, ?, ?, ?)";
+    $sqlD = "INSERT INTO presupuestos_detalle (id_presupuesto, cod_prod, descripcion, cantidad, precio_unitario, subtotal) VALUES (?, ?, ?, ?, ?, ?)";
     $stmtD = $pdo->prepare($sqlD);
 
     foreach ($data['productos'] as $prod) {
+        $cantidad = (float)$prod['cantidad'];
+        $precio = (float)$prod['precio'];
+        $subtotal = $cantidad * $precio;
         $stmtD->execute([
             $idPresupuesto, 
             $prod['codigo'], 
             $prod['descripcion'], 
             $prod['cantidad'], 
-            $prod['precio']
+            $prod['precio'],
+            $subtotal
         ]);
     }
 

@@ -48,18 +48,55 @@ try {
 
 <script>
 function cambiarEmpresa(empresa_id) {
-    fetch('ajax/cambiar_empresa.php', {
+    const selector = document.getElementById('selectorEmpresa');
+    if (selector) selector.disabled = true;
+    
+    // Construir URL completa para depuración
+    const url = '<?php echo URL_BASE; ?>ajax/cambiar_empresa.php';
+    console.log('Intentando cambiar a empresa:', empresa_id);
+    console.log('URL:', url);
+    
+    // Usar URL_BASE para la ruta correcta
+    fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'empresa_id=' + empresa_id
+        body: 'empresa_id=' + encodeURIComponent(empresa_id)
     })
-    .then(r => r.json())
+    .then(r => {
+        console.log('Response status:', r.status);
+        console.log('Response headers:', r.headers);
+        return r.text().then(text => {
+            console.log('Response text:', text);
+            try {
+                return JSON.parse(text);
+            } catch (e) {
+                console.error('Error parsing JSON:', e);
+                throw new Error('Respuesta inválida del servidor');
+            }
+        });
+    })
     .then(data => {
+        console.log('Response data:', data);
         if (data.success) {
-            location.reload();
+            // Redirección forzada con parámetro anti-caché
+            window.location.href = window.location.pathname + '?empresa_cambiada=' + Date.now();
         } else {
             mostrarMensaje('Error', data.error || 'No se pudo cambiar de empresa', 'error');
+            if (selector) selector.disabled = false;
         }
+    })
+    .catch(err => {
+        console.error('Error completo:', err);
+        mostrarMensaje('Error', 'Error: ' + err.message, 'error');
+        if (selector) selector.disabled = false;
     });
 }
+
+// Asegurar que el selector muestre la empresa correcta al cargar
+document.addEventListener('DOMContentLoaded', function() {
+    const selector = document.getElementById('selectorEmpresa');
+    if (selector && <?php echo isset($_SESSION['empresa_id']) ? $_SESSION['empresa_id'] : 'null'; ?>) {
+        selector.value = <?php echo isset($_SESSION['empresa_id']) ? $_SESSION['empresa_id'] : 'null'; ?>;
+    }
+});
 </script>

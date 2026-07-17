@@ -1,50 +1,43 @@
 <?php
 // ajax/generar_ticket.php
+session_start();
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 header('Content-Type: text/html; charset=UTF-8');
-session_start();
 
-// Control de Acceso (Opcional, pero recomendado)
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+if (!$empresa_id) {
+    http_response_code(400);
+    echo "Falta empresa_id en sesión.";
+    exit();
+}
+
 if (!isset($_GET['n_documento']) || empty($_GET['n_documento'])) {
     http_response_code(400);
     echo "Falta el número de documento para generar el ticket.";
     exit();
 }
 
-// =========================================================================
-// ******************* CONFIGURACIÓN Y CONEXIÓN DB *************************
-// =========================================================================
-
-// La ruta para incluir la configuración de la DB debe ser relativa a este script
-// Si este script está en 'ajax/', la ruta sería: '../config/db_config.php'
-// Si este script está en la raíz, la ruta sería: 'config/db_config.php'
-require '../config/db_config.php'; // Ajusta esta ruta si es necesario
+require '../config/db_config.php';
 
 $n_documento = (int)$_GET['n_documento'];
 
-// Verificar si la conexión es válida
 if (!isset($pdo) || !($pdo instanceof PDO)) {
     http_response_code(500);
     echo "Error interno: La conexión a la base de datos falló.";
     exit();
 }
 
-// =========================================================================
-// ******************* CONSULTA DE DATOS DE LA VENTA ***********************
-// =========================================================================
-
 try {
-    // 1. Obtener datos de la Cabecera de la Venta y Cliente
     $sql_cabecera = "
         SELECT
             v.fecha_venta, v.total_venta, v.cond_pago, v.pago_efectivo, v.pago_transf,
             c.nombre AS nombre_cliente, c.apellido AS apellido_cliente, c.cuit AS documento_cliente
         FROM ventas v
-        LEFT JOIN clientes c ON v.id_cliente = c.id
-        WHERE v.n_documento = :n_documento
+        LEFT JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = :empresa_id
+        WHERE v.n_documento = :n_documento AND v.empresa_id = :empresa_id
     ";
     $stmt_cabecera = $pdo->prepare($sql_cabecera);
-    $stmt_cabecera->execute([':n_documento' => $n_documento]);
+    $stmt_cabecera->execute([':n_documento' => $n_documento, ':empresa_id' => $empresa_id]);
     $venta = $stmt_cabecera->fetch(PDO::FETCH_ASSOC);
 
     if (!$venta) {
@@ -53,14 +46,13 @@ try {
         exit();
     }
 
-    // 2. Obtener Detalles/Productos de la Venta
     $sql_detalle = "
         SELECT descripcion, cant, p_unit, total
         FROM ventas_detalle
-        WHERE n_documento = :n_documento
+        WHERE n_documento = :n_documento AND empresa_id = :empresa_id
     ";
     $stmt_detalle = $pdo->prepare($sql_detalle);
-    $stmt_detalle->execute([':n_documento' => $n_documento]);
+    $stmt_detalle->execute([':n_documento' => $n_documento, ':empresa_id' => $empresa_id]);
     $detalle = $stmt_detalle->fetchAll(PDO::FETCH_ASSOC);
 
 } catch (PDOException $e) {

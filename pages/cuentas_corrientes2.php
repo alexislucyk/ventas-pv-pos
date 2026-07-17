@@ -4,9 +4,14 @@ include 'infosesion.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 require '../config/db_config.php'; 
 
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+}
+
 // --- 1. CONSULTA PARA OBTENER SALDOS GENERALES ---
 try {
-    // Calculamos el saldo directamente en la consulta: SUM(debe) - SUM(haber)
     $sql_saldos = "
         SELECT 
             c.id AS id_cliente,
@@ -17,13 +22,15 @@ try {
             SUM(m.haber) AS total_haber,
             (SUM(m.debe) - SUM(m.haber)) AS saldo_actual
         FROM clientes c
-        INNER JOIN ctacte m ON c.id = m.id_cliente
+        INNER JOIN ctacte m ON c.id = m.id_cliente AND m.empresa_id = :empresa_id1
+        WHERE c.empresa_id = :empresa_id2
         GROUP BY c.id
         HAVING saldo_actual != 0
         ORDER BY saldo_actual DESC;
     ";
     
-    $stmt_saldos = $pdo->query($sql_saldos);
+    $stmt_saldos = $pdo->prepare($sql_saldos);
+    $stmt_saldos->execute([':empresa_id1' => $empresa_id, ':empresa_id2' => $empresa_id]);
     $clientes_cc = $stmt_saldos->fetchAll(PDO::FETCH_ASSOC);
 
     // Calcular deuda total de la calle
@@ -629,7 +636,7 @@ try {
         // Preparamos el mensaje dinámico
         const saldoAbs = Math.abs(saldo).toLocaleString('es-AR', {minimumFractionDigits: 2});
         const tipoSaldo = saldo > 0 ? "deudor de $" : "a favor de $";
-        const mensaje = `Hola ${nombre}, te informamos que tu estado de cuenta en Electricidad Lucyk registra un saldo ${tipoSaldo}${saldoAbs}. ¡Saludos!`;
+        const mensaje = `Hola ${nombre}, te informamos que tu estado de cuenta en <?php echo $nombre_empresa_sistema; ?> registra un saldo ${tipoSaldo}${saldoAbs}. ¡Saludos!`;
         
         // Cargamos datos en el modal
         document.getElementById('wa_destino_tel').value = telefono;

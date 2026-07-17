@@ -4,10 +4,15 @@ require_once '../config/validar_permisos.php';
 require '../config/db_config.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+}
+
 $mensaje = '';
 $error = false;
 
-// 1. PROCESAMIENTO DEL FORMULARIO
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_factura'])) {
     $id_prov         = filter_var($_POST['proveedor_id'] ?? 0, FILTER_VALIDATE_INT);
     $total           = filter_var($_POST['total_compra'] ?? 0, FILTER_VALIDATE_FLOAT);
@@ -29,35 +34,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_factura']))
         try {
             $pdo->beginTransaction();
 
-            // A. Insertar en Compras (Cabecera simplificada)
-            $sql = "INSERT INTO compras (cod_proveedor, cond_pago, documento, n_documento, total_compra, fecha_compra, fecha_vencimiento, fecha_operacion, usuario_id, observaciones, es_sin_detalle) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)";
+            $sql = "INSERT INTO compras (cod_proveedor, cond_pago, documento, n_documento, total_compra, fecha_compra, fecha_vencimiento, fecha_operacion, usuario_id, observaciones, es_sin_detalle, empresa_id, sucursal_id) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)";
             $stmt = $pdo->prepare($sql);
-            $stmt->execute([$id_prov, $cond_pago, $tipo_doc, $n_doc, $total, $f_factura, $f_vencimiento, $f_operacion, $user_id, $obs]);
+            $stmt->execute([$id_prov, $cond_pago, $tipo_doc, $n_doc, $total, $f_factura, $f_vencimiento, $f_operacion, $user_id, $obs, $empresa_id, $sucursal_id]);
             
             $id_generado = $pdo->lastInsertId();
-            // B. Lógica de Cuenta Corriente (Afecta saldo deudor)
+            
             if ($cond_pago === 'CRÉDITO') {
-                $sql_cc = "INSERT INTO ctacte_proveedores (id_proveedor, movimiento, debe, haber, n_documento, fecha, usuario_id, compra_id) 
-                           VALUES (?, ?, 0, ?, ?, ?, ?, ?)";
-                $pdo->prepare($sql_cc)->execute([$id_prov, "$tipo_doc S/DETALLE", $total, $n_doc, $f_operacion, $user_id, $id_generado]);
+                $sql_cc = "INSERT INTO ctacte_proveedores (id_proveedor, movimiento, debe, haber, n_documento, fecha, usuario_id, compra_id, empresa_id) 
+                           VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?)";
+                $pdo->prepare($sql_cc)->execute([$id_prov, "$tipo_doc S/DETALLE", $total, $n_doc, $f_operacion, $user_id, $id_generado, $empresa_id]);
             } 
-            // C. Lógica de Caja (Si es contado, registramos el egreso y reflejamos la operación completa en la cuenta del proveedor)
             else {
-                // 1. Reflejo de la Factura (Haber - Genera deuda técnica)
-                $sql_cc_fact = "INSERT INTO ctacte_proveedores (id_proveedor, movimiento, debe, haber, n_documento, fecha, usuario_id, compra_id) 
-                                VALUES (?, ?, 0, ?, ?, ?, ?, ?)";
-                $pdo->prepare($sql_cc_fact)->execute([$id_prov, "$tipo_doc S/DETALLE (CONTADO)", $total, $n_doc, $f_operacion, $user_id, $id_generado]);
+                $sql_cc_fact = "INSERT INTO ctacte_proveedores (id_proveedor, movimiento, debe, haber, n_documento, fecha, usuario_id, compra_id, empresa_id) 
+                                VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?)";
+                $pdo->prepare($sql_cc_fact)->execute([$id_prov, "$tipo_doc S/DETALLE (CONTADO)", $total, $n_doc, $f_operacion, $user_id, $id_generado, $empresa_id]);
 
-                // 2. Reflejo del Pago Inmediato (Debe - Cancela la deuda técnica)
-                $sql_cc_pago = "INSERT INTO ctacte_proveedores (id_proveedor, movimiento, debe, haber, n_documento, fecha, usuario_id, compra_id) 
-                                VALUES (?, 'PAGO CONTADO', ?, 0, ?, ?, ?, ?)";
-                $pdo->prepare($sql_cc_pago)->execute([$id_prov, $total, $n_doc, $f_operacion, $user_id, $id_generado]);
+                $sql_cc_pago = "INSERT INTO ctacte_proveedores (id_proveedor, movimiento, debe, haber, n_documento, fecha, usuario_id, compra_id, empresa_id) 
+                                VALUES (?, 'PAGO CONTADO', ?, 0, ?, ?, ?, ?, ?)";
+                $pdo->prepare($sql_cc_pago)->execute([$id_prov, $total, $n_doc, $f_operacion, $user_id, $id_generado, $empresa_id]);
 
-                // 3. Registro del Egreso en Caja
-                $sql_mov = "INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado) 
-                            VALUES ('EGRESO', ?, 'EFECTIVO', ?, ?, ?, 0)";
-                $pdo->prepare($sql_mov)->execute([$total, "PAGO COMPRA S/DETALLE: $tipo_doc $n_doc", $f_operacion, $_SESSION['usuario_nombre']]);
+                $sql_mov = "INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado, empresa_id, sucursal_id) 
+                            VALUES ('EGRESO', ?, 'EFECTIVO', ?, ?, ?, 0, ?, ?)";
+                $pdo->prepare($sql_mov)->execute([$total, "PAGO COMPRA S/DETALLE: $tipo_doc $n_doc", $f_operacion, $_SESSION['usuario_nombre'], $empresa_id, $sucursal_id]);
             }
 
             $pdo->commit();
@@ -78,7 +78,7 @@ $proveedores = $stmt_p->fetchAll(PDO::FETCH_ASSOC);
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Compra Rápida | Electricidad Lucyk</title>
+    <title>Compra Rápida | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css">
     <style>
         .container-factura { max-width: 700px; margin: 20px auto; }

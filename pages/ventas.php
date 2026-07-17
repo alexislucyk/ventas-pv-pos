@@ -158,17 +158,21 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                     $id_venta_actual = $id_venta_existente;
                 } else {
                     $fecha_venta = date('Y-m-d H:i:s');
-                    $sql_v = "INSERT INTO ventas (id_cliente, cond_pago, n_documento, total_venta, descuento_global, tipo_descuento_global, pago_efectivo, pago_transf, fecha_venta, estado, usuario) VALUES (?,?,?,?,?,?,?,?,?,?,?)";
-                    $pdo->prepare($sql_v)->execute([$id_cliente, $cond_pago, $n_documento, $total_recalculado, $monto_desc_global, $desc_global_tipo, $pago_efectivo, $pago_transf, $fecha_venta, $estado_venta, $usuario_activo]);
+                    $empresa_id = $_SESSION['empresa_id'] ?? 1;
+                    $sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+                    $sql_v = "INSERT INTO ventas (empresa_id, sucursal_id, id_cliente, cond_pago, n_documento, total_venta, descuento_global, tipo_descuento_global, pago_efectivo, pago_transf, fecha_venta, estado, usuario) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)";
+                    $pdo->prepare($sql_v)->execute([$empresa_id, $sucursal_id, $id_cliente, $cond_pago, $n_documento, $total_recalculado, $monto_desc_global, $desc_global_tipo, $pago_efectivo, $pago_transf, $fecha_venta, $estado_venta, $usuario_activo]);
                     $id_venta_actual = $pdo->lastInsertId();
                 }
 
                 // --- B) Insertar Detalle y Stock ---
-                $sql_d = "INSERT INTO ventas_detalle (cod_prod, descripcion, cant, p_unit, descuento_unitario, p_costo_venta, total, n_documento, fecha) VALUES (?,?,?,?,?,?,?,?,?)";
+                $empresa_id = $_SESSION['empresa_id'] ?? 1;
+                $sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+                $sql_d = "INSERT INTO ventas_detalle (empresa_id, sucursal_id, cod_prod, descripcion, cant, p_unit, descuento_unitario, p_costo_venta, total, n_documento, fecha) VALUES (?,?,?,?,?,?,?,?,?,?,?)";
                 $stmt_d = $pdo->prepare($sql_d);
                 foreach ($detalle_productos as $item) {
                     $desc_u = isset($item['desc']) ? (float)$item['desc'] : 0;
-                    $stmt_d->execute([$item['cod_prod'], $item['descripcion'], $item['cant'], $item['p_unit'], $desc_u, $item['p_costo_venta'], $item['total'], $n_documento, date('Y-m-d H:i:s')]);
+                    $stmt_d->execute([$empresa_id, $sucursal_id, $item['cod_prod'], $item['descripcion'], $item['cant'], $item['p_unit'], $desc_u, $item['p_costo_venta'], $item['total'], $n_documento, date('Y-m-d H:i:s')]);
                     
                     if ($es_finalizar) {
                         $pdo->prepare("UPDATE productos SET stock = stock - ? WHERE cod_prod = ?")->execute([$item['cant'], $item['cod_prod']]);
@@ -179,8 +183,9 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                 if ($es_finalizar && $cond_pago === 'CUENTA CORRIENTE' && $id_cliente > 0) {
                     $saldo_deuda = $total_recalculado - ($pago_efectivo + $pago_transf);
                     if ($saldo_deuda > 0) {
-                        $sql_cc = "INSERT INTO ctacte (id_cliente, movimiento, n_documento, debe, haber, fecha) VALUES (?, 'FACTURA', ?, ?, 0, NOW())";
-                        $pdo->prepare($sql_cc)->execute([$id_cliente, $n_documento, $saldo_deuda]);
+                        $empresa_id = $_SESSION['empresa_id'] ?? 1;
+                        $sql_cc = "INSERT INTO ctacte (empresa_id, id_cliente, movimiento, n_documento, debe, haber, fecha) VALUES (?, ?, 'FACTURA', ?, ?, 0, NOW())";
+                        $pdo->prepare($sql_cc)->execute([$empresa_id, $id_cliente, $n_documento, $saldo_deuda]);
                     }
                 }
 
@@ -192,11 +197,13 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                     $valor_cuota = $monto_total_cuotas / $cant_cuotas;
 
                     // 1. Insertar cabecera de financiación
+                    $empresa_id = $_SESSION['empresa_id'] ?? 1;
                     $sql_finan = "INSERT INTO ventas_financiacion 
-                                  (id_venta, cant_cuotas, intervalo_dias, interes_porcentaje, monto_interes, entrega_inicial, monto_cuota_sugerida)
-                                  VALUES (?, ?, ?, ?, ?, ?, ?)";
+                                  (empresa_id, id_venta, cant_cuotas, intervalo_dias, interes_porcentaje, monto_interes, entrega_inicial, monto_cuota_sugerida)
+                                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
                     $stmt_finan = $pdo->prepare($sql_finan);
                     $stmt_finan->execute([
+                        $empresa_id,
                         $id_venta_actual,
                         $cant_cuotas,
                         $intervalo_dias,
@@ -208,8 +215,8 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
 
                     // 2. Generar plan de cuotas en seguimiento
                     $sql_cuota = "INSERT INTO cuotas_seguimiento 
-                                  (id_venta, nro_cuota, fecha_vencimiento, monto_original, estado)
-                                  VALUES (?, ?, ?, ?, 'Pendiente')";
+                                  (empresa_id, id_venta, nro_cuota, fecha_vencimiento, monto_original, estado)
+                                  VALUES (?, ?, ?, ?, ?, 'Pendiente')";
                     $stmt_cuota = $pdo->prepare($sql_cuota);
 
                     for ($i = 1; $i <= $cant_cuotas; $i++) {
@@ -218,6 +225,7 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                         $vencimiento = date('Y-m-d', strtotime("+$dias_sumar days"));
                         
                         $stmt_cuota->execute([
+                            $empresa_id,
                             $id_venta_actual,
                             $i,
                             $vencimiento,
@@ -232,11 +240,13 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                     
                     if ($monto_ingreso > 0) {
                         $metodo_pago_mov = ($pago_efectivo > 0 && $pago_transf > 0) ? 'MIXTO' : ($pago_efectivo > 0 ? 'EFECTIVO' : 'TRANSFERENCIA');
-                        $sql_mov = "INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado) VALUES ('INGRESO', ?, ?, ?, NOW(), ?, 0)";
+                        $empresa_id = $_SESSION['empresa_id'] ?? 1;
+                        $sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+                        $sql_mov = "INSERT INTO movimientos (empresa_id, sucursal_id, tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado) VALUES (?, ?, 'INGRESO', ?, ?, ?, NOW(), ?, 0)";
                         
                         $detalle_mov = ($cond_pago === 'CUENTA CORRIENTE') ? "ENTREGA/PAGO - VENTA N° $n_documento (CTA. CTE.)" : "VENTA CONTADO N° $n_documento";
                         
-                        $pdo->prepare($sql_mov)->execute([$monto_ingreso, $metodo_pago_mov, $detalle_mov, $usuario_activo]);
+                        $pdo->prepare($sql_mov)->execute([$empresa_id, $sucursal_id, $monto_ingreso, $metodo_pago_mov, $detalle_mov, $usuario_activo]);
                     }
                 }
 
@@ -281,7 +291,7 @@ unset($_SESSION['ticket_a_imprimir_doc']);
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Ventas | Electricidad Lucyk</title>
+    <title>Ventas | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -632,7 +642,7 @@ unset($_SESSION['ticket_a_imprimir_doc']);
                 </div>
                 <div style="margin-bottom: 10px;">
                     <label>Proveedor</label>
-                    <select id="np_proveedor" class="input-field" disabled>
+                    <select id="np_proveedor" class="input-field">
                         <?php foreach ($proveedores_list as $p): ?>
                             <option value="<?php echo $p['razon']; ?>" <?php echo ($p['razon'] == 'GENERAL') ? 'selected' : ''; ?>><?php echo $p['razon']; ?></option>
                         <?php endforeach; ?>

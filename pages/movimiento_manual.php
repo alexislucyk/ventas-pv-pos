@@ -5,9 +5,14 @@ require '../config/db_config.php';
 
 $mensaje = '';
 
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tipo = $_POST['tipo'] ?? ''; // INGRESO o EGRESO
-    // PHP Fix: Reemplazar coma por punto para evitar que el cast a float trunque los decimales
     $monto = (float)str_replace(',', '.', $_POST['monto'] ?? '0');
     $metodo = $_POST['metodo_pago'] ?? 'EFECTIVO';
     $detalle = trim($_POST['detalle'] ?? '');
@@ -15,9 +20,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($monto > 0 && !empty($detalle)) {
         try {
-            $sql = "INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado) 
-                    VALUES (?, ?, ?, ?, NOW(), ?, 0)";
-            $pdo->prepare($sql)->execute([$tipo, $monto, $metodo, $detalle, $usuario]);
+            $sql = "INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado, empresa_id, sucursal_id) 
+                    VALUES (?, ?, ?, ?, NOW(), ?, 0, ?, ?)";
+            $pdo->prepare($sql)->execute([$tipo, $monto, $metodo, $detalle, $usuario, $empresa_id, $sucursal_id]);
             
             $mensaje = "✅ Movimiento registrado correctamente.";
         } catch (Exception $e) {
@@ -33,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Movimiento Manual | Electricidad Lucyk</title>
+    <title>Movimiento Manual | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css">
     <style>
         .form-movimiento { max-width: 500px; margin: 20px auto; }

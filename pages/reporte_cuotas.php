@@ -2,28 +2,32 @@
 include 'infosesion.php';
 require '../config/db_config.php';
 
-// 0. Obtener parámetros de filtro
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+}
+
 $id_cliente_filtro = isset($_GET['id_cliente']) ? (int)$_GET['id_cliente'] : 0;
 $fecha_desde = isset($_GET['fecha_desde']) ? $_GET['fecha_desde'] : '';
 $fecha_hasta = isset($_GET['fecha_hasta']) ? $_GET['fecha_hasta'] : '';
 
-// 1. Construir la consulta con filtros dinámicos
-$where_clauses = ["cs.estado IN ('Pendiente', 'Parcial')", "v.estado != 'Anulada'"];
-$params = [];
+$where_clauses = ["cs.estado IN ('Pendiente', 'Parcial')", "v.estado != 'Anulada'", "v.empresa_id = ?"];
+$params = [$empresa_id, $empresa_id, $empresa_id];
 
 if ($id_cliente_filtro > 0) {
-    $where_clauses[] = "v.id_cliente = :id_cliente";
-    $params[':id_cliente'] = $id_cliente_filtro;
+    $where_clauses[] = "v.id_cliente = ?";
+    $params[] = $id_cliente_filtro;
 }
 
 if (!empty($fecha_desde)) {
-    $where_clauses[] = "cs.fecha_vencimiento >= :desde";
-    $params[':desde'] = $fecha_desde;
+    $where_clauses[] = "cs.fecha_vencimiento >= ?";
+    $params[] = $fecha_desde;
 }
 
 if (!empty($fecha_hasta)) {
-    $where_clauses[] = "cs.fecha_vencimiento <= :hasta";
-    $params[':hasta'] = $fecha_hasta;
+    $where_clauses[] = "cs.fecha_vencimiento <= ?";
+    $params[] = $fecha_hasta;
 }
 
 $sql_where = implode(" AND ", $where_clauses);
@@ -42,8 +46,8 @@ $sql = "SELECT
             c.telefono,
             DATEDIFF(CURDATE(), cs.fecha_vencimiento) as dias_mora
         FROM cuotas_seguimiento cs
-        INNER JOIN ventas v ON cs.id_venta = v.id
-        INNER JOIN clientes c ON v.id_cliente = c.id
+        INNER JOIN ventas v ON cs.id_venta = v.id AND v.empresa_id = ?
+        INNER JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = ?
         WHERE $sql_where
         ORDER BY cs.fecha_vencimiento ASC";
 
@@ -51,10 +55,8 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $cuotas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Obtener lista de clientes para el selector del filtro
-$lista_clientes = $pdo->query("SELECT id, CONCAT(apellido, ', ', nombre) as nombre_completo FROM clientes ORDER BY apellido ASC")->fetchAll();
+$lista_clientes = $pdo->query("SELECT id, CONCAT(apellido, ', ', nombre) as nombre_completo FROM clientes WHERE empresa_id = " . (int)$empresa_id . " ORDER BY apellido ASC")->fetchAll();
 
-// Totales para el resumen
 $total_pendiente = 0;
 $total_vencido = 0;
 foreach ($cuotas as $c) {
@@ -69,7 +71,7 @@ foreach ($cuotas as $c) {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Cuentas a Cobrar | Electricidad Lucyk</title>
+    <title>Cuentas a Cobrar | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -192,7 +194,7 @@ foreach ($cuotas as $c) {
                                         <i class="fas fa-hand-holding-usd"></i>
                                     </a>
                                     <?php if ($c['telefono']): 
-                                        $mensaje_wa = "Hola " . $c['nombre'] . ", te recordamos que tenés una cuota vencida de $" . number_format($saldo, 2) . " en Electricidad Lucyk. Venta #" . $c['n_documento'];
+                                        $mensaje_wa = "Hola " . $c['nombre'] . ", te recordamos que tenés una cuota vencida de $" . number_format($saldo, 2) . " en " . $nombre_empresa_sistema . ". Venta #" . $c['n_documento'];
                                         $link_wa = "https://wa.me/" . preg_replace('/[^0-9]/', '', $c['telefono']) . "?text=" . urlencode($mensaje_wa);
                                     ?>
                                         <a href="<?php echo $link_wa; ?>" target="_blank" class="btn-whatsapp" title="Enviar Recordatorio">

@@ -14,13 +14,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $user = trim($_POST['usuario']);
         $pass = password_hash($_POST['password'], PASSWORD_BCRYPT);
         $rol  = $_POST['rol'];
+        $empresa_id = $_SESSION['empresa_id'] ?? 1;
         
         try {
-            $sql = "INSERT INTO usuarios (usuario, password_hash, rol, estado) VALUES (?, ?, ?, 'ACTIVO')";
-            $pdo->prepare($sql)->execute([$user, $pass, $rol]);
+            $sql = "INSERT INTO usuarios (usuario, password_hash, rol, estado, empresa_id) VALUES (?, ?, ?, 'ACTIVO', ?)";
+            $pdo->prepare($sql)->execute([$user, $pass, $rol, $empresa_id]);
             $mensaje = "✅ Usuario '$user' registrado correctamente.";
         } catch (Exception $e) { 
-            $mensaje = "❌ Error: El usuario ya existe."; 
+            // 23000 / 1062 = violación de clave única (duplicado real)
+            $es_duplicado = ($e->getCode() === '23000') || (stripos($e->getMessage(), 'Duplicate') !== false);
+            if ($es_duplicado) {
+                $mensaje = "❌ Error: El usuario '$user' ya existe.";
+            } else {
+                // Mostramos el error real en lugar de un mensaje engañoso
+                $mensaje = "❌ Error al registrar: " . $e->getMessage();
+            }
         }
     }
 
@@ -55,7 +63,7 @@ $usuarios = $pdo->query("SELECT * FROM usuarios ORDER BY id DESC")->fetchAll(PDO
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Seguridad | Electricidad Lucyk</title>
+    <title>Seguridad | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>

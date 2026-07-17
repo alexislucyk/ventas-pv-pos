@@ -1,1 +1,33 @@
-.opencode
+# Dependencias
+vendor/
+node_modules/
+
+# Archivos de backup (no subir al repositorio)
+backups/
+*.sql
+
+# Archivos de configuración sensibles
+config/.licencia_ip.conf
+config/.licencia_last_success
+
+# Archivos de cache
+cache/*.json
+cache/ultimo_backup.txt
+
+# Archivos temporales
+*.tmp
+*.log
+temp/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Laragon (si aplica)
+laragon/

@@ -1,7 +1,12 @@
 <?php
 include '../pages/infosesion.php';
 
-// VALIDACIÓN DE PERMISOS
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    exit("<p style='padding:20px; text-align:center; color:#aaa;'>Error: falta empresa_id en sesión.</p>");
+}
+
 if (!tiene_permiso('pages/cobro_cuotas.php')) {
     exit("<p style='padding:20px; color:red;'>Acceso denegado.</p>");
 }
@@ -9,36 +14,34 @@ if (!tiene_permiso('pages/cobro_cuotas.php')) {
 $id_cliente_raw = $_GET['id_cliente'] ?? '0';
 $desde = $_GET['desde'] ?? '';
 $hasta = $_GET['hasta'] ?? '';
-$params = [];
-$where_clause = "";
+$params = [':empresa_id' => $empresa_id];
+$where_clause = "WHERE v.empresa_id = :empresa_id";
 $is_all = ($id_cliente_raw === 'all');
 
-if ($is_all) {
-    $where_clause = "WHERE 1=1"; // No filtrar por estado de venta aquí
-} else {
+if (!$is_all) {
     $id_cliente = (int)$id_cliente_raw;
     if ($id_cliente <= 0) exit("<p style='padding:20px; text-align:center; color:#aaa;'>Seleccione un cliente.</p>");
-    $where_clause = "WHERE v.id_cliente = ?"; // Filtrar solo por cliente
-    $params[] = $id_cliente;
+    $where_clause .= " AND v.id_cliente = :id_cliente";
+    $params[':id_cliente'] = $id_cliente;
 }
 
 if (!empty($desde) && !empty($hasta)) {
-    $where_clause .= " AND DATE(v.fecha_venta) BETWEEN ? AND ?";
-    $params[] = $desde;
-    $params[] = $hasta;
+    $where_clause .= " AND DATE(v.fecha_venta) BETWEEN :desde AND :hasta";
+    $params[':desde'] = $desde;
+    $params[':hasta'] = $hasta;
 }
 
 try {
     $sql = "SELECT 
                 v.id, v.n_documento, v.fecha_venta, 
-                v.estado AS estado_venta, /* Añadimos el estado de la venta */
+                v.estado AS estado_venta,
                 vf.cant_cuotas, vf.interes_porcentaje, vf.monto_interes,
                 CONCAT(c.apellido, ', ', c.nombre) as nombre_cliente,
-                (SELECT COALESCE(SUM(monto_original), 0) FROM cuotas_seguimiento WHERE id_venta = v.id AND estado != 'Anulada') as total_financiado,
-                (SELECT COALESCE(SUM(monto_original - monto_pagado), 0) FROM cuotas_seguimiento WHERE id_venta = v.id AND estado != 'Anulada') as saldo_total
+                (SELECT COALESCE(SUM(monto_original), 0) FROM cuotas_seguimiento WHERE id_venta = v.id AND estado != 'Anulada' AND empresa_id = :empresa_id) as total_financiado,
+                (SELECT COALESCE(SUM(monto_original - monto_pagado), 0) FROM cuotas_seguimiento WHERE id_venta = v.id AND estado != 'Anulada' AND empresa_id = :empresa_id) as saldo_total
             FROM ventas v
             JOIN ventas_financiacion vf ON v.id = vf.id_venta
-            JOIN clientes c ON v.id_cliente = c.id
+            JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = :empresa_id
             $where_clause
             ORDER BY v.fecha_venta DESC";
     
@@ -77,12 +80,12 @@ try {
 
         if ($v['estado_venta'] === 'Anulada') {
             $badge_venta = '<span class="badge badge-danger">Anulada</span>';
-            $badge_cuotas = '<span class="badge badge-danger">Anuladas</span>'; // Si la venta está anulada, sus cuotas también lo están
-            $v['saldo_total'] = 0; // El saldo de una venta anulada es 0
-            $btn_disabled = 'disabled'; // Deshabilitar el botón de ver cuotas
+            $badge_cuotas = '<span class="badge badge-danger">Anuladas</span>';
+            $v['saldo_total'] = 0;
+            $btn_disabled = 'disabled';
         } else {
-            $badge_venta = '<span class="badge badge-success">Activa</span>'; // Asumimos 'Finalizada' o similar
-            $esta_pago = ($v['saldo_total'] <= 0.05); // Tolerancia por decimales
+            $badge_venta = '<span class="badge badge-success">Activa</span>';
+            $esta_pago = ($v['saldo_total'] <= 0.05);
             $badge_cuotas = $esta_pago ? '<span class="badge badge-success">Saldado</span>' : '<span class="badge badge-warning">Pendiente</span>';
             $clase_saldo = $esta_pago ? '' : 'saldo-destacado';
         }

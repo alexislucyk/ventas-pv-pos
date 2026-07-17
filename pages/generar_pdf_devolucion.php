@@ -9,6 +9,12 @@ date_default_timezone_set('America/Argentina/Buenos_Aires');
 require('../fpdf/fpdf.php');
 require('../config/db_config.php');
 
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+}
+
 function to_iso($text) {
     if ($text === null) return '';
     return mb_convert_encoding((string)$text, 'ISO-8859-1', 'UTF-8');
@@ -26,21 +32,17 @@ $id_req = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $tipo_req = isset($_GET['tipo']) ? $_GET['tipo'] : ''; 
 
 if ($id_req > 0 && !empty($tipo_req)) {
-    // Recuperar datos históricos de la DB
     try {
-        $id_cliente_val = 0;
-        // Consulta la tabla 'devoluciones' directamente usando op_n y cond_pago
-        $stmt = $pdo->prepare("SELECT * FROM devoluciones WHERE op_n = ? AND cond_pago = ?");
-        $stmt->execute([$id_req, $tipo_req]);
+        $stmt = $pdo->prepare("SELECT * FROM devoluciones WHERE op_n = ? AND cond_pago = ? AND empresa_id = ?");
+        $stmt->execute([$id_req, $tipo_req, $empresa_id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$row) die("Registro no encontrado.");
 
         $id_cliente_val = $row['id_cliente'];
-        $n_doc_ref = $row['n_documento_venta'];
+        $n_doc_ref = $row['n_documento_ventra'];
         
-        // Cargar los items desde la nueva tabla de detalle
-        $stmt_items = $pdo->prepare("SELECT cod_prod, descripcion as `desc`, cantidad as cant, p_unit, subtotal as total FROM devoluciones_detalle WHERE id_devolucion = ?");
-        $stmt_items->execute([$row['id']]); // Usamos el 'id' de la tabla 'devoluciones'
+        $stmt_items = $pdo->prepare("SELECT cod_prod, descripcion as `desc`, cantidad as cant, p_unit, subtotal as total FROM devoluciones_detalle WHERE id_devolucion = ? AND empresa_id = ?");
+        $stmt_items->execute([$row['id'], $empresa_id]);
         $items_db = $stmt_items->fetchAll(PDO::FETCH_ASSOC);
 
         $data = [
@@ -71,8 +73,8 @@ $fecha_op = $data['fecha'];
 
 try {
     // Consultar datos del cliente
-    $stmt_c = $pdo->prepare("SELECT nombre, apellido, cuit FROM clientes WHERE id = ?");
-    $stmt_c->execute([$cliente_id]);
+    $stmt_c = $pdo->prepare("SELECT nombre, apellido, cuit FROM clientes WHERE id = ? AND empresa_id = ?");
+    $stmt_c->execute([$cliente_id, $empresa_id]);
     $cliente = $stmt_c->fetch(PDO::FETCH_ASSOC);
     $nom_cliente = $cliente ? (trim($cliente['apellido']).", ".trim($cliente['nombre'])) : "CONSUMIDOR FINAL";
 

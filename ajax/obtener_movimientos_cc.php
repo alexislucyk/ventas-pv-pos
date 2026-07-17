@@ -1,14 +1,23 @@
 <?php
 // ajax/obtener_movimientos_cc.php
+include '../pages/infosesion.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires'); 
 require '../config/db_config.php'; 
 
-if (!isset($_GET['id_cliente']) || !is_numeric($_GET['id_cliente'])) {
-    echo "<tr><td colspan='7' style='color: red;'>Error: ID de cliente no válido.</td></tr>";
+error_log("=== INICIO obtener_movimientos_cc.php ===");
+error_log("GET params: " . print_r($_GET, true));
+
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+error_log("empresa_id desde sesión: " . $empresa_id);
+
+if (!$empresa_id || !isset($_GET['id_cliente']) || !is_numeric($_GET['id_cliente'])) {
+    error_log("ERROR: Validación fallida - empresa_id: $empresa_id, id_cliente: " . ($_GET['id_cliente'] ?? 'no definido'));
+    echo "<tr><td colspan='7' style='color: red;'>Error: ID de cliente no válido. empresa_id=$empresa_id, id_cliente=" . ($_GET['id_cliente'] ?? 'undefined') . "</td></tr>";
     exit();
-}
+} 
 
 $id_cliente = (int)$_GET['id_cliente'];
+error_log("Consultando movimientos para cliente: $id_cliente, empresa: $empresa_id");
 
 try {
     $sql_movimientos = "
@@ -20,21 +29,24 @@ try {
             haber,
             fecha
         FROM ctacte
-        WHERE id_cliente = :id_cliente
+        WHERE id_cliente = :id_cliente AND empresa_id = :empresa_id
         ORDER BY fecha ASC, id ASC
     ";
     
     $stmt_mov = $pdo->prepare($sql_movimientos);
-    $stmt_mov->execute([':id_cliente' => $id_cliente]);
+    $stmt_mov->execute([':id_cliente' => $id_cliente, ':empresa_id' => $empresa_id]);
     $movimientos = $stmt_mov->fetchAll(PDO::FETCH_ASSOC);
+    
+    error_log("Movimientos encontrados: " . count($movimientos));
 
 } catch (Exception $e) {
     error_log("Error al cargar movimientos CC: " . $e->getMessage());
-    echo "<tr><td colspan='7' style='color: red;'>Error al cargar el historial.</td></tr>";
+    echo "<tr><td colspan='7' style='color: red;'>Error al cargar el historial: " . $e->getMessage() . "</td></tr>";
     exit();
 }
 
 if (empty($movimientos)) {
+    error_log("No hay movimientos para el cliente $id_cliente");
     echo "<tr><td colspan='7' class='center-text'>No hay movimientos registrados para este cliente.</td></tr>";
     exit();
 }

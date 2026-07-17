@@ -6,20 +6,36 @@ require_once '../config/validar_permisos.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 require '../config/db_config.php'; 
 
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+}
+
 $reporte_stock = [];
-$total_valoracion = 0;
+$total_valoracion_costo = 0;
+$total_valoracion_venta = 0;
 $total_productos = 0;
 $mensaje_error = '';
 
 try {
-    $sql_stock = "SELECT cod_prod, descripcion, stock, p_compra, p_venta, (stock * p_compra) AS valor_inventario 
-                  FROM productos ORDER BY cod_prod ASC";
-    $stmt_stock = $pdo->query($sql_stock);
+    $sql_stock = "SELECT p.cod_prod, p.descripcion, COALESCE(s.stock_actual, 0) AS stock, p.p_compra, p.p_venta, 
+                         (COALESCE(s.stock_actual, 0) * p.p_compra) AS valor_inventario_costo,
+                         (COALESCE(s.stock_actual, 0) * p.p_venta) AS valor_inventario_venta
+                  FROM productos p 
+                  LEFT JOIN stocks s ON p.cod_prod COLLATE utf8mb4_unicode_ci = s.cod_prod COLLATE utf8mb4_unicode_ci AND s.empresa_id = :stock_empresa_id AND s.sucursal_id = :sucursal_id
+                  WHERE p.empresa_id = :prod_empresa_id
+                  ORDER BY p.cod_prod ASC";
+    $stmt_stock = $pdo->prepare($sql_stock);
+    $stmt_stock->execute([':stock_empresa_id' => $empresa_id, ':prod_empresa_id' => $empresa_id, ':sucursal_id' => $sucursal_id]);
     $reporte_stock = $stmt_stock->fetchAll(PDO::FETCH_ASSOC);
 
-    $total_valoracion = array_reduce($reporte_stock, function($sum, $item) {
-        return $sum + (float)$item['valor_inventario'];
-    }, 0);
+    $total_valoracion_costo = 0;
+    $total_valoracion_venta = 0;
+    foreach ($reporte_stock as $item) {
+        $total_valoracion_costo += (float)$item['valor_inventario_costo'];
+        $total_valoracion_venta += (float)$item['valor_inventario_venta'];
+    }
     $total_productos = count($reporte_stock);
 
 } catch (Exception $e) {
@@ -27,7 +43,6 @@ try {
     $mensaje_error = "❌ Error: No se pudo cargar el reporte de stock.";
 }
 
-// Lógica de Historial (Sin cambios en tu lógica SQL)
 $movimientos_producto = [];
 $producto_buscado = '';
 if (isset($_GET['buscar_prod']) && !empty($_GET['cod_prod_historial'])) {
@@ -35,11 +50,12 @@ if (isset($_GET['buscar_prod']) && !empty($_GET['cod_prod_historial'])) {
     try {
         $sql_historial = "SELECT cd.fecha, cd.n_documento, cd.cant, cd.p_unit, cd.total, p.razon AS nombre_proveedor
                           FROM compras_detalle cd
-                          JOIN compras c ON cd.n_documento = c.n_documento 
-                          JOIN proveedores p ON c.cod_proveedor = p.cod_prov
-                          WHERE cd.cod_prod = :cod_prod ORDER BY cd.fecha DESC";
+                          JOIN compras c ON cd.n_documento = c.n_documento AND c.empresa_id = :comp_emp
+                          JOIN proveedores p ON c.cod_proveedor = p.cod_prov AND p.empresa_id = :prov_emp
+                          WHERE cd.cod_prod = :cod_prod AND cd.empresa_id = :cd_emp
+                          ORDER BY cd.fecha DESC";
         $stmt_historial = $pdo->prepare($sql_historial);
-        $stmt_historial->execute([':cod_prod' => $producto_buscado]);
+        $stmt_historial->execute([':cod_prod' => $producto_buscado, ':comp_emp' => $empresa_id, ':prov_emp' => $empresa_id, ':cd_emp' => $empresa_id]);
         $movimientos_producto = $stmt_historial->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) { $mensaje_error = "❌ Error al cargar historial."; }
 }
@@ -49,7 +65,7 @@ if (isset($_GET['buscar_prod']) && !empty($_GET['cod_prod_historial'])) {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Reportes | Electricidad Lucyk</title>
+    <title>Reportes | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css"> 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -106,8 +122,15 @@ if (isset($_GET['buscar_prod']) && !empty($_GET['cod_prod_historial'])) {
             <div class="stat-card">
                 <div class="stat-icon" style="color: var(--success); background: rgba(46, 204, 113, 0.1);"><i class="fas fa-dollar-sign"></i></div>
                 <div class="stat-info">
-                    <h3>Valorización de Stock</h3>
-                    <p>$<?php echo number_format((float)($total_valoracion ?? 0), 2, ',', '.'); ?></p>
+                    <h3>Valorización (Precio Costo)</h3>
+                    <p style="font-size:1.3em;">$<?php echo number_format((float)($total_valoracion_costo ?? 0), 2, ',', '.'); ?></p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="color: var(--warning); background: rgba(241, 196, 15, 0.1);"><i class="fas fa-tags"></i></div>
+                <div class="stat-info">
+                    <h3>Valorización (Precio Venta)</h3>
+                    <p style="font-size:1.3em;">$<?php echo number_format((float)($total_valoracion_venta ?? 0), 2, ',', '.'); ?></p>
                 </div>
             </div>
         </div>
@@ -163,7 +186,8 @@ if (isset($_GET['buscar_prod']) && !empty($_GET['cod_prod_historial'])) {
                         <th class="text-right">Stock</th>
                         <th class="text-right">Costo Compra</th>
                         <th class="text-right">Precio Venta</th>
-                        <th class="text-right">Valorización</th>
+                        <th class="text-right">Val. Costo</th>
+                        <th class="text-right">Val. Venta</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -180,7 +204,8 @@ if (isset($_GET['buscar_prod']) && !empty($_GET['cod_prod_historial'])) {
                             </td>
                             <td class="text-right">$<?php echo number_format((float)($prod['p_compra'] ?? 0), 2, ',', '.'); ?></td>
                             <td class="text-right">$<?php echo number_format((float)($prod['p_venta'] ?? 0), 2, ',', '.'); ?></td>
-                            <td class="text-right text-bold" style="color: var(--success);">$<?php echo number_format((float)($prod['valor_inventario'] ?? 0), 2, ',', '.'); ?></td>
+                            <td class="text-right text-bold" style="color: var(--success);">$<?php echo number_format((float)($prod['valor_inventario_costo'] ?? 0), 2, ',', '.'); ?></td>
+                            <td class="text-right text-bold" style="color: var(--warning);">$<?php echo number_format((float)($prod['valor_inventario_venta'] ?? 0), 2, ',', '.'); ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

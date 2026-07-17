@@ -1,13 +1,11 @@
 <?php
+// Configuración de base de datos (incluye session_start())
+require '../config/db_config.php';
+
+// Guardia de sesión y permisos
 include 'infosesion.php';
 require_once '../config/validar_permisos.php';
 restringirPagina('admin');
-require '../config/db_config.php';
-
-// Iniciar sesión para CSRF token
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
 
 // Generar token CSRF si no existe
 if (empty($_SESSION['csrf_token'])) {
@@ -16,6 +14,7 @@ if (empty($_SESSION['csrf_token'])) {
 
 $mensaje = '';
 $tipo_mensaje = 'success';
+$empresa_id = $_SESSION['empresa_id'] ?? null;
 
 // LÓGICA DE GUARDADO
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -37,30 +36,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception("El teléfono contiene caracteres inválidos");
             }
 
-            $sql = "INSERT INTO datos_empresa (id, nombre_fantasia, razon_social, cuit, condicion_iva, ingresos_brutos, inicio_actividades, direccion, localidad, telefono) 
-                    VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE 
-                    nombre_fantasia = VALUES(nombre_fantasia), 
-                    razon_social = VALUES(razon_social), 
-                    cuit = VALUES(cuit), 
-                    condicion_iva = VALUES(condicion_iva), 
-                    ingresos_brutos = VALUES(ingresos_brutos), 
-                    inicio_actividades = VALUES(inicio_actividades),
-                    direccion = VALUES(direccion),
-                    localidad = VALUES(localidad),
-                    telefono = VALUES(telefono)";
+            $sql = "UPDATE empresas SET 
+                    nombre_fantasia = :nombre_fantasia,
+                    razon_social = :razon_social,
+                    cuit = :cuit,
+                    condicion_iva = :condicion_iva,
+                    ingresos_brutos = :ingresos_brutos,
+                    inicio_actividades = :inicio_actividades,
+                    direccion = :direccion,
+                    localidad = :localidad,
+                    telefono = :telefono
+                    WHERE id = :empresa_id";
             
             $stmt = $pdo->prepare($sql);
             $stmt->execute([
-                $_POST['nombre_fantasia'], 
-                $_POST['razon_social'], 
-                $cuit,
-                $_POST['condicion_iva'], 
-                $_POST['ingresos_brutos'], 
-                $_POST['inicio_actividades'] ?: null,
-                $_POST['direccion'], 
-                $_POST['localidad'], 
-                $telefono
+                ':nombre_fantasia' => $_POST['nombre_fantasia'],
+                ':razon_social' => $_POST['razon_social'],
+                ':cuit' => $cuit,
+                ':condicion_iva' => $_POST['condicion_iva'],
+                ':ingresos_brutos' => $_POST['ingresos_brutos'],
+                ':inicio_actividades' => $_POST['inicio_actividades'] ?: null,
+                ':direccion' => $_POST['direccion'],
+                ':localidad' => $_POST['localidad'],
+                ':telefono' => $telefono,
+                ':empresa_id' => $empresa_id
             ]);
             $mensaje = "✅ Datos de la empresa guardados correctamente.";
         }
@@ -85,11 +84,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 // Si se marca como principal, resetear las otras primero
                 if ($_POST['es_principal'] == 1) {
-                    $pdo->query("UPDATE sucursales SET es_principal = 0");
+                    $pdo->prepare("UPDATE sucursales SET es_principal = 0 WHERE empresa_id = :empresa_id")->execute([':empresa_id' => $empresa_id]);
                 }
 
-                $sql = "INSERT INTO sucursales (id, nombre_sucursal, direccion, telefono, email, web, es_principal) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                $sql = "INSERT INTO sucursales (id, empresa_id, nombre_sucursal, direccion, telefono, email, web, es_principal) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                         ON DUPLICATE KEY UPDATE 
                         nombre_sucursal = VALUES(nombre_sucursal), 
                         direccion = VALUES(direccion), 
@@ -101,6 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare($sql);
                 $stmt->execute([
                     $id_suc, 
+                    $empresa_id,
                     $_POST['nombre_sucursal'], 
                     $_POST['direccion'], 
                     $telefono, 
@@ -114,6 +114,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } catch (Exception $e) {
                 $pdo->rollBack();
                 throw $e;
+            }
+        }
+
+        // Eliminar sucursal
+        if (isset($_POST['eliminar_sucursal'])) {
+            $id_suc = (int)($_POST['id_sucursal'] ?? 0);
+            
+            if ($id_suc > 0) {
+                // Verificar que no sea la única sucursal
+                $count = $pdo->prepare("SELECT COUNT(*) FROM sucursales WHERE empresa_id = :empresa_id");
+                $count->execute([':empresa_id' => $empresa_id]);
+                $total = $count->fetchColumn();
+                
+                if ($total <= 1) {
+                    $mensaje = "❌ No se puede eliminar la última sucursal";
+                    $tipo_mensaje = 'error';
+                } else {
+                    // Verificar que no sea la principal
+                    $suc = $pdo->prepare("SELECT es_principal FROM sucursales WHERE id = :id AND empresa_id = :empresa_id");
+                    $suc->execute([':id' => $id_suc, ':empresa_id' => $empresa_id]);
+                    $sucursal = $suc->fetch(PDO::FETCH_ASSOC);
+                    
+                    if ($sucursal && $sucursal['es_principal']) {
+                        $mensaje = "❌ No se puede eliminar la sucursal principal. Marque otra como principal primero.";
+                        $tipo_mensaje = 'error';
+                    } else {
+                        $stmt = $pdo->prepare("DELETE FROM sucursales WHERE id = :id AND empresa_id = :empresa_id");
+                        $stmt->execute([':id' => $id_suc, ':empresa_id' => $empresa_id]);
+                        $mensaje = "✅ Sucursal eliminada correctamente.";
+                    }
+                }
             }
         }
 
@@ -136,14 +167,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 if (move_uploaded_file($_FILES['logo']['tmp_name'], $file_path)) {
                     // Eliminar logo anterior si existe
-                    $empresa_actual = $pdo->query("SELECT logo_path FROM datos_empresa WHERE id = 1")->fetch(PDO::FETCH_ASSOC);
+                    $stmt_logo = $pdo->prepare("SELECT logo_path FROM empresas WHERE id = :empresa_id LIMIT 1");
+                    $stmt_logo->execute([':empresa_id' => $empresa_id]);
+                    $empresa_actual = $stmt_logo->fetch(PDO::FETCH_ASSOC);
                     if ($empresa_actual && !empty($empresa_actual['logo_path']) && file_exists('../' . $empresa_actual['logo_path'])) {
                         unlink('../' . $empresa_actual['logo_path']);
                     }
                     
                     // Actualizar ruta en BD
-                    $stmt = $pdo->prepare("UPDATE datos_empresa SET logo_path = ? WHERE id = 1");
-                    $stmt->execute(['img/logos/' . $file_name]);
+                    $stmt = $pdo->prepare("UPDATE empresas SET logo_path = :logo_path WHERE id = :empresa_id");
+                    $stmt->execute([':logo_path' => 'img/logos/' . $file_name, ':empresa_id' => $empresa_id]);
                     
                     if (empty($mensaje)) {
                         $mensaje = "✅ Datos y logo guardados correctamente.";
@@ -160,9 +193,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// OBTENER DATOS
-$empresa = $pdo->query("SELECT * FROM datos_empresa WHERE id = 1")->fetch(PDO::FETCH_ASSOC);
-$sucursales = $pdo->query("SELECT * FROM sucursales ORDER BY es_principal DESC, id ASC")->fetchAll(PDO::FETCH_ASSOC);
+// OBTENER DATOS (filtrar por empresa_id para multi-empresa)
+$empresa = $pdo->prepare("SELECT * FROM empresas WHERE id = :empresa_id LIMIT 1");
+$empresa->execute([':empresa_id' => $empresa_id]);
+$empresa = $empresa->fetch(PDO::FETCH_ASSOC);
+
+$sucursales = $pdo->prepare("SELECT * FROM sucursales WHERE empresa_id = :empresa_id ORDER BY es_principal DESC, id ASC");
+$sucursales->execute([':empresa_id' => $empresa_id]);
+$sucursales = $sucursales->fetchAll(PDO::FETCH_ASSOC);
 
 // Regenerar token CSRF después de POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -191,10 +229,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
         }
-        .info-group h2 { color: #00bcd4; margin: 0; font-size: 1.8rem; }
-        .info-group p { margin: 5px 0; color: #aaa; }
-        .data-tag { background: #2a2a2a; padding: 4px 10px; border-radius: 4px; color: #00bcd4; font-size: 0.8rem; margin-right: 10px; border: 1px solid #333; }
+        
+        .preview-header:hover {
+            box-shadow: 0 6px 12px rgba(0, 188, 212, 0.2);
+            border-left-color: #00acc1;
+        }
+        
+        .info-group h2 { 
+            color: #00bcd4; 
+            margin: 0; 
+            font-size: 1.8rem; 
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        
+        .info-group p { 
+            margin: 5px 0; 
+            color: #aaa; 
+            font-size: 0.95rem;
+        }
+        
+        .info-group strong {
+            color: #e0e0e0;
+            font-weight: 600;
+        }
+        
+        .data-tag { 
+            background: #2a2a2a; 
+            padding: 4px 10px; 
+            border-radius: 4px; 
+            color: #00bcd4; 
+            font-size: 0.8rem; 
+            margin-right: 10px; 
+            border: 1px solid #333;
+            display: inline-block;
+            margin-top: 5px;
+            transition: all 0.2s ease;
+        }
+        
+        .data-tag:hover {
+            background: #333;
+            border-color: #00bcd4;
+            transform: translateY(-1px);
+        }
+        
+        .preview-header img {
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+            transition: transform 0.3s ease;
+        }
+        
+        .preview-header img:hover {
+            transform: scale(1.05);
+        }
 
         .grid-config { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
         @media (max-width: 1100px) {
@@ -479,9 +568,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <?php endif; ?>
                                 </td>
                                 <td style="text-align: right;">
-                                    <button onclick='editarSucursal(<?php echo json_encode($s); ?>)' class="btn-secondary" style="padding: 5px 10px; font-size: 0.9rem;" title="Editar">
+                                    <button onclick='editarSucursal(<?php echo json_encode($s); ?>)' class="btn-secondary" style="padding: 5px 10px; font-size: 0.9rem; margin-right: 5px;" title="Editar">
                                         <i class="fas fa-edit"></i>
                                     </button>
+                                    <?php if (!$s['es_principal']): ?>
+                                    <button onclick='eliminarSucursal(<?php echo $s['id']; ?>, "<?php echo htmlspecialchars($s['nombre_sucursal']); ?>")' class="btn-secondary" style="padding: 5px 10px; font-size: 0.9rem; background: #b71c1c; border-color: #f44336; color: white;" title="Eliminar">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                             <?php endforeach; ?>
@@ -556,6 +650,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             errorDiv.textContent = '';
             return true;
         });
+
+        // Eliminar sucursal
+        function eliminarSucursal(id, nombre) {
+            if (confirm('¿Está seguro de eliminar la sucursal "' + nombre + '"?\n\nEsta acción no se puede deshacer.')) {
+                // Crear formulario dinámicamente
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '';
+                
+                const csrf = document.createElement('input');
+                csrf.type = 'hidden';
+                csrf.name = 'csrf_token';
+                csrf.value = '<?php echo $_SESSION['csrf_token']; ?>';
+                form.appendChild(csrf);
+                
+                const idInput = document.createElement('input');
+                idInput.type = 'hidden';
+                idInput.name = 'id_sucursal';
+                idInput.value = id;
+                form.appendChild(idInput);
+                
+                const eliminar = document.createElement('input');
+                eliminar.type = 'hidden';
+                eliminar.name = 'eliminar_sucursal';
+                eliminar.value = '1';
+                form.appendChild(eliminar);
+                
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
     </script>
 </body>
 </html>

@@ -2,7 +2,13 @@
 /**
  * Archivo: /pages/vista_previa_ticket_cuota.php
  */
+include 'infosesion.php';
 require_once '../config/db_config.php';
+
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+if (!$empresa_id) {
+    die('Falta empresa_id en sesión.');
+}
 
 $id_pago = (int)($_GET['id_pago'] ?? 0);
 if ($id_pago <= 0) die("ID de pago no válido.");

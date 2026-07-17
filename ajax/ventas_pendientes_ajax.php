@@ -3,7 +3,13 @@
 date_default_timezone_set('America/Argentina/Buenos_Aires'); 
 // ventas_pendientes_ajax.php
 session_start();
-// 1. Control de Conexión y Sesión
+
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+if (!$empresa_id) {
+    echo "Debe iniciar sesión para acceder a esta información.";
+    exit();
+}
+
 if (!isset($_SESSION['usuario_id'])) {
     echo "Debe iniciar sesión para acceder a esta información.";
     exit();
@@ -17,7 +23,6 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
 }
 
 try {
-    // Consulta para obtener todas las ventas con estado 'Pendiente'
     $sql = "SELECT 
                 v.id AS id_venta,
                 v.n_documento,
@@ -26,11 +31,12 @@ try {
                 c.nombre,
                 c.apellido
             FROM ventas v
-            LEFT JOIN clientes c ON v.id_cliente = c.id
-            WHERE v.estado = 'Pendiente'
+            LEFT JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = :empresa_id
+            WHERE v.estado = 'Pendiente' AND v.empresa_id = :empresa_id
             ORDER BY v.fecha_venta DESC";
 
-    $stmt = $pdo->query($sql);
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([':empresa_id' => $empresa_id]);
     $ventas_pendientes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 } catch (Exception $e) {

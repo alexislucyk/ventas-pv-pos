@@ -2,8 +2,11 @@
 // sidebar.php - VERSIÓN MEJORADA CON SIDEBAR COLAPSABLE Y BÚSQUEDA
 // Requiere que db_config.php e infosesion.php hayan sido incluidos previamente
 
+// Incluir funciones de configuración
+require_once PATH_BASE . 'funciones/funciones_configuracion.php';
+
 try {
-    $sql_sidebar = "SELECT nombre_fantasia FROM datos_empresa WHERE id = 1 LIMIT 1";
+$sql_sidebar = "SELECT nombre_fantasia FROM empresas WHERE id = 1 LIMIT 1";
     $stmt_sidebar = $pdo->query($sql_sidebar);
     $res_sidebar = $stmt_sidebar->fetch(PDO::FETCH_ASSOC);
     
@@ -11,6 +14,9 @@ try {
 } catch (Exception $e) {
     $nombre_empresa_sidebar = "Mi Negocio";
 }
+
+// Obtener versión desde la base de datos
+$version_app = obtener_version_app($pdo);
 
 ?>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -142,32 +148,33 @@ try {
 .sidebar-toggle {
     position: absolute;
     top: 12px;
-    right: -15px;
-    width: 30px;
-    height: 30px;
-    background: #222;
-    border: 1px solid #333;
+    right: -18px;
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, #00bcd4, #0097a7);
+    border: 2px solid #00e5ff;
     border-radius: 50%;
-    color: #aaa;
+    color: #fff;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 901;
     transition: all 0.3s;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    box-shadow: 0 4px 12px rgba(0, 188, 212, 0.4);
 }
 .sidebar-toggle:hover {
-    background: #333;
-    color: #00bcd4;
-    transform: scale(1.1);
+    background: linear-gradient(135deg, #00e5ff, #00bcd4);
+    color: #fff;
+    transform: scale(1.15);
+    box-shadow: 0 6px 16px rgba(0, 188, 212, 0.6);
 }
 .sidebar.collapsed .sidebar-toggle {
-    right: -15px;
+    right: -18px;
     transform: rotate(180deg);
 }
 .sidebar.collapsed .sidebar-toggle:hover {
-    transform: rotate(180deg) scale(1.1);
+    transform: rotate(180deg) scale(1.15);
 }
 
 /* --- Badge Desarrollo --- */
@@ -323,6 +330,70 @@ try {
     border-radius: 0 4px 4px 0;
 }
 
+/* ============================================================
+   COLORES POR CATEGORÍA (Sidebar más colorido)
+   ============================================================ */
+.sidebar-menu-container .sec-maestros h4,
+.sidebar-menu-container .sec-maestros h4 i { color: #4dabf7; }
+.sidebar-menu-container .sec-maestros h4 i { opacity: 0.9; }
+.sidebar-menu-container .sec-ventas h4,
+.sidebar-menu-container .sec-ventas h4 i { color: #51cf66; }
+.sidebar-menu-container .sec-ventas h4 i { opacity: 0.9; }
+.sidebar-menu-container .sec-compras h4,
+.sidebar-menu-container .sec-compras h4 i { color: #ffa94d; }
+.sidebar-menu-container .sec-compras h4 i { opacity: 0.9; }
+.sidebar-menu-container .sec-caja h4,
+.sidebar-menu-container .sec-caja h4 i { color: #b197fc; }
+.sidebar-menu-container .sec-caja h4 i { opacity: 0.9; }
+.sidebar-menu-container .sec-informes h4,
+.sidebar-menu-container .sec-informes h4 i { color: #22d3ee; }
+.sidebar-menu-container .sec-informes h4 i { opacity: 0.9; }
+.sidebar-menu-container .sec-admin h4,
+.sidebar-menu-container .sec-admin h4 i { color: #ff8787; }
+.sidebar-menu-container .sec-admin h4 i { opacity: 0.9; }
+
+/* Iconos de los links por categoría */
+.sidebar-menu-container .sec-maestros a i { color: #4dabf7; }
+.sidebar-menu-container .sec-ventas a i { color: #51cf66; }
+.sidebar-menu-container .sec-compras a i { color: #ffa94d; }
+.sidebar-menu-container .sec-caja a i { color: #b197fc; }
+.sidebar-menu-container .sec-informes a i { color: #22d3ee; }
+.sidebar-menu-container .sec-admin a i { color: #ff8787; }
+
+/* Hover por categoría */
+.sidebar-menu-container .sec-maestros a:hover { background: linear-gradient(90deg, rgba(77,171,247,0.14), transparent); border-left-color: #4dabf7; }
+.sidebar-menu-container .sec-maestros a:hover i { color: #74c0fc !important; }
+.sidebar-menu-container .sec-ventas a:hover { background: linear-gradient(90deg, rgba(81,207,102,0.14), transparent); border-left-color: #51cf66; }
+.sidebar-menu-container .sec-ventas a:hover i { color: #69db7c !important; }
+.sidebar-menu-container .sec-compras a:hover { background: linear-gradient(90deg, rgba(255,169,77,0.14), transparent); border-left-color: #ffa94d; }
+.sidebar-menu-container .sec-compras a:hover i { color: #ffc078 !important; }
+.sidebar-menu-container .sec-caja a:hover { background: linear-gradient(90deg, rgba(177,151,252,0.14), transparent); border-left-color: #b197fc; }
+.sidebar-menu-container .sec-caja a:hover i { color: #d0bfff !important; }
+.sidebar-menu-container .sec-informes a:hover { background: linear-gradient(90deg, rgba(34,211,238,0.14), transparent); border-left-color: #22d3ee; }
+.sidebar-menu-container .sec-informes a:hover i { color: #67e8f9 !important; }
+.sidebar-menu-container .sec-admin a:hover { background: linear-gradient(90deg, rgba(255,135,135,0.14), transparent); border-left-color: #ff8787; }
+.sidebar-menu-container .sec-admin a:hover i { color: #ffa8a8 !important; }
+
+/* Activo por categoría */
+.sidebar-menu-container .sec-maestros a.active { background: linear-gradient(90deg, rgba(77,171,247,0.20), transparent); border-left-color: #4dabf7; }
+.sidebar-menu-container .sec-maestros a.active i { color: #74c0fc !important; }
+.sidebar-menu-container .sec-maestros a.active::before { background: #4dabf7; }
+.sidebar-menu-container .sec-ventas a.active { background: linear-gradient(90deg, rgba(81,207,102,0.20), transparent); border-left-color: #51cf66; }
+.sidebar-menu-container .sec-ventas a.active i { color: #69db7c !important; }
+.sidebar-menu-container .sec-ventas a.active::before { background: #51cf66; }
+.sidebar-menu-container .sec-compras a.active { background: linear-gradient(90deg, rgba(255,169,77,0.20), transparent); border-left-color: #ffa94d; }
+.sidebar-menu-container .sec-compras a.active i { color: #ffc078 !important; }
+.sidebar-menu-container .sec-compras a.active::before { background: #ffa94d; }
+.sidebar-menu-container .sec-caja a.active { background: linear-gradient(90deg, rgba(177,151,252,0.20), transparent); border-left-color: #b197fc; }
+.sidebar-menu-container .sec-caja a.active i { color: #d0bfff !important; }
+.sidebar-menu-container .sec-caja a.active::before { background: #b197fc; }
+.sidebar-menu-container .sec-informes a.active { background: linear-gradient(90deg, rgba(34,211,238,0.20), transparent); border-left-color: #22d3ee; }
+.sidebar-menu-container .sec-informes a.active i { color: #67e8f9 !important; }
+.sidebar-menu-container .sec-informes a.active::before { background: #22d3ee; }
+.sidebar-menu-container .sec-admin a.active { background: linear-gradient(90deg, rgba(255,135,135,0.20), transparent); border-left-color: #ff8787; }
+.sidebar-menu-container .sec-admin a.active i { color: #ffa8a8 !important; }
+.sidebar-menu-container .sec-admin a.active::before { background: #ff8787; }
+
 /* --- Ocultar items que no coinciden con la búsqueda --- */
 .sidebar-menu-container a.hidden-by-search {
     display: none;
@@ -377,9 +448,18 @@ try {
 }
 
 /* --- Transición del contenido principal --- */
+body .content {
+    margin-left: 250px;
+    width: calc(100% - 250px);
+    transition: margin-left 0.35s cubic-bezier(0.4, 0, 0.2, 1), width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
 body.sidebar-collapsed .content {
     margin-left: 60px;
     width: calc(100% - 60px);
+}
+body .topbar {
+    left: 250px;
+    transition: left 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 body.sidebar-collapsed .topbar {
     left: 60px;
@@ -427,7 +507,7 @@ body.sidebar-collapsed .topbar {
     <?php endif; ?>
 
     <!-- Botón Toggle -->
-    <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">
+    <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar Look">
         <i class="fas fa-chevron-left"></i>
     </button>
 
@@ -436,7 +516,7 @@ body.sidebar-collapsed .topbar {
             <i class="fas fa-bolt"></i>
             <span><?php echo htmlspecialchars($nombre_empresa_sidebar); ?></span>
             <div class="empresa-version">
-                V. <?php echo defined('APP_VERSION') ? APP_VERSION : '1.0.0'; ?>
+                V. <?php echo htmlspecialchars($version_app); ?>
             </div>
         </div>
     </a>
@@ -444,13 +524,14 @@ body.sidebar-collapsed .topbar {
     <?php include 'components/selector_empresa.php'; ?>
 
     <!-- Buscador del menú - PRUEBA CAMBIO -->
-    <div class="sidebar-search">
+    <!-- <div class="sidebar-search">
         <i class="fas fa-search search-icon" style="color: #4db64d !important; font-size: 1.5em !important;"></i>
         <input type="text" id="sidebarSearch" placeholder="BUSCADOR MODIFICADO" autocomplete="off">
-    </div>
+    </div> -->
 
     <div class="sidebar-menu-container" id="sidebarMenu">
         <!-- ===== MAESTROS ===== -->
+        <div class="menu-section sec-maestros">
         <h4><i class="fas fa-database"></i> Maestros</h4>
         <?php if (tiene_permiso('pages/abm_productos.php')): ?>
             <a href="<?php echo URL_BASE; ?>pages/abm_productos.php" data-title="Productos"><i class="fas fa-box"></i> <span>Productos</span></a>
@@ -464,8 +545,10 @@ body.sidebar-collapsed .topbar {
         <?php if (tiene_permiso('pages/consulta_precios.php')): ?>
             <a href="<?php echo URL_BASE; ?>pages/consulta_precios.php" data-title="Consulta de Precios"><i class="fas fa-tag"></i> <span>Consulta de Precios</span></a>
         <?php endif; ?>
+        </div>
 
         <!-- ===== VENTAS ===== -->
+        <div class="menu-section sec-ventas">
         <h4><i class="fas fa-shopping-cart"></i> Ventas</h4>
         <?php if (tiene_permiso('pages/ventas.php')): ?>
             <a href="<?php echo URL_BASE; ?>pages/ventas.php" data-title="Nueva Venta"><i class="fas fa-shopping-cart"></i> <span>Nueva Venta</span></a>
@@ -482,8 +565,10 @@ body.sidebar-collapsed .topbar {
         <?php if (tiene_permiso('pages/pagos_ctacte.php')): ?>
             <a href="<?php echo URL_BASE; ?>pages/pagos_ctacte.php" data-title="Pagos Cta. Cte."><i class="fas fa-credit-card"></i> <span>Pagos Cta. Cte.</span></a>
         <?php endif; ?>
+        </div>
 
         <!-- ===== COMPRAS ===== -->
+        <div class="menu-section sec-compras">
         <h4><i class="fas fa-truck-loading"></i> Compras</h4>
         <?php if (tiene_permiso('pages/compras.php')): ?>
             <a href="<?php echo URL_BASE; ?>pages/compras.php" data-title="Compras"><i class="fas fa-receipt"></i> <span>Compras</span></a>
@@ -491,8 +576,10 @@ body.sidebar-collapsed .topbar {
         <?php if (tiene_permiso('pages/compras_rapidas.php')): ?>
             <a href="<?php echo URL_BASE; ?>pages/compras_rapidas.php" data-title="Compra Rápida"><i class="fas fa-bolt"></i> <span>Compra Rápida</span></a>
         <?php endif; ?>
+        </div>
 
         <!-- ===== FACTURACIÓN Y CAJA ===== -->
+        <div class="menu-section sec-caja">
         <h4><i class="fas fa-cash-register"></i> Facturación y Caja</h4>
         <?php if (tiene_permiso('pages/facturacion_arca.php')): ?>
             <a href="<?php echo URL_BASE; ?>pages/facturacion_arca.php" data-title="Comprobantes AFIP"><i class="fas fa-file-invoice"></i> <span>Comprobantes AFIP</span></a>
@@ -506,8 +593,10 @@ body.sidebar-collapsed .topbar {
         <?php if (tiene_permiso('pages/cierre_caja.php')): ?>
             <a href="<?php echo URL_BASE; ?>pages/cierre_caja.php" data-title="Cierre de Caja"><i class="fas fa-lock"></i> <span>Cierre de Caja</span></a>
         <?php endif; ?>
+        </div>
 
         <!-- ===== INFORMES ===== -->
+        <div class="menu-section sec-informes">
         <h4><i class="fas fa-chart-bar"></i> Informes</h4>
         <?php if (tiene_permiso('pages/resumen_ventas.php')): ?>
             <a href="<?php echo URL_BASE; ?>pages/resumen_ventas.php" data-title="Resumen de Ventas"><i class="fas fa-list-alt"></i> <span>Resumen de Ventas</span></a>
@@ -527,8 +616,10 @@ body.sidebar-collapsed .topbar {
         <?php if (tiene_permiso('pages/reportes_financieros.php')): ?>
             <a href="<?php echo URL_BASE; ?>pages/reportes_financieros.php" data-title="Financieros"><i class="fas fa-money-check-alt"></i> <span>Financieros</span></a>
         <?php endif; ?>
+        </div>
 
         <!-- ===== ADMINISTRACIÓN ===== -->
+        <div class="menu-section sec-admin">
         <?php if (tiene_permiso('pages/usuarios.php') || $_SESSION['usuario_rol'] === 'developer'): ?>
             <h4><i class="fas fa-shield-alt"></i> Administración</h4>
             <a href="<?php echo URL_BASE; ?>pages/usuarios.php" data-title="Usuarios"><i class="fas fa-users-cog"></i> <span>Usuarios</span></a>
@@ -536,6 +627,10 @@ body.sidebar-collapsed .topbar {
         <?php if ($_SESSION['usuario_rol'] === 'developer'): ?>
             <a href="<?php echo URL_BASE; ?>pages/abm_permisos_usuarios.php" data-title="Permisos por Usuario"><i class="fas fa-user-shield"></i> <span>Permisos por Usuario</span></a>
         <?php endif; ?>
+        <?php if (tiene_permiso('pages/backup.php')): ?>
+            <a href="<?php echo URL_BASE; ?>pages/backup.php" data-title="Backup"><i class="fas fa-database"></i> <span>Backup</span></a>
+        <?php endif; ?>
+        </div>
     </div>
 
     <div class="sidebar-footer">

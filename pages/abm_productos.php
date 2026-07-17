@@ -5,35 +5,36 @@ require_once '../config/validar_permisos.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 require '../config/db_config.php';
 
-// Inicializar variables
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+}
+
 $accion = isset($_GET['accion']) ? $_GET['accion'] : 'listar';
 $id = isset($_GET['id']) ? $_GET['id'] : null;
 $mensaje = '';
 $producto_editar = array(); 
 
-// --- CARGA DE DATOS PARA SELECTS ---
 try {
-    $proveedores_list = $pdo->query('SELECT razon FROM proveedores ORDER BY razon ASC')->fetchAll(PDO::FETCH_ASSOC);
+    $proveedores_list = $pdo->query('SELECT razon FROM proveedores WHERE empresa_id = ' . (int)$empresa_id . ' ORDER BY razon ASC')->fetchAll(PDO::FETCH_ASSOC);
     $rubros_list = $pdo->query('SELECT nombre FROM rubros ORDER BY nombre ASC')->fetchAll(PDO::FETCH_ASSOC);
     
-    // Sugerir código para nuevo proveedor (para el modal de alta rápida)
-    $stmt_cod_prov = $pdo->query("SELECT cod_prov FROM proveedores ORDER BY (cod_prov + 0) DESC LIMIT 1");
+    $stmt_cod_prov = $pdo->prepare("SELECT cod_prov FROM proveedores WHERE empresa_id = :empresa_id ORDER BY (cod_prov + 0) DESC LIMIT 1");
+    $stmt_cod_prov->execute([':empresa_id' => $empresa_id]);
     $ult_prov = $stmt_cod_prov->fetch();
     $nuevo_cod_prov_sugerido = $ult_prov ? (intval($ult_prov['cod_prov']) + 1) : 1;
 
-    // Obtener Ganancia Global de la configuración
     $stmt_conf = $pdo->query("SELECT valor FROM configuracion WHERE clave = 'ganancia_global'");
     $ganancia_config = (float)($stmt_conf->fetchColumn() ?: 60);
 } catch (Exception $e) {
     $mensaje = "⚠️ Error de configuración: " . $e->getMessage();
 }
 
-// --- LÓGICA DEL CONTROLADOR (POST) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $accion_post = $_POST['accion_post'];
 
-        // --- ACTUALIZACIÓN MASIVA DE PRECIOS ---
         if ($accion_post === 'aumento_masivo') {
             $filtro_rubro = $_POST['masivo_rubro'];
             $filtro_prov  = $_POST['masivo_proveedor'];
@@ -44,33 +45,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($valor_cambio <= 0) throw new Exception("El valor de cambio debe ser mayor a cero.");
 
-            // Construcción de la query dinámica
             $sql_base = "UPDATE productos SET p_venta = ";
             
             if ($operacion === 'aumentar') {
-                $sql_base .= ($tipo_cambio === 'porcentaje') ? "p_venta * (1 + ($valor_cambio / 100))" : "p_venta + $valor_cambio";
+                $sql_base .= ($tipo_cambio === 'porcentaje')
+                    ? "p_venta * (1 + (:valor_cambio / 100.0))"
+                    : "p_venta + :valor_cambio";
             } else {
-                $sql_base .= ($tipo_cambio === 'porcentaje') ? "p_venta * (1 - ($valor_cambio / 100))" : "p_venta - $valor_cambio";
+                $sql_base .= ($tipo_cambio === 'porcentaje')
+                    ? "p_venta * (1 - (:valor_cambio / 100.0))"
+                    : "p_venta - :valor_cambio";
             }
 
             $where = [];
-            $params = [];
+            $params = [':valor_cambio' => $valor_cambio, ':empresa_id' => $empresa_id];
 
             if (!empty($ids_seleccionados)) {
                 $id_array = explode(',', $ids_seleccionados);
-                $placeholders = implode(',', array_fill(0, count($id_array), '?'));
-                $where[] = "id IN ($placeholders)";
-                $params = $id_array;
+                $placeholders = [];
+                foreach ($id_array as $idx => $id_val) {
+                    $ph = ':id_' . $idx;
+                    $placeholders[] = $ph;
+                    $params[$ph] = (int)$id_val;
+                }
+                $where[] = 'id IN (' . implode(',', $placeholders) . ')';
             } else {
                 if (!empty($filtro_rubro)) {
-                    $where[] = "rubro = ?";
-                    $params[] = $filtro_rubro;
+                    $where[] = "rubro = :filtro_rubro";
+                    $params[':filtro_rubro'] = $filtro_rubro;
                 }
                 if (!empty($filtro_prov)) {
-                    $where[] = "proveedor = ?";
-                    $params[] = $filtro_prov;
+                    $where[] = "proveedor = :filtro_prov";
+                    $params[':filtro_prov'] = $filtro_prov;
                 }
             }
+
+            $where[] = "empresa_id = :empresa_id";
 
             if (!empty($where)) {
                 $sql_base .= " WHERE " . implode(" AND ", $where);
@@ -81,13 +91,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $mensaje = "✅ Precios actualizados en " . $stmt->rowCount() . " productos.";
             $accion = 'listar';
         } else {
-        $cod_prod = trim($_POST['cod_prod']);
+        $cod_prod = trim((string)($_POST['cod_prod'] ?? ''));
+        // Normaliza cod_prod para evitar diferencias por espacios (ej: "AAA " vs "AAA")
+        // No eliminar espacios internos: solo quitar espacios externos
+        $cod_prod = trim($cod_prod);
         $descripcion = trim($_POST['descripcion']);
         
-        // Normalización de números (reemplazar coma por punto para la DB)
         $p_compra = (float)str_replace(',', '.', $_POST['p_compra']);
         $p_venta  = (float)str_replace(',', '.', $_POST['p_venta']);
-        $stock    = (float)str_replace(',', '.', $_POST['stock']);
+
+        // Normalización robusta de stock (soporta 1.234,56 y 1,5 y 1234.56 y números redondos)
+        $stock_raw = trim((string)($_POST['stock'] ?? '0'));
+        $stock_raw = str_replace([' '], '', $stock_raw);
+        // si tiene coma decimal (ej: 1.234,56) => quitar miles con '.' y cambiar ',' por '.'
+        if (strpos($stock_raw, ',') !== false) {
+            $stock_raw = str_replace('.', '', $stock_raw);
+            $stock_raw = str_replace(',', '.', $stock_raw);
+        } else {
+            // si no tiene coma, pero tiene puntos, asumimos que son miles (ej: 1.234) => quitar '. '
+            $stock_raw = str_replace('.', '', $stock_raw);
+        }
+        $stock = (float)$stock_raw;
+
         
         $fecha_ult_compra = $_POST['fecha_ult_compra'];
         $rubro = $_POST['rubro'];
@@ -97,13 +122,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($cod_prod) || empty($descripcion)) throw new Exception("Código y descripción son obligatorios.");
 
         if ($accion_post === 'crear') {
-            $sql = "INSERT INTO productos (cod_prod, descripcion, p_compra, p_venta, stock, fecha_ult_compra, rubro, proveedor, moneda) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-            $pdo->prepare($sql)->execute([$cod_prod, $descripcion, $p_compra, $p_venta, $stock, $fecha_ult_compra, $rubro, $proveedor, $_POST['moneda'] ?? 'pesos']);
+            $stmt_check = $pdo->prepare("SELECT COUNT(*) FROM productos WHERE empresa_id = ? AND cod_prod = ?");
+            $stmt_check->execute([$empresa_id, $cod_prod]);
+            if ($stmt_check->fetchColumn() > 0) {
+                throw new Exception("Ya existe un producto con ese código en esta empresa.");
+            }
+            
+            // Insertar producto SIN el campo stock (se maneja en tabla stocks)
+            $sql = "INSERT INTO productos (cod_prod, descripcion, p_compra, p_venta, fecha_ult_compra, rubro, proveedor, moneda, empresa_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            $pdo->prepare($sql)->execute([$cod_prod, $descripcion, $p_compra, $p_venta, $fecha_ult_compra, $rubro, $proveedor, $_POST['moneda'] ?? 'pesos', $empresa_id]);
+            
+            // Guardar stock en tabla stocks (por sucursal)
+            $sql_stock = "INSERT INTO stocks (empresa_id, sucursal_id, cod_prod, stock_actual) VALUES (?, ?, ?, ?) 
+                          ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual)";
+            $pdo->prepare($sql_stock)->execute([$empresa_id, $sucursal_id, $cod_prod, $stock]);
+            
             $mensaje = "✅ Producto creado correctamente.";
             $accion = 'listar';
         } elseif ($accion_post === 'editar' && $id_post) {
-            $sql = "UPDATE productos SET cod_prod=?, descripcion=?, p_compra=?, p_venta=?, stock=?, fecha_ult_compra=?, rubro=?, proveedor=?, moneda=? WHERE id=?";
-            $pdo->prepare($sql)->execute([$cod_prod, $descripcion, $p_compra, $p_venta, $stock, $fecha_ult_compra, $rubro, $proveedor, $_POST['moneda'] ?? 'pesos', $id_post]);
+            $stmt_check = $pdo->prepare("SELECT COUNT(*) FROM productos WHERE empresa_id = ? AND cod_prod = ? AND id != ?");
+            $stmt_check->execute([$empresa_id, $cod_prod, $id_post]);
+            if ($stmt_check->fetchColumn() > 0) {
+                throw new Exception("Ya existe otro producto con ese código en esta empresa.");
+            }
+            
+            // Actualizar producto SIN el campo stock (se maneja en tabla stocks)
+            $sql = "UPDATE productos SET cod_prod=?, descripcion=?, p_compra=?, p_venta=?, fecha_ult_compra=?, rubro=?, proveedor=?, moneda=? WHERE id=? AND empresa_id=?";
+            $pdo->prepare($sql)->execute([$cod_prod, $descripcion, $p_compra, $p_venta, $fecha_ult_compra, $rubro, $proveedor, $_POST['moneda'] ?? 'pesos', $id_post, $empresa_id]);
+            
+            // Guardar stock en tabla stocks (por sucursal)
+            $sql_stock = "INSERT INTO stocks (empresa_id, sucursal_id, cod_prod, stock_actual) VALUES (?, ?, ?, ?) 
+                          ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual)";
+            $pdo->prepare($sql_stock)->execute([$empresa_id, $sucursal_id, $cod_prod, $stock]);
+            
             $mensaje = "✅ Producto actualizado correctamente.";
             $accion = 'listar';
         }
@@ -113,29 +164,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// --- ELIMINAR ---
 if ($accion === 'eliminar' && $id) {
-    $pdo->prepare('DELETE FROM productos WHERE id = ?')->execute([$id]);
+    $pdo->prepare('DELETE FROM productos WHERE id = ? AND empresa_id = ?')->execute([$id, $empresa_id]);
     $mensaje = "🗑️ Producto eliminado.";
     $accion = 'listar';
 }
 
-// --- CARGAR PARA EDICIÓN ---
 if ($accion === 'editar' && $id) {
-    $stmt = $pdo->prepare('SELECT * FROM productos WHERE id = ?');
-    $stmt->execute([$id]);
+    $stmt = $pdo->prepare('SELECT p.*, COALESCE(s.stock_actual, 0) AS stock FROM productos p LEFT JOIN stocks s ON p.cod_prod COLLATE utf8mb4_unicode_ci = s.cod_prod COLLATE utf8mb4_unicode_ci AND s.empresa_id = :empresa_id_stock AND s.sucursal_id = :sucursal_id WHERE p.id = :id AND p.empresa_id = :empresa_id_producto');
+    $stmt->execute([':empresa_id_stock' => $empresa_id, ':sucursal_id' => $sucursal_id, ':id' => $id, ':empresa_id_producto' => $empresa_id]);
     $producto_editar = $stmt->fetch();
 }
 
-// --- LISTAR ---
-$productos = ($accion === 'listar') ? $pdo->query('SELECT * FROM productos ORDER BY id DESC')->fetchAll() : [];
+$productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_actual, 0) AS stock FROM productos p LEFT JOIN stocks s ON p.cod_prod COLLATE utf8mb4_unicode_ci = s.cod_prod COLLATE utf8mb4_unicode_ci AND s.empresa_id = " . (int)$empresa_id . " AND s.sucursal_id = " . (int)$sucursal_id . " WHERE p.empresa_id = " . (int)$empresa_id . " ORDER BY p.id DESC")->fetchAll() : [];
 ?>
 
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Productos | Electricidad Lucyk</title>
+    <title>Productos | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css?v=<?php echo time(); ?>">
 <style>
          .flex-row { display: flex; gap: 20px; margin-bottom: 15px; }

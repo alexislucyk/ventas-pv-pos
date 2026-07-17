@@ -27,8 +27,8 @@ if (!$p) { echo "No se encontró el presupuesto."; exit; }
         <strong>Dirección:</strong> <?php echo htmlspecialchars($p['direccion']); ?>
     </div>
     <div style="text-align: right;">
-        <strong>Fecha:</strong> <?php echo date('d/m/Y H:i', strtotime($p['fecha'])); ?><br>
-        <strong style="color: #2ecc71; font-size: 1.2em;">Total: $<?php echo number_format($p['total'], 2); ?></strong>
+        <strong>Fecha:</strong> <?php echo date('d/m/Y H:i', strtotime($p['fecha_presupuesto'])); ?><br>
+        <strong style="color: #2ecc71; font-size: 1.2em;">Total: $<?php echo number_format($p['total_presupuesto'], 2); ?></strong>
     </div>
 </div>
 
@@ -47,15 +47,15 @@ if (!$p) { echo "No se encontró el presupuesto."; exit; }
             <td style="padding: 10px;"><?php echo $item['cantidad']; ?></td>
             <td><?php echo htmlspecialchars($item['descripcion']); ?></td>
             <td>$<?php echo number_format($item['precio_unitario'], 2); ?></td>
-            <td>$<?php echo number_format($item['subtotal'], 2); ?></td>
+            <td>$<?php echo number_format(($item['subtotal'] !== null && $item['subtotal'] !== '') ? $item['subtotal'] : ($item['cantidad'] * $item['precio_unitario']), 2); ?></td>
         </tr>
         <?php endforeach; ?>
     </tbody>
 </table>
 
-<?php if (!empty($p['comentarios'])): ?>
+<?php if (!empty($p['observaciones'])): ?>
 <div style="margin-top: 20px; font-style: italic; color: #aaa;">
     <strong>Observaciones:</strong><br>
-    <?php echo nl2br(htmlspecialchars($p['comentarios'])); ?>
+    <?php echo nl2br(htmlspecialchars($p['observaciones'])); ?>
 </div>
 <?php endif; ?>

@@ -1,12 +1,15 @@
 <?php
 // funciones/ticket_generator.php - VERSIÓN FINAL SIMÉTRICA PARA PHP 5
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 date_default_timezone_set('America/Argentina/Buenos_Aires'); 
 
 /**
  * Genera el HTML del ticket de venta.
  * Corregido para alineación simétrica y compatibilidad con PHP 5.
  */
-function generar_html_ticket_contenido(PDO $pdo, int|string $n_documento): string { 
+function generar_html_ticket_contenido(PDO $pdo, int|string $n_documento, int $empresa_id): string { 
     
     $n_documento = (int)$n_documento;
     
@@ -15,39 +18,39 @@ function generar_html_ticket_contenido(PDO $pdo, int|string $n_documento): strin
     }
 
     try {
-        // --- 1. OBTENER DATOS DE LA EMPRESA (ID 1) ---
-        // Usamos SELECT * para evitar errores si faltan columnas específicas
-        $sql_empresa = "SELECT * FROM datos_empresa WHERE id = 1 LIMIT 1";
-        $stmt_emp = $pdo->query($sql_empresa);
+        $sql_empresa = "SELECT * FROM empresas WHERE id = ? LIMIT 1";
+        $stmt_emp = $pdo->prepare($sql_empresa);
+        $stmt_emp->execute([$empresa_id]);
         $emp = $stmt_emp->fetch(PDO::FETCH_ASSOC);
 
-        // Fallbacks para PHP 5 (sin operador ??)
-        $nombre    = (!empty($emp['nombre_fantasia'])) ? $emp['nombre_fantasia'] : "Electricidad Lucyk";
+        $nombre    = (!empty($emp['nombre_fantasia'])) ? $emp['nombre_fantasia'] : "Mi Negocio";
         $direccion = (!empty($emp['direccion']))       ? $emp['direccion']       : "";
         $localidad = (!empty($emp['localidad']))       ? $emp['localidad']       : "";
         $telefono  = (!empty($emp['telefono']))        ? $emp['telefono']        : "";
 
-        // --- 2. OBTENER DATOS DE LA VENTA ---
         $sql_venta = "
             SELECT 
                 v.fecha_venta, v.total_venta, v.descuento_global, v.cond_pago, v.pago_efectivo, v.pago_transf,
                 c.nombre AS nombre_cliente, c.apellido AS apellido_cliente
             FROM ventas v
-            LEFT JOIN clientes c ON v.id_cliente = c.id
-            WHERE v.n_documento = :n_documento
+            LEFT JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = :empresa_id_join
+            WHERE v.n_documento = :n_documento AND v.empresa_id = :empresa_id_where
         ";
         $stmt_venta = $pdo->prepare($sql_venta);
-        $stmt_venta->execute(array(':n_documento' => $n_documento));
+        $stmt_venta->execute([
+            ':n_documento' => $n_documento,
+            ':empresa_id_join' => $empresa_id,
+            ':empresa_id_where' => $empresa_id
+        ]);
         $venta = $stmt_venta->fetch(PDO::FETCH_ASSOC);
 
         if (!$venta) {
             return "Error: Venta N° " . $n_documento . " no encontrada.";
         }
 
-        // --- 3. OBTENER DETALLE DE PRODUCTOS ---
-        $sql_detalle = "SELECT descripcion, cant, p_unit, descuento_unitario, total FROM ventas_detalle WHERE n_documento = :n_documento";
+        $sql_detalle = "SELECT descripcion, cant, p_unit, descuento_unitario, total FROM ventas_detalle WHERE n_documento = :n_documento AND empresa_id = :empresa_id";
         $stmt_detalle = $pdo->prepare($sql_detalle);
-        $stmt_detalle->execute(array(':n_documento' => $n_documento));
+        $stmt_detalle->execute([':n_documento' => $n_documento, ':empresa_id' => $empresa_id]);
         $productos = $stmt_detalle->fetchAll(PDO::FETCH_ASSOC);
 
         // --- 4. CÁLCULOS ---

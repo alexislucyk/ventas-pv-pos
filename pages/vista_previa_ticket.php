@@ -1,13 +1,16 @@
 <?php
 // pages/vista_previa_ticket.php
+include 'infosesion.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires'); 
 
-// 1. Incluir la configuración de DB y la función de generación de ticket
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+if (!$empresa_id) {
+    die('Falta empresa_id en sesión.');
+}
+
 require_once '../config/db_config.php'; 
-// 🚨 RUTA CORREGIDA
 require_once '../funciones/ticket_generator.php'; 
 
-// 2. Controlar la entrada
 if (!isset($_GET['n_documento']) || empty($_GET['n_documento'])) {
     http_response_code(400);
     echo "Error: Documento no proporcionado.";
@@ -16,13 +19,10 @@ if (!isset($_GET['n_documento']) || empty($_GET['n_documento'])) {
 
 $n_documento = (int)$_GET['n_documento'];
 
-// Obtener configuración de ancho de papel
 $stmt_cfg = $pdo->query("SELECT valor FROM configuracion WHERE clave = 'ticket_ancho'");
 $ancho_papel = $stmt_cfg->fetchColumn() ?: '80mm';
 
-// 3. Generar el HTML del ticket (usando $pdo y n_documento)
-// 🚨 NOMBRE DE FUNCIÓN CORREGIDO
-$html_ticket_content = generar_html_ticket_contenido($pdo, $n_documento);
+$html_ticket_content = generar_html_ticket_contenido($pdo, $n_documento, $empresa_id);
 
 // 4. Envolver el contenido del ticket en una página completa, cargando los estilos.
 $html = '<!DOCTYPE html>

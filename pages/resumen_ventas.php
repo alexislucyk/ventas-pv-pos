@@ -3,117 +3,167 @@ include 'infosesion.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 require '../config/db_config.php'; 
 
-// Capturar fechas del filtro (por defecto: hoy)
-$fecha_inicio = isset($_GET['fecha_inicio']) ? $_GET['fecha_inicio'] : date('Y-m-d');
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+
+if (!$empresa_id) {
+    die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+}
+
+// Rango de fechas por defecto: últimos 30 días
+$fecha_inicio = isset($_GET['fecha_inicio']) ? $_GET['fecha_inicio'] : date('Y-m-d', strtotime('-30 days'));
 $fecha_fin = isset($_GET['fecha_fin']) ? $_GET['fecha_fin'] : date('Y-m-d');
 $id_cliente_filtro = isset($_GET['id_cliente']) ? (int)$_GET['id_cliente'] : 0;
 
 try {
-    // 0. Cargar lista de clientes para el filtro
-    $clientes = $pdo->query("SELECT id, CONCAT(apellido, ', ', nombre) as nombre FROM clientes ORDER BY apellido ASC")->fetchAll(PDO::FETCH_ASSOC);
+    // Obtener lista de clientes para el filtro
+    $stmt_cli = $pdo->prepare("SELECT id, CONCAT(apellido, ', ', nombre) as nombre FROM clientes WHERE empresa_id = ? ORDER BY apellido ASC");
+    $stmt_cli->execute([$empresa_id]);
+    $clientes = $stmt_cli->fetchAll(PDO::FETCH_ASSOC);
 
-    // Preparamos los trozos de WHERE para el cliente si aplica
     $where_cliente = ($id_cliente_filtro > 0) ? " AND id_cliente = :cliente " : "";
     $where_v_cliente = ($id_cliente_filtro > 0) ? " AND v.id_cliente = :cliente " : "";
 
-    // 1. Consulta de Totales Cobrados
+    // 1. Ventas Cobradas (Contado)
     $sql_resumen = "SELECT 
                         SUM(CASE WHEN cond_pago = 'CONTADO' THEN total_venta ELSE (COALESCE(pago_efectivo, 0) + COALESCE(pago_transf, 0)) END) as total_cobrado
                     FROM ventas v
                     WHERE estado = 'Finalizada' 
-                    AND DATE(fecha_venta) BETWEEN :inicio AND :fin" . $where_v_cliente;
+                    AND DATE(fecha_venta) BETWEEN :inicio AND :fin 
+                    AND v.empresa_id = :empresa_id" . $where_v_cliente;
     $stmt_res = $pdo->prepare($sql_resumen);
-    $params_res = [':inicio' => $fecha_inicio, ':fin' => $fecha_fin];
+    $params_res = [':inicio' => $fecha_inicio, ':fin' => $fecha_fin, ':empresa_id' => $empresa_id];
     if ($id_cliente_filtro > 0) $params_res[':cliente'] = $id_cliente_filtro;
     $stmt_res->execute($params_res);
     $resumen = $stmt_res->fetch(PDO::FETCH_ASSOC);
 
-    // 1.1. Restar Egresos por Devoluciones/Anulaciones de Contado (Dinero que salió de caja)
+    // 2. Devoluciones del período
     $sql_egresos_dev = "SELECT SUM(total_reintegrado) FROM devoluciones d
                         WHERE cond_pago = 'CONTADO'
-                        AND DATE(fecha) BETWEEN :inicio AND :fin" . $where_cliente;
+                        AND DATE(fecha) BETWEEN :inicio AND :fin 
+                        AND d.empresa_id = :empresa_id" . $where_cliente;
     $stmt_eg_dev = $pdo->prepare($sql_egresos_dev);
-    $params_eg = [':inicio' => $fecha_inicio, ':fin' => $fecha_fin];
+    $params_eg = [':inicio' => $fecha_inicio, ':fin' => $fecha_fin, ':empresa_id' => $empresa_id];
     if ($id_cliente_filtro > 0) $params_eg[':cliente'] = $id_cliente_filtro;
     $stmt_eg_dev->execute($params_eg);
     $total_egresos_dev = (float)$stmt_eg_dev->fetchColumn() ?: 0;
 
     $total_contado_periodo = (isset($resumen['total_cobrado']) ? (float)$resumen['total_cobrado'] : 0) - $total_egresos_dev;
 
-    // 2. Consulta de Deuda Global (Optimizado: calculamos la diferencia neta total)
-    $sql_total_deuda = "SELECT SUM(debe) - SUM(haber) as saldo_neto FROM ctacte WHERE 1=1 " . $where_cliente;
+    // 3. Calcular ganancia: Total Ventas - Costo Ventas - Devoluciones
+    $sql_total_ventas = "SELECT SUM(total_venta) as total FROM ventas v
+                        WHERE estado = 'Finalizada' 
+                        AND DATE(fecha_venta) BETWEEN :inicio AND :fin 
+                        AND v.empresa_id = :empresa_id" . $where_v_cliente;
+    $stmt_total_ventas = $pdo->prepare($sql_total_ventas);
+    $params_tv = [':inicio' => $fecha_inicio, ':fin' => $fecha_fin, ':empresa_id' => $empresa_id];
+    if ($id_cliente_filtro > 0) $params_tv[':cliente'] = $id_cliente_filtro;
+    $stmt_total_ventas->execute($params_tv);
+    $total_ventas = (float)$stmt_total_ventas->fetchColumn() ?: 0;
+
+    $sql_costo_ventas = "SELECT SUM(vd.cant * vd.p_costo_venta) as costo 
+                        FROM ventas_detalle vd
+                        INNER JOIN ventas v ON v.empresa_id = vd.empresa_id AND v.n_documento = vd.n_documento
+                        WHERE DATE(v.fecha_venta) BETWEEN :inicio AND :fin 
+                        AND v.estado = 'Finalizada' 
+                        AND v.empresa_id = :empresa_id
+                        AND vd.empresa_id = :empresa_id2" . $where_v_cliente;
+    $stmt_costo = $pdo->prepare($sql_costo_ventas);
+    $params_costo = [':inicio' => $fecha_inicio, ':fin' => $fecha_fin, ':empresa_id' => $empresa_id, ':empresa_id2' => $empresa_id];
+    if ($id_cliente_filtro > 0) $params_costo[':cliente'] = $id_cliente_filtro;
+    $stmt_costo->execute($params_costo);
+    $costo_ventas = (float)$stmt_costo->fetchColumn() ?: 0;
+
+    $ganancia_periodo = $total_ventas - $costo_ventas - $total_egresos_dev;
+
+    // 4. Total Cuentas por Cobrar (deuda global)
+    $sql_total_deuda = "SELECT SUM(debe) - SUM(haber) as saldo_neto FROM ctacte WHERE empresa_id = :empresa_id " . $where_cliente;
     $stmt_deuda = $pdo->prepare($sql_total_deuda);
-    $params_deuda = [];
+    $params_deuda = [':empresa_id' => $empresa_id];
     if ($id_cliente_filtro > 0) $params_deuda[':cliente'] = $id_cliente_filtro;
     $stmt_deuda->execute($params_deuda);
     $res_deuda = $stmt_deuda->fetch(PDO::FETCH_ASSOC);
     $saldo_total_por_cobrar = ($res_deuda['saldo_neto'] > 0) ? $res_deuda['saldo_neto'] : 0;
 
-    // 3. Ventas en Cta. Cte. del periodo (Neto de devoluciones en Cta Cte)
+    // 5. Ventas en Cta. Cte. del período
     $sql_ctacte_periodo = "SELECT SUM(total_venta - (COALESCE(pago_efectivo, 0) + COALESCE(pago_transf, 0))) as total_ctacte 
                            FROM ventas v
                            WHERE estado = 'Finalizada' 
                            AND cond_pago = 'CUENTA CORRIENTE'
-                           AND DATE(fecha_venta) BETWEEN :inicio AND :fin" . $where_v_cliente;
+                           AND DATE(fecha_venta) BETWEEN :inicio AND :fin 
+                           AND v.empresa_id = :empresa_id" . $where_v_cliente;
     $stmt_ctacte = $pdo->prepare($sql_ctacte_periodo);
-    $params_ct = [':inicio' => $fecha_inicio, ':fin' => $fecha_fin];
+    $params_ct = [':inicio' => $fecha_inicio, ':fin' => $fecha_fin, ':empresa_id' => $empresa_id];
     if ($id_cliente_filtro > 0) $params_ct[':cliente'] = $id_cliente_filtro;
     $stmt_ctacte->execute($params_ct);
     $res_ctacte = $stmt_ctacte->fetch(PDO::FETCH_ASSOC);
 
-    // Restamos las devoluciones hechas a Cta Cte (Haber en la tabla ctacte por devoluciones)
     $sql_ctacte_dev = "SELECT SUM(haber) FROM ctacte m
                        WHERE (movimiento LIKE 'ANULACIÓN%' OR movimiento LIKE 'DEVOLUCIÓN%')
-                       AND DATE(fecha) BETWEEN :inicio AND :fin" . $where_cliente;
+                       AND DATE(fecha) BETWEEN :inicio AND :fin 
+                       AND m.empresa_id = :empresa_id" . $where_cliente;
     $stmt_ctacte_dev = $pdo->prepare($sql_ctacte_dev);
-    $params_ct_dev = [':inicio' => $fecha_inicio, ':fin' => $fecha_fin];
+    $params_ct_dev = [':inicio' => $fecha_inicio, ':fin' => $fecha_fin, ':empresa_id' => $empresa_id];
     if ($id_cliente_filtro > 0) $params_ct_dev[':cliente'] = $id_cliente_filtro;
     $stmt_ctacte_dev->execute($params_ct_dev);
     $total_ctacte_dev = (float)$stmt_ctacte_dev->fetchColumn() ?: 0;
 
     $total_ctacte = (isset($res_ctacte['total_ctacte']) ? (float)$res_ctacte['total_ctacte'] : 0) - $total_ctacte_dev;
 
-    // 4. Listado de ventas para la tabla
-    $where_v_list = " WHERE DATE(v.fecha_venta) BETWEEN :inicio1 AND :fin1 " . $where_v_cliente;
-    $where_d_list = " WHERE DATE(d.fecha) BETWEEN :inicio2 AND :fin2 " . $where_cliente;
-
-    $sql_ventas = "
-        SELECT 
-            'VENTA' as tipo_registro,
-            v.id AS id_ref, v.n_documento, v.fecha_venta as fecha, v.total_venta as monto, 
-            v.estado COLLATE utf8mb4_unicode_ci as estado, v.cond_pago COLLATE utf8mb4_unicode_ci as cond_pago,
-            CONCAT(c.apellido, ', ', c.nombre) COLLATE utf8mb4_unicode_ci AS nombre_cliente,
-            af.cae -- Traemos el CAE si existe en la tabla lateral
-        FROM ventas v
-        LEFT JOIN clientes c ON v.id_cliente = c.id
-        LEFT JOIN ventas_afip af ON v.id = af.id_venta
-        $where_v_list
-
-        UNION ALL
-
-        -- Devoluciones extraídas directamente de la tabla centralizada
-        SELECT 
-            'DEVOLUCION' as tipo_registro,
-            d.op_n as id_ref, d.op_n as n_documento, d.fecha, -d.total_reintegrado as monto, 
-            'Finalizada' COLLATE utf8mb4_unicode_ci as estado, d.cond_pago COLLATE utf8mb4_unicode_ci as cond_pago,
-            CONCAT(c.apellido, ', ', c.nombre) COLLATE utf8mb4_unicode_ci as nombre_cliente,
-            NULL as cae
-        FROM devoluciones d
-        LEFT JOIN clientes c ON d.id_cliente = c.id
-        $where_d_list
-
-        ORDER BY fecha DESC, n_documento DESC";
-    
+    // 6. Obtener ventas para la tabla (consulta separada)
+    $sql_ventas = "SELECT 
+                        v.id AS id_ref, v.n_documento, v.fecha_venta as fecha, v.total_venta as monto,
+                        v.cond_pago,
+                        v.id_cliente,
+                        va.cae as cae,
+                        CONCAT(c.apellido, ', ', c.nombre) as nombre_cliente
+                    FROM ventas v
+                    LEFT JOIN clientes c ON v.id_cliente = c.id
+                    LEFT JOIN ventas_afip va ON va.id_venta = v.id AND va.empresa_id = v.empresa_id
+                    WHERE DATE(v.fecha_venta) BETWEEN :inicio1 AND :fin1 
+                    AND v.estado = 'Finalizada'
+                    AND v.empresa_id = :empresa_id" . 
+                    ($id_cliente_filtro > 0 ? " AND v.id_cliente = :v_cliente" : "") . "
+                    ORDER BY v.fecha_venta DESC, v.n_documento DESC";
+    $params_v = [':inicio1' => $fecha_inicio, ':fin1' => $fecha_fin, ':empresa_id' => $empresa_id];
+    if ($id_cliente_filtro > 0) $params_v[':v_cliente'] = $id_cliente_filtro;
     $stmt_ventas = $pdo->prepare($sql_ventas);
-    $params_ventas = [
-        ':inicio1' => $fecha_inicio, ':fin1' => $fecha_fin,
-        ':inicio2' => $fecha_inicio, ':fin2' => $fecha_fin
-    ];
-    if ($id_cliente_filtro > 0) {
-        $params_ventas[':cliente'] = $id_cliente_filtro;
-    }
-    $stmt_ventas->execute($params_ventas);
+    $stmt_ventas->execute($params_v);
     $ventas = $stmt_ventas->fetchAll(PDO::FETCH_ASSOC);
+
+    // 7. Obtener devoluciones (consulta separada)
+    $sql_devol = "SELECT 
+                      d.op_n as id_ref, d.fecha, -d.total_reintegrado as monto,
+                      d.cond_pago,
+                      d.id_cliente,
+                      CONCAT(c.apellido, ', ', c.nombre) as nombre_cliente
+                  FROM devoluciones d
+                  LEFT JOIN clientes c ON d.id_cliente = c.id
+                  WHERE DATE(d.fecha) BETWEEN :inicio2 AND :fin2 
+                  AND d.empresa_id = :empresa_id2" .
+                  ($id_cliente_filtro > 0 ? " AND d.id_cliente = :d_cliente" : "") . "
+                  ORDER BY d.fecha DESC, d.op_n DESC";
+    $params_d = [':inicio2' => $fecha_inicio, ':fin2' => $fecha_fin, ':empresa_id2' => $empresa_id];
+    if ($id_cliente_filtro > 0) $params_d[':d_cliente'] = $id_cliente_filtro;
+    $stmt_devol = $pdo->prepare($sql_devol);
+    $stmt_devol->execute($params_d);
+    $devoluciones = $stmt_devol->fetchAll(PDO::FETCH_ASSOC);
+
+    // 8. Combinar y ordenar
+    foreach ($devoluciones as $d) {
+        $d['tipo_registro'] = 'DEVOLUCION';
+        $d['n_documento'] = $d['id_ref'];
+        $d['cae'] = null;
+        $ventas[] = $d;
+    }
+    foreach ($ventas as &$v) {
+        if (!isset($v['tipo_registro'])) $v['tipo_registro'] = 'VENTA';
+    }
+    unset($v);
+    usort($ventas, function($a, $b) {
+        $cmp = strcmp($b['fecha'], $a['fecha']);
+        return $cmp !== 0 ? $cmp : strcmp((string)($b['n_documento'] ?? '0'), (string)($a['n_documento'] ?? '0'));
+    });
 
 } catch (PDOException $e) {
     echo "<div style='background:red; color:white; padding:10px;'>Error en SQL: " . $e->getMessage() . "</div>";
@@ -125,33 +175,31 @@ try {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Resumen de Ventas | Electricidad Lucyk</title>
+    <title>Resumen de Ventas | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css?v=<?php echo time(); ?>"> 
     <link rel="stylesheet" href="../css/ticket_print.css">
     <style>
-        /* Estilos base para la página */
         .btn-action { margin-right: 5px; padding: 5px 10px; cursor: pointer; border-radius: 4px; border: none; }
         .text-right { text-align: right; }
         .badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
         .badge-warning { background: #f1c40f; color: #000; }
         .badge-success { background: #2ecc71; color: #fff; }
 
-        /* MODAL REFORZADO: Solución a la línea celeste */
         .modal {
             display: none; 
             position: fixed; 
-            z-index: 99999 !important; /* Por encima de todo */
+            z-index: 99999 !important;
             left: 0; 
             top: 0; 
             width: 100%; 
             height: 100%; 
             overflow: auto; 
-            background-color: rgba(0, 0, 0, 0.95) !important; /* Fondo casi negro opaco */
-            backdrop-filter: blur(10px); /* Desenfoque del fondo */
+            background-color: rgba(0, 0, 0, 0.95) !important;
+            backdrop-filter: blur(10px);
         }
 
         .modal-content-lg {
-            background-color: #1a1a1a !important; /* Fondo sólido para bloquear el fondo */
+            background-color: #1a1a1a !important;
             margin: 5% auto; 
             padding: 25px; 
             border: 1px solid #3498db; 
@@ -169,10 +217,8 @@ try {
         .tipo-dev { color: #ff7675; font-weight: bold; font-size: 0.85em; }
         #detalleBody { min-height: 150px; padding-top: 20px; color: #eee; }
 
-        /* Estilos de formulario */
         .form-control { padding: 10px; border-radius: 5px; border: 1px solid #555; background: #444; color: white; height: 42px; box-sizing: border-box; }
         
-        /* Botones unificados y alineados */
         .btn-filter-action {
             height: 42px;
             min-width: 120px;
@@ -186,7 +232,7 @@ try {
             border: none;
             cursor: pointer;
             text-decoration: none;
-            margin-bottom: 15px; /* Compensa el margen inferior de los inputs */
+            margin-bottom: 15px;
             transition: 0.2s;
         }
         .btn-filter-action:hover { opacity: 0.85; transform: translateY(-1px); }
@@ -232,6 +278,12 @@ try {
                 <p>$<?php echo number_format((float)($total_contado_periodo ?? 0), 2, ',', '.'); ?></p>
                 <small>Efectivo + Transferencia</small>
             </div>
+            
+            <div class="widget widget-contado" style="background: linear-gradient(135deg, #27ae60, #229954);">
+                <h3>📈 Ganancia del Periodo</h3>
+                <p>$<?php echo number_format((float)($ganancia_periodo ?? 0), 2, ',', '.'); ?></p>
+                <small>Ventas - Costos - Devoluciones</small>
+            </div>
 
             <div class="widget widget-ctacte">
                 <h3>⏳ Ventas en Cta. Cte.</h3>
@@ -269,9 +321,9 @@ try {
                                         <?php echo htmlspecialchars($venta['n_documento']); ?>
                                     <?php endif; ?>
                                 </td>
-                            <td><?php echo date('d/m/Y', strtotime($venta['fecha'])); ?></td>
+                                <td><?php echo date('d/m/Y', strtotime($venta['fecha'])); ?></td>
                                 <td>
-                                    <?php echo htmlspecialchars($venta['nombre_cliente'] ? $venta['nombre_cliente'] : 'Público General'); ?>
+                                    <?php echo htmlspecialchars($venta['nombre_cliente'] ? $venta['nombre_cliente'] : 'Consumidor Final'); ?>
                                 </td>
                                 <td>
                                     <?php 
@@ -287,7 +339,7 @@ try {
                                     <?php if ($venta['tipo_registro'] === 'VENTA'): ?>
                                         <button class="btn btn-primary btn-action" onclick="mostrarDetalle(<?php echo $venta['n_documento']; ?>)">Detalle</button>
                                         <button class="btn btn-success btn-action" onclick="imprimirTicket(<?php echo $venta['n_documento']; ?>)">Ticket</button>
-                                        <button class="btn btn-action" style="background-color: #00bcd4; color: white;" onclick="descargarPDF(<?php echo $venta['n_documento']; ?>)">PDF</button>
+                                        <button class="btn btn-action" style="background-color: #00bcd4; color: white;" onclick="descargarPDF(<?php echo $venta['id_ref']; ?>, true)">PDF</button>
                                         
                                         <?php if (empty($venta['cae']) && tiene_permiso('pages/facturacion_arca.php')): ?>
                                             <button class="btn btn-action" style="background-color: #6f42c1; color: white;" onclick="enviarArca(<?php echo $venta['id_ref']; ?>)" title="Convertir a Factura ARCA">ARCA</button>
@@ -303,7 +355,12 @@ try {
                             </tr>
                         <?php endforeach; ?>
                     <?php else: ?>
-                        <tr><td colspan="6" style="text-align:center;">No se encontraron ventas en este rango.</td></tr>
+                        <tr>
+                            <td colspan="6" style="text-align:center; padding: 20px; background: #fff3cd; color: #856404;">
+                                <strong>No se encontraron ventas en este rango.</strong><br>
+                                <small>Rango: <?php echo $fecha_inicio; ?> a <?php echo $fecha_fin; ?> | Empresa ID: <?php echo $empresa_id; ?></small>
+                            </td>
+                        </tr>
                     <?php endif; ?>
                 </tbody>
             </table>
@@ -316,7 +373,7 @@ try {
             <h2 style="border-bottom: 2px solid #3498db; padding-bottom: 10px;">Detalle de Venta <span id="detalleNdocumento"></span></h2>
             
             <div id="detalleBody">
-                </div>
+            </div>
             
             <div style="text-align: right; margin-top: 25px; border-top: 1px solid #444; padding-top: 15px;">
                 <button class="btn btn-success" onclick="imprimirTicket(document.getElementById('detalleNdocumento').textContent)">
@@ -340,7 +397,6 @@ try {
         detalleBody.innerHTML = '<div style="text-align:center; padding:20px;"><p>Cargando información del sistema...</p></div>';
         detalleModal.style.display = 'block';
 
-        // AJUSTE DE RUTA: Si resumen_ventas.php está en /pages/, la carpeta ajax está un nivel arriba.
         fetch('../ajax/obtener_detalle_venta.php?n_documento=' + nDocumento)
             .then(response => {
                 if (!response.ok) throw new Error('No se encontró el archivo de detalle.');
@@ -364,8 +420,9 @@ try {
         window.open(url, '_blank', 'width=400,height=700,scrollbars=yes');
     }
 
-    function descargarPDF(nDocumento) {
-        window.location.href = 'generar_pdf_ticket.php?n_documento=' + nDocumento + '&download=1';
+    function descargarPDF(nDocumento, porId) {
+        const param = porId ? 'id=' + nDocumento : 'n_documento=' + nDocumento;
+        window.location.href = 'generar_pdf_ticket.php?' + param + '&download=1';
     }
 
     function mostrarDetalleDevolucion(id, tipo) {
@@ -383,13 +440,11 @@ try {
     }
 
     function imprimirTicketDevolucion(id, tipo) {
-        // Creamos una vista previa específica para el ticket de devolución
         const url = 'vista_previa_ticket_devolucion.php?id=' + id + '&tipo=' + tipo;
         window.open(url, '_blank', 'width=400,height=700,scrollbars=yes');
     }
 
     function descargarPDFDevolucion(id, tipo) {
-        // Reutilizamos el generador A5 pasando el ID
         window.location.href = 'generar_pdf_devolucion.php?id=' + id + '&tipo=' + tipo + '&download=1';
     }
 
@@ -420,7 +475,6 @@ try {
     }
     <?php endif; ?>
 
-    // Cerrar si hace clic fuera del cuadro blanco
     window.onclick = function(event) {
         if (event.target == detalleModal) {
             cerrarModal();

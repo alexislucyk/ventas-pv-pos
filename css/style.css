@@ -23,25 +23,12 @@ html, body {
     outline: none !important;
 }
 
-/* ==================== 2. SIDEBAR (MENÚ) ==================== */
-/* Los estilos del sidebar ahora están definidos en pages/sidebar.php */
-/* Solo mantenemos aquí los estilos base necesarios para el layout */
-
-/* Transición del contenido cuando el sidebar se colapsa */
-body.sidebar-collapsed .content {
-    margin-left: 60px;
-    width: calc(100% - 60px);
-}
-body.sidebar-collapsed .topbar {
-    left: 60px;
-}
-
-/* ==================== 3. CONTENT & CARDS ==================== */
+/* ==================== 2. CONTENT & CARDS ==================== */
 .content {
         padding: 30px;
         box-sizing: border-box;
-        margin-left: 250px; 
-        width: calc(100% - 250px);
+        margin-left: 0; 
+        width: 100%;
         position: relative;
         display: block;
     }
@@ -267,29 +254,6 @@ th {
 
 /* ==================== 8. RESPONSIVE ==================== */
 @media (max-width: 1100px) {
-    .sidebar { 
-        width: 0; 
-        transition: width 0.3s ease;
-        box-shadow: none;
-        border-right: none;
-    }
-    .sidebar.active { 
-        width: 250px; 
-        box-shadow: 3px 0 20px rgba(0, 0, 0, 0.6);
-        border-right: 1px solid #333;
-    }
-    .sidebar.collapsed {
-        width: 0;
-    }
-    .sidebar.collapsed.active {
-        width: 250px;
-    }
-    .sidebar.collapsed .sidebar-toggle {
-        display: none;
-    }
-    .sidebar-toggle {
-        display: none;
-    }
     .content { 
         margin-left: 0; 
         width: 100%; 
@@ -300,13 +264,6 @@ th {
     }
     #menuToggle { 
         display: block; 
-    }
-    body.sidebar-collapsed .content {
-        margin-left: 0;
-        width: 100%;
-    }
-    body.sidebar-collapsed .topbar {
-        left: 0;
     }
 }
 

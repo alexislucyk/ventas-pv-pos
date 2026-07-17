@@ -9,6 +9,12 @@ date_default_timezone_set('America/Argentina/Buenos_Aires');
 require('../fpdf/fpdf.php');
 require('../config/db_config.php');
 
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+}
+
 /**
  * Convierte strings de UTF-8 a ISO-8859-1 para compatibilidad con FPDF
  */
@@ -101,9 +107,9 @@ try {
     // Consulta del movimiento y datos del cliente
     $stmt = $pdo->prepare("SELECT m.*, c.nombre, c.apellido, c.cuit, c.direccion as dir_cliente 
                            FROM ctacte m 
-                           LEFT JOIN clientes c ON m.id_cliente = c.id 
-                           WHERE m.id = ?");
-    $stmt->execute([$id_mov]);
+                           LEFT JOIN clientes c ON m.id_cliente = c.id AND c.empresa_id = :empresa_id_cliente
+                           WHERE m.id = :id_mov AND m.empresa_id = :empresa_id_movimiento");
+    $stmt->execute([':empresa_id_cliente' => $empresa_id, ':empresa_id_movimiento' => $empresa_id, ':id_mov' => $id_mov]);
     $mov = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$mov) die("Movimiento no encontrado.");
 

@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cambiar_clave'])) {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Mi Perfil | Electricidad Lucyk</title>
+    <title>Mi Perfil | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css">
     <style>
         .profile-card { max-width: 500px; margin: 50px auto; padding: 30px; }

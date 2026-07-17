@@ -1,13 +1,20 @@
 <?php
 require '../config/db_config.php';
+
+$empresa_id = $_SESSION['empresa_id'] ?? null;
 $id = (int)($_GET['id'] ?? 0);
+
+if (!$empresa_id || $id <= 0) {
+    echo "<p>Parámetros inválidos.</p>";
+    exit;
+}
 
 try {
     $stmt = $pdo->prepare("SELECT m.*, CONCAT(c.apellido, ', ', c.nombre) as cliente 
                            FROM ctacte m 
-                           INNER JOIN clientes c ON m.id_cliente = c.id 
-                           WHERE m.id = ?");
-    $stmt->execute([$id]);
+                           INNER JOIN clientes c ON m.id_cliente = c.id AND c.empresa_id = :empresa_id_cliente
+                           WHERE m.id = :id AND m.empresa_id = :empresa_id_movimiento");
+    $stmt->execute([':empresa_id_cliente' => $empresa_id, ':empresa_id_movimiento' => $empresa_id, ':id' => $id]);
     $res = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$res) echo "<p>No se encontró información del pago.</p>";

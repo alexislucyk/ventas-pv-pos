@@ -13,6 +13,20 @@ $dolar_fecha = "";
 $cache_file = dirname(__FILE__) . '/../cache/dolar_cache.json';
 $cache_tiempo = 3600; // 1 hora
 
+// Margen del dólar operativo (configurable desde la pestaña Parámetros)
+$dolar_margen = 2; // valor por defecto
+try {
+    $stmt_margen = $pdo->prepare("SELECT valor FROM configuracion WHERE clave = 'dolar_margen' LIMIT 1");
+    $stmt_margen->execute();
+    $margen_db = $stmt_margen->fetchColumn();
+    if ($margen_db !== false && $margen_db !== null && $margen_db !== '') {
+        $dolar_margen = floatval($margen_db);
+    }
+} catch (Exception $e) {
+    $dolar_margen = 2;
+}
+$factor_operativo = 1 + ($dolar_margen / 100);
+
 if (file_exists($cache_file) && (time() - filemtime($cache_file)) < $cache_tiempo) {
     $cache_data = json_decode(file_get_contents($cache_file), true);
     $dolar_compra = $cache_data['compra'] ?? "-";
@@ -47,7 +61,7 @@ if (file_exists($cache_file) && (time() - filemtime($cache_file)) < $cache_tiemp
     .topbar {
         position: fixed;
         top: 0;
-        left: 250px;
+        left: 0;
         right: 0;
         height: 50px;
         background-color: #1a1a1a;
@@ -60,7 +74,6 @@ if (file_exists($cache_file) && (time() - filemtime($cache_file)) < $cache_tiemp
         padding: 0 20px;
         z-index: 899;
         box-sizing: border-box;
-        transition: left 0.35s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     /* Botón menú hamburguesa para mobile */
@@ -117,6 +130,133 @@ if (file_exists($cache_file) && (time() - filemtime($cache_file)) < $cache_tiemp
     .topbar__refresh:hover {
         transform: rotate(180deg);
         color: #00bcd4 !important;
+    }
+
+    /* ========== SELECTOR SUCURSAL ========== */
+    .sucursal-dropdown {
+        position: relative;
+    }
+    .topbar__sucursal {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        text-decoration: none;
+        color: #fff;
+        font-size: 0.95em;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+        user-select: none;
+    }
+    .topbar__sucursal:hover {
+        color: #00bcd4;
+        background: rgba(0, 188, 212, 0.08);
+        border-color: #333;
+    }
+    .topbar__sucursal:active {
+        transform: scale(0.97);
+    }
+    .topbar__sucursal i.fa-building {
+        color: #00bcd4;
+        font-size: 1.1em;
+    }
+    .topbar__sucursal .fa-chevron-down {
+        font-size: 0.7em;
+        color: #666;
+        transition: transform 0.25s ease;
+    }
+    .sucursal-dropdown.open .topbar__sucursal .fa-chevron-down {
+        transform: rotate(180deg);
+    }
+    .topbar__sucursal .sucursal-label {
+        color: #aaa;
+        font-size: 0.9em;
+    }
+    .topbar__sucursal .sucursal-nombre {
+        font-weight: 500;
+    }
+
+    /* Menú desplegable sucursal */
+    .sucursal-dropdown-menu {
+        position: absolute;
+        top: calc(100% + 8px);
+        left: 0;
+        min-width: 220px;
+        background: #1e1e1e;
+        border: 1px solid #333;
+        border-radius: 12px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        padding: 6px;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(-8px);
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 1000;
+        pointer-events: none;
+    }
+    .sucursal-dropdown.open .sucursal-dropdown-menu {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+        pointer-events: all;
+    }
+    .sucursal-dropdown-menu .sucursal-header {
+        padding: 12px 14px;
+        border-bottom: 1px solid #2a2a2a;
+        margin-bottom: 4px;
+    }
+    .sucursal-dropdown-menu .sucursal-header strong {
+        display: block;
+        color: #fff;
+        font-size: 0.95em;
+    }
+    .sucursal-dropdown-menu .sucursal-header span {
+        color: #888;
+        font-size: 0.8em;
+    }
+    .sucursal-dropdown-menu .sucursal-option {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 14px;
+        color: #ccc;
+        text-decoration: none;
+        border-radius: 8px;
+        font-size: 0.88em;
+        transition: all 0.2s;
+        cursor: pointer;
+    }
+    .sucursal-dropdown-menu .sucursal-option:hover {
+        background: rgba(0, 188, 212, 0.08);
+        color: #fff;
+    }
+    .sucursal-dropdown-menu .sucursal-option i {
+        width: 20px;
+        text-align: center;
+        font-size: 1em;
+    }
+    .sucursal-dropdown-menu .sucursal-option.principal {
+        color: #00bcd4;
+    }
+    .sucursal-dropdown-menu .sucursal-option.selected {
+        background: rgba(0, 188, 212, 0.15);
+        color: #fff;
+    }
+
+    /* Flechita del dropdown sucursal */
+    .sucursal-dropdown-menu::before {
+        content: '';
+        position: absolute;
+        top: -6px;
+        left: 20px;
+        width: 12px;
+        height: 12px;
+        background: #1e1e1e;
+        border-left: 1px solid #333;
+        border-top: 1px solid #333;
+        transform: rotate(45deg);
     }
 
     /* ========== USER DROPDOWN ========== */
@@ -252,11 +392,6 @@ if (file_exists($cache_file) && (time() - filemtime($cache_file)) < $cache_tiemp
         transform: rotate(45deg);
     }
 
-    @media (max-width: 1100px) {
-        .topbar {
-            left: 0;
-        }
-    }
 </style>
 
 <div class="topbar">
@@ -269,7 +404,7 @@ if (file_exists($cache_file) && (time() - filemtime($cache_file)) < $cache_tiemp
         <i class="fas fa-dollar-sign"></i>
         <span class="compra">Compra: <strong><?php echo $dolar_compra; ?></strong></span>
         <span class="venta">Venta: <strong><?php echo $dolar_venta; ?></strong></span>
-        <span class="operativo">Operativo (+ 2%): <strong><?php echo $dolar_venta * 1.02; ?></strong></span>
+        <span class="operativo">Operativo (+ <?php echo $dolar_margen; ?>%): <strong><?php echo $dolar_venta * $factor_operativo; ?></strong></span>
         <?php if ($dolar_fecha): ?>
             <small style="color: #666; margin-left: 5px;">(<?php echo $dolar_fecha; ?>)</small>
         <?php endif; ?>
@@ -277,6 +412,73 @@ if (file_exists($cache_file) && (time() - filemtime($cache_file)) < $cache_tiemp
             <i class="fas fa-sync-alt"></i>
         </button>
     </div>
+
+    <!-- Selector de Empresa / Sucursal -->
+    <?php
+    $empresa_id_top = $_SESSION['empresa_id'] ?? null;
+    $sucursal_id_top = $_SESSION['sucursal_id'] ?? 1;
+    
+    // Obtener nombre de la empresa desde la tabla empresas (multi-empresa)
+    $empresa_nombre_top = 'Empresa';
+    if ($empresa_id_top) {
+        try {
+            $stmt_emp_top = $pdo->prepare("SELECT nombre_fantasia FROM empresas WHERE id = :empresa_id LIMIT 1");
+            $stmt_emp_top->execute([':empresa_id' => $empresa_id_top]);
+            $empresa_nombre_top = $stmt_emp_top->fetchColumn() ?: 'Empresa';
+        } catch (Exception $e) {
+            $empresa_nombre_top = 'Empresa';
+        }
+    }
+    
+    if ($empresa_id_top) {
+        try {
+            $stmt_suc_top = $pdo->prepare("SELECT id, nombre_sucursal, es_principal FROM sucursales WHERE empresa_id = :empresa_id ORDER BY es_principal DESC, nombre_sucursal ASC");
+            $stmt_suc_top->execute([':empresa_id' => $empresa_id_top]);
+            $sucursales_top = $stmt_suc_top->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            $sucursales_top = [];
+        }
+    }
+    ?>
+    
+    <?php if (!empty($sucursales_top)): ?>
+    <?php 
+    // Si el usuario tiene sucursal_id=0 (vista general), redirigir a la primera sucursal real
+    if ($sucursal_id_top == 0) {
+        $sucursal_id_top = (int)$sucursales_top[0]['id'];
+        $_SESSION['sucursal_id'] = $sucursal_id_top;
+    }
+    
+    $sucursal_actual = null;
+    foreach ($sucursales_top as $s) {
+        if ($s['id'] == $sucursal_id_top) {
+            $sucursal_actual = $s;
+            break;
+        }
+    }
+    $sucursal_nombre_actual = $sucursal_actual ? $sucursal_actual['nombre_sucursal'] : ($sucursales_top[0]['nombre_sucursal'] ?? 'Principal');
+    ?>
+    <div class="sucursal-dropdown" id="sucursalDropdown">
+        <div class="topbar__sucursal" id="sucursalDropdownToggle" title="Cambiar sucursal">
+            <i class="fas fa-building"></i>
+            <span class="sucursal-label"><?php echo htmlspecialchars($empresa_nombre_top); ?>:</span>
+            <span class="sucursal-nombre"><?php echo htmlspecialchars($sucursal_nombre_actual); ?></span>
+            <i class="fas fa-chevron-down"></i>
+        </div>
+        
+        <div class="sucursal-dropdown-menu" id="sucursalDropdownMenu">
+            <div class="sucursal-header">
+                <strong><?php echo htmlspecialchars($empresa_nombre_top); ?></strong>
+                <span>Sucursales</span>
+            </div>
+            <?php foreach ($sucursales_top as $suc): ?>
+            <div class="sucursal-option <?php echo ($suc['id'] == $sucursal_id_top) ? 'selected' : ''; ?>" data-sucursal-id="<?php echo $suc['id']; ?>" onclick="cambiarSucursalTop(<?php echo $suc['id']; ?>)">
+                <i class="fas fa-store" style="color: #4caf50;"></i> <?php echo htmlspecialchars($suc['nombre_sucursal']); ?>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <?php endif; ?>
     
     <!-- User Dropdown -->
     <div class="user-dropdown" id="userDropdown">
@@ -310,7 +512,7 @@ function refreshDolar() {
             if (data.compra && data.venta) {
                 document.querySelector('.topbar__dolar .compra strong').textContent = data.compra;
                 document.querySelector('.topbar__dolar .venta strong').textContent = data.venta;
-                document.querySelector('.topbar__dolar .operativo strong').textContent = (data.venta * 1.02).toFixed(2);
+                document.querySelector('.topbar__dolar .operativo strong').textContent = (data.venta * <?php echo $factor_operativo; ?>).toFixed(2);
                 document.querySelector('.topbar__dolar small').textContent = '(' + String(new Date().getHours()).padStart(2, '0') + ':' + String(new Date().getMinutes()).padStart(2, '0') + ')';
             }
         })
@@ -355,5 +557,56 @@ document.addEventListener('DOMContentLoaded', function() {
             dropdown.classList.remove('open');
         });
     });
+
+    // ========== SUCURSAL DROPDOWN TOGGLE ==========
+    const sucursalDropdown = document.getElementById('sucursalDropdown');
+    const sucursalToggle = document.getElementById('sucursalDropdownToggle');
+    const sucursalMenu = document.getElementById('sucursalDropdownMenu');
+
+    if (sucursalDropdown && sucursalToggle && sucursalMenu) {
+        sucursalToggle.addEventListener('click', function(e) {
+            e.stopPropagation();
+            sucursalDropdown.classList.toggle('open');
+            if (dropdown) dropdown.classList.remove('open');
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!sucursalDropdown.contains(e.target)) {
+                sucursalDropdown.classList.remove('open');
+            }
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                sucursalDropdown.classList.remove('open');
+            }
+        });
+    }
 });
+
+// ========== CAMBIAR SUCURSAL ==========
+async function cambiarSucursalTop(sucursal_id) {
+    const sucursalDropdown = document.getElementById('sucursalDropdown');
+    if (sucursalDropdown) sucursalDropdown.classList.remove('open');
+
+    const sucursalNombre = document.querySelector('.topbar__sucursal .sucursal-nombre');
+    if (sucursalNombre) sucursalNombre.textContent = 'Cambiando...';
+
+    try {
+        const r = await fetch('../ajax/cambiar_sucursal.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'sucursal_id=' + encodeURIComponent(sucursal_id)
+        });
+        const data = await r.json();
+        if (data.success) {
+            window.location.href = window.location.pathname + '?sucursal_cambiada=' + Date.now();
+        } else {
+            alert('❌ ' + (data.error || 'Error al cambiar sucursal'));
+        }
+    } catch (err) {
+        console.error('Error:', err);
+        alert('❌ Error de conexión al cambiar sucursal');
+    }
+}
 </script>

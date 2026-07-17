@@ -1,7 +1,7 @@
 -- Migration: crear tabla stocks por sucursal
 -- Fecha: 2026-06-30
 
-CREATE TABLE stocks (
+CREATE TABLE IF NOT EXISTS stocks (
     id INT AUTO_INCREMENT PRIMARY KEY,
     empresa_id INT NOT NULL,
     sucursal_id INT NOT NULL,
@@ -12,6 +12,7 @@ CREATE TABLE stocks (
     UNIQUE(empresa_id, sucursal_id, cod_prod)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Migrar stock existente de productos a stocks
+-- Migrar stock existente de productos a stocks (solo si la tabla está vacía)
 INSERT INTO stocks (empresa_id, sucursal_id, cod_prod, stock_actual)
-SELECT 1, 1, cod_prod, stock FROM productos;
+SELECT 1, 1, cod_prod, stock FROM productos
+WHERE NOT EXISTS (SELECT 1 FROM stocks LIMIT 1);

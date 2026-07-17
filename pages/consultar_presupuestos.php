@@ -4,19 +4,27 @@ include 'infosesion.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 require '../config/db_config.php';
 
-// Consulta rápida de los últimos presupuestos
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+}
+
 $sql = "SELECT p.*, CONCAT(c.apellido, ' ', c.nombre) AS cliente_nombre 
         FROM presupuestos p 
-        LEFT JOIN clientes c ON p.id_cliente = c.id 
+        LEFT JOIN clientes c ON p.id_cliente = c.id AND c.empresa_id = ?
+        WHERE p.empresa_id = ?
         ORDER BY p.id DESC LIMIT 50";
-$presupuestos = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+$stmt = $pdo->prepare($sql);
+$stmt->execute([$empresa_id, $empresa_id]);
+$presupuestos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Consultar Presupuestos | Electricidad Lucyk</title>
+    <title>Consultar Presupuestos | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css">
 </head>
 <body>
@@ -45,7 +53,7 @@ $presupuestos = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
                     <?php foreach ($presupuestos as $pres): ?>
                     <tr>
                         <td>#<?php echo $pres['id']; ?></td>
-                        <td><?php echo date('d/m/Y', strtotime($pres['fecha'])); ?></td>
+                        <td><?php echo $pres['fecha_presupuesto'] ? date('d/m/Y', strtotime($pres['fecha_presupuesto'])) : '-'; ?></td>
                         <td><?php echo htmlspecialchars($pres['cliente_nombre']); ?></td>
                         <td style="color: #2ecc71; font-weight: bold;">$<?php echo number_format($pres['total_presupuesto'], 2); ?></td>
                         <td>

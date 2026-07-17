@@ -1,7 +1,12 @@
 <?php
 include '../pages/infosesion.php';
 
-// VALIDACIÓN DE PERMISOS
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    exit("<p style='padding:20px; color:red;'>Falta empresa_id en sesión.</p>");
+}
+
 if (!tiene_permiso('prov_ver_stock')) {
     exit("<p style='padding:20px; color:red;'>Acceso denegado.</p>");
 }
@@ -14,12 +19,11 @@ if (empty($proveedor)) {
 }
 
 try {
-    // Buscamos los productos donde el campo 'proveedor' coincida con la razón social
     $stmt = $pdo->prepare("SELECT cod_prod, descripcion, p_compra, p_venta, stock, rubro 
                            FROM productos 
-                           WHERE proveedor = ? 
+                           WHERE proveedor = ? AND empresa_id = ?
                            ORDER BY descripcion ASC");
-    $stmt->execute([$proveedor]);
+    $stmt->execute([$proveedor, $empresa_id]);
     $prods = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     if (empty($prods)) {

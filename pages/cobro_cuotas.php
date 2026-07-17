@@ -2,7 +2,12 @@
 include 'infosesion.php';
 require '../config/db_config.php';
 
-// VALIDACIÓN DE PERMISOS
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+}
+
 if (!tiene_permiso('pages/cobro_cuotas.php')) {
     header("Location: " . URL_BASE . "index.php?error=acceso_denegado");
     exit();
@@ -16,14 +21,16 @@ if (isset($_SESSION['status_msj'])) {
     unset($_SESSION['status_msj']);
 }
 
-// Obtener lista de clientes que tienen cuotas pendientes para el buscador
 try {
     $sql_clientes = "SELECT DISTINCT c.id, CONCAT(c.apellido, ', ', c.nombre) AS nombre_completo, c.cuit 
                      FROM clientes c
-                     JOIN ventas v ON c.id = v.id_cliente
+                     JOIN ventas v ON c.id = v.id_cliente AND v.empresa_id = :empresa_id1
                      JOIN ventas_financiacion vf ON v.id = vf.id_venta
+                     WHERE c.empresa_id = :empresa_id2
                      ORDER BY nombre_completo ASC";
-    $clientes_financiados = $pdo->query($sql_clientes)->fetchAll(PDO::FETCH_ASSOC);
+    $stmt_clientes = $pdo->prepare($sql_clientes);
+    $stmt_clientes->execute([':empresa_id1' => $empresa_id, ':empresa_id2' => $empresa_id]);
+    $clientes_financiados = $stmt_clientes->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     $clientes_financiados = [];
 }
@@ -32,7 +39,7 @@ try {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Cobro de Cuotas | Electricidad Lucyk</title>
+    <title>Cobro de Cuotas | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>

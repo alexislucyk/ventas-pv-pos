@@ -4,7 +4,11 @@ session_start();
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 require_once __DIR__ . '/../config/db_config.php'; 
 
-// Forzar que los errores se vean si algo falla
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+if (!$empresa_id) {
+    die("Error: Falta empresa_id en sesión.");
+}
+
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 

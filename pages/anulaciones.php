@@ -6,8 +6,8 @@ date_default_timezone_set('America/Argentina/Buenos_Aires');
 // Cargar lista de clientes para el autocompletado del buscador
 $clientes = [];
 try {
-    $stmt_c = $pdo->query("SELECT id, CONCAT(apellido, ', ', nombre) as nombre_completo, cuit as num_documento FROM clientes ORDER BY nombre_completo");
-    $clientes = $stmt_c->fetchAll(PDO::FETCH_ASSOC);
+    $stmt_c = $pdo->prepare("SELECT id, CONCAT(apellido, ', ', nombre) as nombre_completo, cuit as num_documento FROM clientes WHERE empresa_id = ? ORDER BY nombre_completo");
+    $stmt_c->execute([$empresa_id]);
 } catch(Exception $e) {
     error_log("Error cargando clientes en anulaciones: " . $e->getMessage());
 }
@@ -33,8 +33,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
 
         // 1. Obtener datos de la venta (incluyendo tipo de pago y cliente)
         // Asegúrate de que el campo en tu tabla 'ventas' sea 'tipo_pago' o 'cond_pago'
-        $stmt = $pdo->prepare("SELECT id, estado, id_cliente, total_venta, cond_pago, pago_efectivo, pago_transf FROM ventas WHERE n_documento = ?");
-        $stmt->execute([$n_doc]);
+        $stmt = $pdo->prepare("SELECT id, estado, id_cliente, total_venta, cond_pago, pago_efectivo, pago_transf FROM ventas WHERE n_documento = ? AND empresa_id = ?");
+        $stmt->execute([$n_doc, $empresa_id]);
         $venta = $stmt->fetch();
 
         if (!$venta) {
@@ -51,13 +51,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
 
         if ($es_anulacion_total) {
             // --- LÓGICA ANULACIÓN TOTAL ---
-            $stmtDetalle = $pdo->prepare("SELECT cod_prod, descripcion, cant, p_unit, total FROM ventas_detalle WHERE n_documento = ?");
-            $stmtDetalle->execute([$n_doc]);
+            $stmtDetalle = $pdo->prepare("SELECT cod_prod, descripcion, cant, p_unit, total FROM ventas_detalle WHERE n_documento = ? AND empresa_id = ?");
+            $stmtDetalle->execute([$n_doc, $empresa_id]);
             $productos = $stmtDetalle->fetchAll();
 
             foreach ($productos as $prod) {
-                $pdo->prepare("UPDATE productos SET stock = stock + ? WHERE cod_prod = ?")
-                    ->execute([$prod['cant'], $prod['cod_prod']]);
+                $pdo->prepare("UPDATE stocks SET stock_actual = stock_actual + ? WHERE empresa_id = ? AND sucursal_id = ? AND cod_prod = ?")
+                    ->execute([$prod['cant'], $empresa_id, $sucursal_id, $prod['cod_prod']]);
                 $lista_items_texto .= "\n- " . $prod['descripcion'] . " (x" . $prod['cant'] . ")";
                 
                 $items_comprobante[] = [
@@ -69,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
                 ];
             }
 
-            $pdo->prepare("UPDATE ventas SET estado = 'Anulada' WHERE n_documento = ?")->execute([$n_doc]);
+            $pdo->prepare("UPDATE ventas SET estado = 'Anulada' WHERE n_documento = ? AND empresa_id = ?")->execute([$n_doc, $empresa_id]);
             $monto_a_reintegrar = $venta['total_venta'];
             $texto_movimiento = "ANULACIÓN TOTAL VENTA N° $n_doc";
         } else {
@@ -80,13 +80,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
                 if ($cant_dev <= 0) continue;
 
                 // Validamos precio y cantidad original para seguridad
-                $stmt_v = $pdo->prepare("SELECT descripcion, cant, p_unit FROM ventas_detalle WHERE n_documento = ? AND cod_prod = ?");
-                $stmt_v->execute([$n_doc, $cod_prod]);
+                $stmt_v = $pdo->prepare("SELECT descripcion, cant, p_unit FROM ventas_detalle WHERE n_documento = ? AND cod_prod = ? AND empresa_id = ?");
+                $stmt_v->execute([$n_doc, $cod_prod, $empresa_id]);
                 $original = $stmt_v->fetch();
 
                 if ($original && $cant_dev <= $original['cant']) {
-                    $pdo->prepare("UPDATE productos SET stock = stock + ? WHERE cod_prod = ?")
-                        ->execute([$cant_dev, $cod_prod]);
+                    $pdo->prepare("UPDATE stocks SET stock_actual = stock_actual + ? WHERE empresa_id = ? AND sucursal_id = ? AND cod_prod = ?")
+                        ->execute([$cant_dev, $empresa_id, $sucursal_id, $cod_prod]);
                     
                     $subtotal = ($cant_dev * $original['p_unit']);
                     $monto_a_reintegrar += $subtotal;
@@ -108,15 +108,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
         // Corrección: Usamos strtoupper para evitar errores de mayúsculas/minúsculas
         $detalle_final_db = "$texto_movimiento (OP#$nuevo_n_op) - MOTIVO: $motivo" . $lista_items_texto;
 
-        if (strtoupper($venta['cond_pago']) === 'CUENTA CORRIENTE' && $monto_a_reintegrar > 0) { // Si la venta original fue a cuenta corriente
-            $pdo->prepare("INSERT INTO ctacte (id_cliente, movimiento, n_documento, debe, haber, fecha) VALUES (?, ?, ?, ?, ?, ?)")
+        if (strtoupper($venta['cond_pago']) === 'CUENTA CORRIENTE' && $monto_a_reintegrar > 0) {
+            $pdo->prepare("INSERT INTO ctacte (id_cliente, movimiento, n_documento, debe, haber, fecha, empresa_id) VALUES (?, ?, ?, ?, ?, ?, ?)")
                 ->execute([
                 $venta['id_cliente'],
                 $detalle_final_db,
                 $n_doc,
                 0,
                 $monto_a_reintegrar,
-                $fecha_hoy
+                $fecha_hoy,
+                $empresa_id
             ]);
         } 
         // 5. Lógica de Caja (Si fue CONTADO o FINANCIADO, registramos un EGRESO por el reintegro)
@@ -148,9 +149,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
                             $monto_pagado_total = (float)$pago_cuota['monto'] + (float)($pago_cuota['descuento'] ?? 0);
                             
                             // Registrar EGRESO en movimientos para revertir el INGRESO original del pago
-                            $detalle_reversion = "REVERSIÓN PAGO CUOTA {$nro_cuota_actual} - VENTA N° {$n_doc} (ANULACIÓN TOTAL)";
-                            $pdo->prepare("INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado) 
-                                           VALUES ('EGRESO', ?, ?, ?, NOW(), ?, 0)")
+            $detalle_reversion = "REVERSIÓN PAGO CUOTA {$nro_cuota_actual} - VENTA N° {$n_doc} (ANULACIÓN TOTAL)";
+                            $pdo->prepare("INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado, empresa_id, sucursal_id) 
+                                           VALUES ('EGRESO', ?, ?, ?, NOW(), ?, 0, ?, ?)")
                                 ->execute([$monto_pagado_total, $pago_cuota['metodo_pago'], $detalle_reversion, $usuario_actual]);
                             
                             // Eliminar el registro de pago de la cuota
@@ -190,19 +191,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
                 $metodo_pago_reintegro = 'TRANSFERENCIA';
             }
 
-            $pdo->prepare("INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado) VALUES (?, ?, ?, ?, ?, ?, 0)")
+            $pdo->prepare("INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado, empresa_id, sucursal_id) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)")
                 ->execute([
                     'EGRESO',
                     $monto_egreso_caja,
                     $metodo_pago_reintegro,
                     $detalle_final_db,
                     $fecha_hoy,
-                    $usuario_actual
+                    $usuario_actual,
+                    $empresa_id,
+                    $sucursal_id
                 ]);
         }
 
         // --- 6. REGISTRO EN NUEVAS TABLAS HISTÓRICAS DE DEVOLUCIÓN ---
-        $stmt_h = $pdo->prepare("INSERT INTO devoluciones (op_n, n_documento_venta, id_cliente, total_reintegrado, motivo, fecha, usuario, cond_pago) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt_h = $pdo->prepare("INSERT INTO devoluciones (op_n, n_documento_venta, id_cliente, total_reintegrado, motivo, fecha, usuario, cond_pago, empresa_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $stmt_h->execute([
             $nuevo_n_op,
             $n_doc,
@@ -211,11 +214,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
             $motivo,
             $fecha_hoy,
             $usuario_actual,
-            strtoupper($venta['cond_pago'])
+            strtoupper($venta['cond_pago']),
+            $empresa_id
         ]);
         $id_devolucion_db = $pdo->lastInsertId();
 
-        $stmt_hd = $pdo->prepare("INSERT INTO devoluciones_detalle (id_devolucion, cod_prod, descripcion, cantidad, p_unit, subtotal) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt_hd = $pdo->prepare("INSERT INTO devoluciones_detalle (id_devolucion, cod_prod, descripcion, cantidad, p_unit, subtotal, empresa_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
         foreach ($items_comprobante as $it) {
             $stmt_hd->execute([
                 $id_devolucion_db,
@@ -223,7 +227,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
                 $it['desc'],
                 $it['cant'],
                 $it['p_unit'],
-                $it['total']
+                $it['total'],
+                $empresa_id
             ]);
         }
 
@@ -257,7 +262,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Anulaciones | Electricidad Lucyk</title>
+    <title>Anulaciones | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css">
     <style>
         .status-anulada { color: red; font-weight: bold; }

@@ -27,7 +27,7 @@ $info = obtenerEstadoLicencia();
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Gestión de Licencia | Sistemas Lucyk</title>
+    <title>Gestión de Licencia | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css">
     <style>
         .licencia-card { border-left: 5px solid #00bcd4; }

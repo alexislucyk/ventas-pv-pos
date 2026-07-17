@@ -4,13 +4,17 @@ require_once '../config/validar_permisos.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 require '../config/db_config.php';
 
-// Inicializar variables
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+}
+
 $accion = isset($_GET['accion']) ? $_GET['accion'] : 'listar';
 $id = isset($_GET['id']) ? $_GET['id'] : null;
 $mensaje = '';
 $cliente_editar = array();
 
-// Mapeo de tipos de IVA para ARCA/AFIP
 $tipos_iva = [
     99 => 'Consumidor Final',
     1  => 'Responsable Inscripto',
@@ -18,11 +22,10 @@ $tipos_iva = [
     4  => 'Exento'
 ];
 
-// --- LÓGICA PARA AUTOGENERAR ID ---
 $nuevo_id_sugerido = '';
 if ($accion === 'crear') {
     try {
-        $stmt_id = $pdo->query("SELECT id FROM clientes ORDER BY id DESC LIMIT 1");
+        $stmt_id = $pdo->query("SELECT id FROM clientes WHERE empresa_id = " . (int)$empresa_id . " ORDER BY id DESC LIMIT 1");
         $ultimo = $stmt_id->fetch();
         $nuevo_id_sugerido = $ultimo ? (intval($ultimo['id']) + 1) : 1;
     } catch (Exception $e) {
@@ -30,7 +33,6 @@ if ($accion === 'crear') {
     }
 }
 
-// --- LÓGICA DEL CONTROLADOR ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $nombre = trim($_POST['nombre']);
@@ -42,9 +44,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $direccion = trim($_POST['direccion']);
         $estado = isset($_POST['estado']) ? $_POST['estado'] : 'Activo';
         $habilita_cta = isset($_POST['habilita_cta']) ? $_POST['habilita_cta'] : 'No';
-        $relacion = trim($_POST['relacion']);
-        $email = trim($_POST['email']);
-        $localidad = trim($_POST['localidad']);
+        $relacion = trim($_POST['relacion'] ?? '');
+        $email = trim($_POST['email'] ?? '');
+        $localidad = trim($_POST['localidad'] ?? '');
         
         $id_post = isset($_POST['id_cliente']) ? $_POST['id_cliente'] : null;
         $accion_post = $_POST['accion_post'];
@@ -53,25 +55,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new Exception("El Apellido es obligatorio.");
         }
 
-        // Validación de CUIT formato XX-XXXXXXXX-X
         if (!empty($cuit)) {
             $cuit_clean = preg_replace('/[^0-9]/', '', $cuit);
-            if (strlen($cuit_clean) > 0 && strlen($cuit_clean) !== 11) {
-                // Solo advertir, no bloquear
+            if (strlen($cuit_clean) !== 11) {
+                throw new Exception("El CUIT debe tener 11 dígitos (ej: 20-12345678-9).");
             }
         }
 
         if ($accion_post === 'crear') {
             $id_a_insertar = $_POST['id_visual'];
-            $sql = "INSERT INTO clientes (id, nombre, apellido, dni, id_tipo_iva, cuit, telefono, direccion, estado, habilita_cta, relacion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            
+            if (!empty($cuit)) {
+                $stmt_check = $pdo->prepare("SELECT COUNT(*) FROM clientes WHERE empresa_id = ? AND cuit = ?");
+                $stmt_check->execute([$empresa_id, $cuit]);
+                if ($stmt_check->fetchColumn() > 0) {
+                    throw new Exception("Ya existe un cliente con ese CUIT en esta empresa.");
+                }
+            }
+            
+            $sql = "INSERT INTO clientes (id, nombre, apellido, dni, id_tipo_iva, cuit, telefono, direccion, estado, habilita_cta, relacion, empresa_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = $pdo->prepare($sql);
-            $stmt->execute(array($id_a_insertar, $nombre, $apellido, $dni, $id_tipo_iva, $cuit, $telefono, $direccion, $estado, $habilita_cta, $relacion));
+            $stmt->execute(array($id_a_insertar, $nombre, $apellido, $dni, $id_tipo_iva, $cuit, $telefono, $direccion, $estado, $habilita_cta, $relacion, $empresa_id));
             $mensaje = "✅ Cliente #$id_a_insertar registrado con éxito.";
             $accion = 'listar';
         } elseif ($accion_post === 'editar' && $id_post) {
-            $sql = "UPDATE clientes SET nombre=?, apellido=?, dni=?, id_tipo_iva=?, cuit=?, telefono=?, direccion=?, estado=?, habilita_cta=?, relacion=? WHERE id=?";
+            if (!empty($cuit)) {
+                $stmt_check = $pdo->prepare("SELECT COUNT(*) FROM clientes WHERE empresa_id = ? AND cuit = ? AND id != ?");
+                $stmt_check->execute([$empresa_id, $cuit, $id_post]);
+                if ($stmt_check->fetchColumn() > 0) {
+                    throw new Exception("Ya existe otro cliente con ese CUIT en esta empresa.");
+                }
+            }
+            
+            $sql = "UPDATE clientes SET nombre=?, apellido=?, dni=?, id_tipo_iva=?, cuit=?, telefono=?, direccion=?, estado=?, habilita_cta=?, relacion=? WHERE id=? AND empresa_id=?";
             $stmt = $pdo->prepare($sql);
-            $stmt->execute(array($nombre, $apellido, $dni, $id_tipo_iva, $cuit, $telefono, $direccion, $estado, $habilita_cta, $relacion, $id_post));
+            $stmt->execute(array($nombre, $apellido, $dni, $id_tipo_iva, $cuit, $telefono, $direccion, $estado, $habilita_cta, $relacion, $id_post, $empresa_id));
             $mensaje = "✅ Datos del cliente actualizados.";
             $accion = 'listar';
         }
@@ -80,11 +98,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// --- ELIMINAR ---
 if ($accion === 'eliminar' && $id) {
     try {
-        $stmt = $pdo->prepare('DELETE FROM clientes WHERE id = ?');
-        $stmt->execute(array($id));
+        $stmt = $pdo->prepare('DELETE FROM clientes WHERE id = ? AND empresa_id = ?');
+        $stmt->execute(array($id, $empresa_id));
         $mensaje = "🗑️ Cliente eliminado correctamente.";
     } catch (Exception $e) {
         $mensaje = "❌ No se puede eliminar: El cliente tiene registros asociados.";
@@ -92,14 +109,12 @@ if ($accion === 'eliminar' && $id) {
     $accion = 'listar';
 }
 
-// --- CARGAR DATOS PARA EDICIÓN ---
 if ($accion === 'editar' && $id) {
-    $stmt = $pdo->prepare('SELECT * FROM clientes WHERE id = ?');
-    $stmt->execute(array($id));
+    $stmt = $pdo->prepare('SELECT * FROM clientes WHERE id = ? AND empresa_id = ?');
+    $stmt->execute(array($id, $empresa_id));
     $cliente_editar = $stmt->fetch();
 }
 
-// --- LISTAR CLIENTES CON PAGINACIÓN Y FILTROS ---
 $clientes = array();
 $clientes_count = 0;
 $pagina = isset($_GET['pagina']) ? max(1, intval($_GET['pagina'])) : 1;
@@ -107,7 +122,6 @@ $por_pagina = 50;
 $offset = ($pagina - 1) * $por_pagina;
 
 if ($accion === 'listar') {
-    // Construir WHERE dinámico
     $where = array();
     $params = array();
     
@@ -117,9 +131,12 @@ if ($accion === 'listar') {
     $filtro_cta = isset($_GET['cta_cte']) ? $_GET['cta_cte'] : '';
     
     if ($filtro_buscar) {
-        $where[] = "(apellido LIKE ? OR nombre LIKE ? OR cuit LIKE ? OR dni LIKE ? OR id = ?)";
+        $where[] = "(apellido LIKE ? OR nombre LIKE ? OR cuit LIKE ? OR dni LIKE ? OR id = ?) AND empresa_id = ?";
         $like = "%$filtro_buscar%";
-        $params = array_merge($params, [$like, $like, $like, $like, is_numeric($filtro_buscar) ? $filtro_buscar : 0]);
+        $params = array_merge($params, [$like, $like, $like, $like, is_numeric($filtro_buscar) ? $filtro_buscar : 0, $empresa_id]);
+    } else {
+        $where[] = "empresa_id = ?";
+        $params[] = $empresa_id;
     }
     if ($filtro_estado) {
         $where[] = "estado = ?";
@@ -134,37 +151,34 @@ if ($accion === 'listar') {
         $params[] = $filtro_cta;
     }
     
-    $where_sql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+    $where_sql = 'WHERE ' . implode(' AND ', $where);
     
-    // Total para paginación
     $stmt_count = $pdo->prepare("SELECT COUNT(*) FROM clientes $where_sql");
     $stmt_count->execute($params);
     $clientes_count = $stmt_count->fetchColumn();
     
     $total_paginas = max(1, ceil($clientes_count / $por_pagina));
     
-    // Consulta paginada con saldo
     $stmt = $pdo->prepare("
         SELECT c.*, 
-            (SELECT COALESCE(SUM(debe), 0) - COALESCE(SUM(haber), 0) FROM ctacte WHERE id_cliente = c.id) as saldo_cc
+            (SELECT COALESCE(SUM(debe), 0) - COALESCE(SUM(haber), 0) FROM ctacte WHERE id_cliente = c.id AND empresa_id = ?) as saldo_cc
         FROM clientes c 
         $where_sql 
         ORDER BY c.id DESC 
         LIMIT $por_pagina OFFSET $offset
     ");
+    $params[] = $empresa_id;
     $stmt->execute($params);
     $clientes = $stmt->fetchAll();
 }
 
-// --- OBTENER VENTAS DEL CLIENTE PARA MODAL ---
 $ventas_cliente = array();
 if ($accion === 'listar' && $id && isset($_GET['accion']) && $_GET['accion'] === 'ver_ventas') {
-    $stmt_v = $pdo->prepare("SELECT n_documento, total_venta, cond_pago, fecha_venta, estado FROM ventas WHERE id_cliente = ? ORDER BY fecha_venta DESC LIMIT 10");
-    $stmt_v->execute(array($id));
+    $stmt_v = $pdo->prepare("SELECT n_documento, total_venta, cond_pago, fecha_venta, estado FROM ventas WHERE id_cliente = ? AND empresa_id = ? ORDER BY fecha_venta DESC LIMIT 10");
+    $stmt_v->execute(array($id, $empresa_id));
     $ventas_cliente = $stmt_v->fetchAll();
-    // Buscar nombre del cliente
-    $stmt_n = $pdo->prepare("SELECT apellido, nombre FROM clientes WHERE id = ?");
-    $stmt_n->execute(array($id));
+    $stmt_n = $pdo->prepare("SELECT apellido, nombre FROM clientes WHERE id = ? AND empresa_id = ?");
+    $stmt_n->execute(array($id, $empresa_id));
     $nombre_cliente = $stmt_n->fetch();
 }
 ?>
@@ -172,7 +186,7 @@ if ($accion === 'listar' && $id && isset($_GET['accion']) && $_GET['accion'] ===
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Clientes | Electricidad Lucyk</title>
+    <title>Clientes | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css?v=<?php echo time(); ?>">
     <style>
         /* ===== FILTROS COMPACTOS ===== */
@@ -944,17 +958,19 @@ if ($accion === 'listar' && $id && isset($_GET['accion']) && $_GET['accion'] ===
         var cuitInput = document.getElementById('cuitInput');
         if (cuitInput) {
             cuitInput.addEventListener('input', function() {
-                var val = this.value.replace(/[^0-9]/g, '');
-                if (val.length > 2) {
-                    val = val.substring(0, 2) + '-' + val.substring(2);
+                // Tomar solo dígitos y limitar a 11
+                var digits = this.value.replace(/[^0-9]/g, '');
+                if (digits.length > 11) {
+                    digits = digits.substring(0, 11);
                 }
-                if (val.length > 11) {
-                    val = val.substring(0, 11) + '-' + val.substring(11, 11);
+                var formatted = digits;
+                if (digits.length > 2) {
+                    formatted = digits.substring(0, 2) + '-' + digits.substring(2);
                 }
-                if (val.length > 13) {
-                    val = val.substring(0, 13);
+                if (digits.length > 10) {
+                    formatted = digits.substring(0, 2) + '-' + digits.substring(2, 10) + '-' + digits.substring(10);
                 }
-                this.value = val;
+                this.value = formatted;
             });
         }
     });

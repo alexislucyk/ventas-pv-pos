@@ -32,10 +32,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $id_seleccionado > 0 && isset($_POS
     try {
         $pdo->beginTransaction();
         $pdo->prepare("DELETE FROM permisos_usuario WHERE usuario_id = ?")->execute(array($id_seleccionado));
+
+        // Obtenemos el empresa_id del usuario editado (la tabla permisos_usuario exige empresa_id NOT NULL)
+        $stmt_emp = $pdo->prepare("SELECT empresa_id FROM usuarios WHERE id = ?");
+        $stmt_emp->execute(array($id_seleccionado));
+        $empresa_id_usuario = $stmt_emp->fetchColumn();
+        if (empty($empresa_id_usuario)) {
+            $empresa_id_usuario = $_SESSION['empresa_id'] ?? 1;
+        }
+
         if (isset($_POST['modulos'])) {
-            $ins = $pdo->prepare("INSERT INTO permisos_usuario (usuario_id, modulo_id) VALUES (?, ?)");
+            $ins = $pdo->prepare("INSERT INTO permisos_usuario (usuario_id, modulo_id, empresa_id) VALUES (?, ?, ?)");
             foreach ($_POST['modulos'] as $mod_id) {
-                $ins->execute(array($id_seleccionado, (int)$mod_id));
+                $ins->execute(array($id_seleccionado, (int)$mod_id, $empresa_id_usuario));
             }
         }
         $pdo->commit();
@@ -66,7 +75,7 @@ if ($id_seleccionado > 0) {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Permisos por Usuario | Electricidad Lucyk</title>
+    <title>Permisos por Usuario | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -110,16 +119,45 @@ if ($id_seleccionado > 0) {
             background: var(--accent);
             color: white;
             border: none;
-            padding: 0 15px;
-            border-radius: 4px;
+            padding: 6px 18px;
+            border-radius: 6px;
             cursor: pointer;
             font-weight: bold;
-            font-size: 0.9rem;
-            height: 38px;
-            white-space: nowrap;
+            font-size: 0.85rem;
+            transition: 0.3s;
+            height: 34px;
             align-self: flex-end;
         }
         .btn-primary:hover { background: #0097a7; }
+
+        .btn-registrar {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: linear-gradient(135deg, #00bcd4, #0097a7);
+            color: white;
+            border: none;
+            padding: 0 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            height: 34px;
+            white-space: nowrap;
+            box-shadow: 0 2px 8px rgba(0, 188, 212, 0.3);
+            transition: all 0.25s ease;
+            text-decoration: none;
+        }
+        .btn-registrar:hover {
+            background: linear-gradient(135deg, #0097a7, #00838f);
+            box-shadow: 0 4px 14px rgba(0, 188, 212, 0.45);
+            transform: translateY(-1px);
+        }
+        .btn-registrar:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 6px rgba(0, 188, 212, 0.35);
+        }
 
         /* Layout flex para usuarios y permisos */
         .flex { display: flex; gap: 30px; }
@@ -224,20 +262,6 @@ if ($id_seleccionado > 0) {
             margin-top: 10px;
         }
 
-        .btn-primary {
-            background: var(--accent);
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
-            font-size: 0.9rem;
-            transition: 0.3s;
-            height: 45px;
-        }
-        .btn-primary:hover { background: #0097a7; }
-
         /* Alert */
         .alert {
             padding: 15px;
@@ -301,10 +325,15 @@ if ($id_seleccionado > 0) {
             <?php endif; ?>
 
             <div class="card-admin">
-                <h3 style="margin-top: 0; color: var(--accent); margin-bottom: 20px;">
-                    <i class="fas fa-plus-circle"></i> Registrar Nueva Página / Módulo
-                </h3>
-                <form method="POST" style="display: flex; gap: 10px; align-items: flex-end;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="margin-top: 0; color: var(--accent); margin-bottom: 0;">
+                        <i class="fas fa-plus-circle"></i> Registrar Nueva Página / Módulo
+                    </h3>
+                    <a href="verificar_modulos.php" class="btn-primary" style="text-decoration: none;">
+                        <i class="fas fa-clipboard-check"></i> Verificar Módulos
+                    </a>
+                </div>
+                <form method="POST" style="display: flex; gap: 10px; align-items: stretch;">
                     <input type="text" name="nuevo_nombre" placeholder="Nombre (Ej: Stock)" required class="input-dark">
                     <input type="text" name="nuevo_archivo" placeholder="Ruta (Ej: pages/stock.php)" required class="input-dark">
                     <input type="text" name="nuevo_icono" placeholder="Icono (fas fa-boxes)" class="input-dark">
@@ -316,7 +345,7 @@ if ($id_seleccionado > 0) {
                         <option value="Informes">Informes</option>
                         <option value="Seguridad">Seguridad</option>
                     </select>
-                    <button type="submit" name="crear_modulo" class="btn-primary">Registrar</button>
+                    <button type="submit" name="crear_modulo" class="btn-registrar">Registrar</button>
                 </form>
             </div>
 

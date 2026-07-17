@@ -56,9 +56,18 @@ require_once dirname(__FILE__) . '/../config/db_config.php';
 
 // 2. GUARDIA DE SEGURIDAD: Si no hay sesión, redirigir al login
 if (!isset($_SESSION['usuario_id'])) {
-    // Redirigimos a la raíz del entorno actual (pos_dev o pos_prod)
     header('Location: ' . URL_BASE . 'login.php');
     exit();
+}
+
+if (empty($_SESSION['empresa_id'])) {
+    header('Location: ' . URL_BASE . 'login.php');
+    exit();
+}
+
+// Normalizamos sucursal si falta
+if (!isset($_SESSION['sucursal_id']) || (int)$_SESSION['sucursal_id'] <= 0) {
+    $_SESSION['sucursal_id'] = 1;
 }
 
 // Datos de la sesión para mostrar
@@ -82,4 +91,85 @@ if (!function_exists('tiene_permiso')) {
         return false;
     }
 }
+
+/**
+ * Helper de seguridad para endpoints: termina con 403 si no tiene el permiso.
+ * Evita repetir el bloque de validación en cada procesar_*.php / ajax/*.php.
+ * Detecta si la petición es AJAX/JSON para responder adecuadamente.
+ */
+if (!function_exists('require_permiso')) {
+    function require_permiso($archivo_buscado) {
+        if (tiene_permiso($archivo_buscado)) {
+            return true;
+        }
+
+        // Determinar si la respuesta debe ser JSON o redirección HTML
+        $es_json = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest'
+            || (isset($_SERVER['CONTENT_TYPE']) && strpos($_SERVER['CONTENT_TYPE'], 'application/json') !== false)
+            || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false);
+
+        if ($es_json || strtolower($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'post') {
+            http_response_code(403);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['status' => 'error', 'message' => 'No tiene permiso para realizar esta acción.']);
+        } else {
+            http_response_code(403);
+            echo '<div style="background:#e74c3c;color:#fff;padding:20px;font-family:sans-serif;">'
+                . 'Acceso denegado: no tiene permiso para realizar esta acción.</div>';
+        }
+        exit();
+    }
+}
+
+/**
+ * Obtiene el nombre de la empresa desde la base de datos.
+ * Prioridad de búsqueda:
+ *   1. empresas (tabla unificada, configurada en "Perfil del Negocio")
+ *   2. configuracion (clave 'nombre_empresa')
+ *   3. Fallback: 'Mi Negocio'
+ * El resultado se cachea en $_SESSION para evitar consultas repetitivas.
+ */
+if (!function_exists('obtener_nombre_empresa')) {
+    function obtener_nombre_empresa() {
+        // Cache en sesión para evitar consultas repetidas
+        if (!empty($_SESSION['_cache_nombre_empresa'])) {
+            return $_SESSION['_cache_nombre_empresa'];
+        }
+        
+        try {
+            global $pdo;
+            $empresa_id = $_SESSION['empresa_id'] ?? null;
+            
+            if (isset($pdo) && $empresa_id) {
+                // 1. Intentar desde empresas (tabla unificada)
+                $stmt = $pdo->prepare("SELECT nombre_fantasia FROM empresas WHERE id = ? LIMIT 1");
+                $stmt->execute([$empresa_id]);
+                $row = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if (!empty($row['nombre_fantasia'])) {
+                    $_SESSION['_cache_nombre_empresa'] = $row['nombre_fantasia'];
+                    return $row['nombre_fantasia'];
+                }
+                
+                // 2. Fallback: tabla configuracion
+                $stmt2 = $pdo->prepare("SELECT valor FROM configuracion WHERE clave = 'nombre_empresa' LIMIT 1");
+                $stmt2->execute();
+                $row2 = $stmt2->fetch(PDO::FETCH_ASSOC);
+                
+                if (!empty($row2['valor'])) {
+                    $_SESSION['_cache_nombre_empresa'] = $row2['valor'];
+                    return $row2['valor'];
+                }
+            }
+        } catch (Exception $e) {
+            // Silencioso - usamos fallback
+        }
+        
+        $_SESSION['_cache_nombre_empresa'] = 'Mi Negocio';
+        return 'Mi Negocio';
+    }
+}
+
+// Cargar nombre de empresa para uso global en todas las páginas
+$nombre_empresa_sistema = obtener_nombre_empresa();
 ?>

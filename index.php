@@ -1,76 +1,82 @@
 <?php
 include 'pages/infosesion.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
+
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+}
+
 $hoy = date('Y-m-d');
+$nombre_usuario = htmlspecialchars($_SESSION['usuario_nombre'] ?? '');
+$rol = htmlspecialchars($_SESSION['usuario_rol'] ?? '');
 
-$nombre_usuario = htmlspecialchars($_SESSION['usuario_nombre']);
-$rol = htmlspecialchars($_SESSION['usuario_rol']);
-
-// Inicializar variables para evitar errores si las consultas fallan antes de su asignación
 $vencimientos_prov = [];
 
 try {
-    // 1. Total Contado y Transferencias (Blindado con DATE para evitar fallos por hora)
     $sql_efectivo = "SELECT SUM(total_venta) as total FROM ventas 
                      WHERE DATE(fecha_venta) = ? 
                      AND estado != 'Anulada' 
-                     AND (cond_pago = 'Contado' OR cond_pago = 'Transferencia')";
+                     AND (cond_pago = 'Contado' OR cond_pago = 'Transferencia')
+                     AND empresa_id = ?";
     $stmt_efectivo = $pdo->prepare($sql_efectivo);
-    $stmt_efectivo->execute([$hoy]);
+    $stmt_efectivo->execute([$hoy, $empresa_id]);
     $result = $stmt_efectivo->fetch(PDO::FETCH_ASSOC);
     $total_contado = isset($result['total']) ? $result['total'] : 0;
 
-    // 2. Total Cuenta Corriente
     $sql_ctacte = "SELECT SUM(total_venta) as total FROM ventas 
                    WHERE DATE(fecha_venta) = ? 
                    AND estado != 'Anulada' 
-                   AND cond_pago = 'Cuenta Corriente'";
+                   AND cond_pago = 'Cuenta Corriente'
+                   AND empresa_id = ?";
     $stmt_ctacte = $pdo->prepare($sql_ctacte);
-    $stmt_ctacte->execute([$hoy]);
+    $stmt_ctacte->execute([$hoy, $empresa_id]);
     $result = $stmt_ctacte->fetch(PDO::FETCH_ASSOC);
     $total_ctacte = isset($result['total']) ? $result['total'] : 0;
 
-    // 3. Cantidad de ventas
-    $sql_cant = "SELECT COUNT(*) as cantidad FROM ventas WHERE DATE(fecha_venta) = ? AND estado != 'Anulada'";
+    $sql_cant = "SELECT COUNT(*) as cantidad FROM ventas WHERE DATE(fecha_venta) = ? AND estado != 'Anulada' AND empresa_id = ?";
     $stmt_cant = $pdo->prepare($sql_cant);
-    $stmt_cant->execute([$hoy]);
+    $stmt_cant->execute([$hoy, $empresa_id]);
     $result = $stmt_cant->fetch(PDO::FETCH_ASSOC);
     $cant_ventas = isset($result['cantidad']) ? $result['cantidad'] : 0;
 
-    // 4. Stock Crítico (Productos con stock <= 2)
-    $sql_stock = "SELECT COUNT(*) FROM productos WHERE stock <= 2";
-    $stock_critico = $pdo->query($sql_stock)->fetchColumn();
+    $sql_stock = "SELECT COUNT(*) FROM productos WHERE stock <= 2 AND empresa_id = ?";
+    $stmt_stock = $pdo->prepare($sql_stock);
+    $stmt_stock->execute([$empresa_id]);
+    $stock_critico = $stmt_stock->fetchColumn();
 
-    // 5. Presupuestos Pendientes
-    $sql_presup = "SELECT COUNT(*) FROM presupuestos WHERE DATE(fecha_presupuesto) = ? AND estado = 'Pendiente'";
+    $sql_presup = "SELECT COUNT(*) FROM presupuestos WHERE DATE(fecha_presupuesto) = ? AND estado = 'Pendiente' AND empresa_id = ?";
     $stmt_presup = $pdo->prepare($sql_presup);
-    $stmt_presup->execute([$hoy]);
+    $stmt_presup->execute([$hoy, $empresa_id]);
     $presup_pendientes = $stmt_presup->fetchColumn();
 
-    // 6. Top 10 Productos más vendidos (Histórico o Mensual)
     $sql_top = "SELECT vd.cod_prod, vd.descripcion, SUM(vd.cant) as total_cant, p.stock 
                 FROM ventas_detalle vd
                 JOIN ventas v ON (vd.n_documento = v.n_documento)
                 JOIN productos p ON (vd.cod_prod = p.cod_prod COLLATE utf8mb4_unicode_ci)
                 WHERE v.estado = 'Finalizada' COLLATE utf8mb4_unicode_ci
+                  AND v.empresa_id = :empresa_id
                 GROUP BY vd.cod_prod, vd.descripcion, p.stock
                 ORDER BY total_cant DESC
                 LIMIT 10";
-    $top_productos = $pdo->query($sql_top)->fetchAll(PDO::FETCH_ASSOC);
+    $stmt_top = $pdo->prepare($sql_top);
+    $stmt_top->execute([':empresa_id' => $empresa_id]);
+    $top_productos = $stmt_top->fetchAll(PDO::FETCH_ASSOC);
 
-    // 7. Últimas 5 Ventas
-    $ultimas_ventas = $pdo->query("SELECT n_documento, total_venta, cond_pago, usuario FROM ventas WHERE estado = 'Finalizada' ORDER BY id DESC LIMIT 5")->fetchAll(PDO::FETCH_ASSOC);
+    $stmt_ult = $pdo->prepare("SELECT n_documento, total_venta, cond_pago, usuario FROM ventas WHERE estado = 'Finalizada' AND empresa_id = ? ORDER BY id DESC LIMIT 5");
+    $stmt_ult->execute([$empresa_id]);
+    $ultimas_ventas = $stmt_ult->fetchAll(PDO::FETCH_ASSOC);
 
-    // 8. Datos para el gráfico (Últimos 7 días)
     $ventas_semana = [];
     $labels_semana = [];
     for ($i = 6; $i >= 0; $i--) {
         $fecha = date('Y-m-d', strtotime("-$i days"));
         $labels_semana[] = date('d/m', strtotime($fecha));
         
-        $sql_dia = "SELECT SUM(total_venta) as total FROM ventas WHERE DATE(fecha_venta) = ? AND estado != 'Anulada'";
+        $sql_dia = "SELECT SUM(total_venta) as total FROM ventas WHERE DATE(fecha_venta) = ? AND estado != 'Anulada' AND empresa_id = ?";
         $stmt_dia = $pdo->prepare($sql_dia);
-        $stmt_dia->execute([$fecha]);
+        $stmt_dia->execute([$fecha, $empresa_id]);
         $res_dia = $stmt_dia->fetch(PDO::FETCH_ASSOC);
         $ventas_semana[] = $res_dia['total'] ? (float)$res_dia['total'] : 0;
     }
@@ -84,13 +90,16 @@ try {
                             (c.total_compra - COALESCE(SUM(cc.debe), 0)) as saldo
                          FROM compras c
                          JOIN proveedores p ON c.cod_proveedor = p.cod_prov
-                         LEFT JOIN ctacte_proveedores cc ON c.n_documento = cc.n_documento AND c.cod_proveedor = cc.id_proveedor
+                         LEFT JOIN ctacte_proveedores cc ON c.n_documento = cc.n_documento AND c.cod_proveedor = cc.id_proveedor AND cc.empresa_id = ?
                          WHERE c.cond_pago = 'CRÉDITO'
-                         GROUP BY c.id
+                           AND c.empresa_id = ?
+                         GROUP BY c.id, c.n_documento, p.razon, c.fecha_vencimiento, c.total_compra
                          HAVING saldo > 0
                          ORDER BY c.fecha_vencimiento ASC
                          LIMIT 10";
-    $vencimientos_prov = $pdo->query($sql_vencimientos)->fetchAll(PDO::FETCH_ASSOC);
+    $stmt_venc = $pdo->prepare($sql_vencimientos);
+    $stmt_venc->execute([$empresa_id, $empresa_id]);
+    $vencimientos_prov = $stmt_venc->fetchAll(PDO::FETCH_ASSOC);
 
     // 10. Deuda a Proveedores Vencida
     // Calculamos el saldo de cada proveedor y restamos las facturas que aún no vencieron.
@@ -105,13 +114,15 @@ try {
                 (SELECT SUM(c.total_compra) FROM compras c 
                  WHERE c.cod_proveedor = cp.id_proveedor 
                  AND c.cond_pago = 'CRÉDITO' 
-                 AND (c.fecha_vencimiento >= :hoy OR c.fecha_vencimiento IS NULL)
+                 AND (c.fecha_vencimiento >= ? OR c.fecha_vencimiento IS NULL)
+                 AND c.empresa_id = ?
                 ) as no_vencido_prov
             FROM ctacte_proveedores cp
+            WHERE cp.empresa_id = ?
             GROUP BY cp.id_proveedor
         ) as calculo";
     $stmt_v_prov = $pdo->prepare($sql_vencido_prov);
-    $stmt_v_prov->execute([':hoy' => $hoy]);
+    $stmt_v_prov->execute([$hoy, $empresa_id, $empresa_id]);
     $deuda_vencida_prov = (float)($stmt_v_prov->fetchColumn() ?: 0);
 
 } catch (PDOException $e) {
@@ -124,7 +135,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel de Control | Sistemas Lucyk</title>
+    <title>Panel de Control | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -314,6 +325,7 @@ try {
         <a href="pages/compras.php" class="action-btn btn-compra"><i class="fas fa-truck-loading"></i><span>Cargar Compra</span></a>
         <a href="pages/consulta_precios.php" class="action-btn btn-precio"><i class="fas fa-search-dollar"></i><span>Consultar Precio</span></a>
         <a href="pages/reporte_cuotas.php" class="action-btn" style="border-color: #ff5252;"><i class="fas fa-hand-holding-usd" style="color: #ff5252; background: rgba(255, 82, 82, 0.1);"></i><span>Cuentas a Cobrar</span></a>
+        <a href="pages/consignacion_reporte.php" class="action-btn" style="border-color: #9C27B0;"><i class="fas fa-clipboard-list" style="color: #9C27B0; background: rgba(156, 39, 176, 0.1);"></i><span>Consignaciones</span></a>
     </div>
 
     <div class="dashboard-grid">

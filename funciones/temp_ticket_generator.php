@@ -1,55 +1,59 @@
 <?php
 // funciones/ticket_generator.php - VERSIÓN FINAL Y CORREGIDA (FORZADO HTML)
-    date_default_timezone_set('America/Argentina/Buenos_Aires'); 
+session_start();
+date_default_timezone_set('America/Argentina/Buenos_Aires'); 
 
-    /**
-     * Genera el HTML del CONTENIDO de un ticket de venta no fiscal con estilo de impresora térmica.
-     * @param PDO $pdo Conexión a la base de datos.
-     * @param integer $n_documento Número de documento de la venta a imprimir.
-     * @return string HTML puro del ticket, o un mensaje de error.
-     */
-    function generar_html_ticket_contenido(PDO $pdo, int|string $n_documento): string { 
-        
-        $n_documento = (int)$n_documento;
-        
-        if (!$pdo) {
-            return "Error crítico: Conexión a DB no disponible.";
+/**
+ * Genera el HTML del CONTENIDO de un ticket de venta no fiscal con estilo de impresora térmica.
+ * @param PDO $pdo Conexión a la base de datos.
+ * @param integer $n_documento Número de documento de la venta a imprimir.
+ * @param integer $empresa_id ID de la empresa actual.
+ * @return string HTML puro del ticket, o un mensaje de error.
+ */
+function generar_html_ticket_contenido(PDO $pdo, int|string $n_documento, int $empresa_id): string { 
+    
+    $n_documento = (int)$n_documento;
+    
+    if (!$pdo) {
+        return "Error crítico: Conexión a DB no disponible.";
+    }
+
+    if (!$empresa_id) {
+        return "Error crítico: Falta empresa_id en sesión.";
+    }
+
+    try {
+        $sql_venta = "
+            SELECT 
+                v.fecha_venta, v.total_venta, v.cond_pago, v.pago_efectivo, v.pago_transf,
+                c.nombre AS nombre_cliente, c.apellido AS apellido_cliente
+            FROM ventas v
+            LEFT JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = :empresa_id
+            WHERE v.n_documento = :n_documento AND v.empresa_id = :empresa_id
+        ";
+        $stmt_venta = $pdo->prepare($sql_venta);
+        $stmt_venta->execute([':n_documento' => $n_documento, ':empresa_id' => $empresa_id]);
+        $venta = $stmt_venta->fetch(PDO::FETCH_ASSOC);
+
+        if (!$venta) {
+            return "Error: Venta N° $n_documento no encontrada.";
         }
 
-        try {
-            // --- 1. OBTENER DATOS DE LA VENTA (CABECERA) ---
-            $sql_venta = "
-                SELECT 
-                    v.fecha_venta, v.total_venta, v.cond_pago, v.pago_efectivo, v.pago_transf,
-                    c.nombre AS nombre_cliente, c.apellido AS apellido_cliente
-                FROM ventas v
-                LEFT JOIN clientes c ON v.id_cliente = c.id
-                WHERE v.n_documento = :n_documento
-            ";
-            $stmt_venta = $pdo->prepare($sql_venta);
-            $stmt_venta->execute([':n_documento' => $n_documento]);
-            $venta = $stmt_venta->fetch(PDO::FETCH_ASSOC);
-
-            if (!$venta) {
-                return "Error: Venta N° $n_documento no encontrada.";
-            }
-
-            // --- 2. OBTENER DETALLE DE PRODUCTOS (LA CONSULTA) ---
-            $sql_detalle = "
-                SELECT descripcion, cant, p_unit, total 
-                FROM ventas_detalle 
-                WHERE n_documento = :n_documento
-            ";
-            $stmt_detalle = $pdo->prepare($sql_detalle);
-            $stmt_detalle->execute([':n_documento' => $n_documento]);
-            $productos = $stmt_detalle->fetchAll(PDO::FETCH_ASSOC); // <--- Aquí se cargan
+        $sql_detalle = "
+            SELECT descripcion, cant, p_unit, total 
+            FROM ventas_detalle 
+            WHERE n_documento = :n_documento AND empresa_id = :empresa_id
+        ";
+        $stmt_detalle = $pdo->prepare($sql_detalle);
+        $stmt_detalle->execute([':n_documento' => $n_documento, ':empresa_id' => $empresa_id]);
+        $productos = $stmt_detalle->fetchAll(PDO::FETCH_ASSOC);
 
             // --- 3. CÁLCULOS NECESARIOS ---
             $total_venta = (float)($venta['total_venta'] ?? 0);
             $subtotal = $total_venta; 
             $total_pagado = (float)($venta['pago_efectivo'] ?? 0) + (float)($venta['pago_transf'] ?? 0);
             $cambio_saldo = $total_pagado - $total_venta;
-            $nombre_tienda = "Electricidad Lucyk"; 
+            $nombre_tienda = "Mi Negocio";
             
             // --- 4. GENERACIÓN DEL HTML (Puro Contenido) ---
             

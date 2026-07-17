@@ -3,7 +3,16 @@
 include 'infosesion.php';
 require '../config/db_config.php';
 
-// 1. Requerir el SDK (Carga automática de Composer)
+// A) PARCHE CRÍTICO DE SEGURIDAD: validar permiso en el backend (no solo en la UI)
+require_permiso('pages/facturacion_arca.php');
+
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+if (!$empresa_id) {
+    http_response_code(400);
+    echo json_encode(['status' => 'error', 'message' => 'Falta empresa_id en sesión.']);
+    exit();
+}
+
 $autoload = dirname(__DIR__) . '/vendor/autoload.php';
 if (file_exists($autoload)) {
     require_once $autoload;
@@ -11,24 +20,22 @@ if (file_exists($autoload)) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['id_venta'])) {
     $id_venta = $_POST['id_venta'];
-    $cuit_vendedor = "20123456789"; // Tu CUIT o el del cliente
+    $cuit_vendedor = "20123456789";
 
     try {
-        // 2. Obtener los datos de la venta original
         $stmt = $pdo->prepare("
             SELECT v.*, c.cuit, c.nombre, c.apellido, 
                    COALESCE(c.id_tipo_iva, 99) as id_tipo_iva, 
                    COALESCE(c.dni, '') as dni
             FROM ventas v
-            LEFT JOIN clientes c ON v.id_cliente = c.id
-            WHERE v.id = ?
+            LEFT JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = ?
+            WHERE v.id = ? AND v.empresa_id = ?
         ");
-        $stmt->execute([$id_venta]);
+        $stmt->execute([$id_venta, $id_venta, $empresa_id]);
         $venta = $stmt->fetch();
 
-        // Validar si ya tiene factura generada para no duplicar
-        $check = $pdo->prepare("SELECT id FROM ventas_afip WHERE id_venta = ?");
-        $check->execute([$id_venta]);
+        $check = $pdo->prepare("SELECT id FROM ventas_afip WHERE id_venta = ? AND empresa_id = ?");
+        $check->execute([$id_venta, $empresa_id]);
         if ($check->fetch()) {
             echo json_encode([
                 'status' => 'error',
@@ -85,15 +92,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['id_venta'])) {
         $vto_simulado = date('Y-m-d', strtotime('+15 days'));
         $nro_comprobante = 125; 
 
-        $sql = "INSERT INTO ventas_afip (id_venta, cae, cae_vto, punto_venta, n_comprobante, tipo_comprobante) 
-                VALUES (?, ?, ?, ?, ?, ?)";
+        $sql = "INSERT INTO ventas_afip (id_venta, cae, cae_vto, punto_venta, n_comprobante, tipo_comprobante, empresa_id) 
+                VALUES (?, ?, ?, ?, ?, ?, ?)";
         $pdo->prepare($sql)->execute([
             $id_venta,
             $cae_simulado,
             $vto_simulado,
-            1, // Punto de venta
+            1,
             $nro_comprobante,
-            11 // Ejemplo: Factura C
+            11,
+            $empresa_id
         ]);
 
         echo json_encode([

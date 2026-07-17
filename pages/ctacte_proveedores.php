@@ -7,6 +7,12 @@ date_default_timezone_set('America/Argentina/Buenos_Aires');
 
 require '../config/db_config.php'; 
 
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+}
+
 // Carga de Proveedores (Usamos la misma lógica corregida de compras.php)
 try {
     $sql_proveedores = "SELECT 
@@ -14,8 +20,10 @@ try {
                             razon AS nombre, 
                             cuit 
                         FROM proveedores 
+                        WHERE empresa_id = :empresa_id
                         ORDER BY razon ASC";
-    $stmt_proveedores = $pdo->query($sql_proveedores);
+    $stmt_proveedores = $pdo->prepare($sql_proveedores);
+    $stmt_proveedores->execute([':empresa_id' => $empresa_id]);
     $proveedores = $stmt_proveedores->fetchAll(PDO::FETCH_ASSOC); 
 } catch (Exception $e) {
     error_log("Error al cargar proveedores: " . $e->getMessage());

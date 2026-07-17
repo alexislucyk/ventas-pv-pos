@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         try {
             // 4. Buscar el usuario incluyendo la validación de ESTADO
-            $stmt = $pdo->prepare('SELECT id, password_hash, rol, estado FROM usuarios WHERE usuario = ?');
+            $stmt = $pdo->prepare('SELECT id, password_hash, rol, estado, empresa_id FROM usuarios WHERE usuario = ?');
             $stmt->execute([$usuario]);
             $user = $stmt->fetch();
 
@@ -40,6 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['usuario_id'] = $user['id'];
                     $_SESSION['usuario_nombre'] = $usuario;
                     $_SESSION['usuario_rol'] = $user['rol'];
+                    $_SESSION['empresa_id'] = $user['empresa_id'];
 
                     // --- NUEVO LOGIN: CARGAR PERMISOS (ROL + INDIVIDUAL) ---
                     $stmt_permisos = $pdo->prepare("

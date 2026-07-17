@@ -9,6 +9,12 @@ date_default_timezone_set('America/Argentina/Buenos_Aires');
 require('../fpdf/fpdf.php');
 require('../config/db_config.php');
 
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+}
+
 // 1. Intento de carga robusta de la librería para generar el QR
 $rutas_qr = [
     dirname(__DIR__) . '/libs/phpqrcode/qrlib.php',
@@ -49,21 +55,45 @@ class PDF extends FPDF {
 }
 
 $n_doc = isset($_GET['n_documento']) ? intval($_GET['n_documento']) : 0;
-if ($n_doc === 0) die("N° de documento no valido.");
+$id_venta = isset($_GET['id']) ? intval($_GET['id']) : 0;
+if ($n_doc === 0 && $id_venta === 0) die("N° de documento no valido.");
 
 try {
     // Consulta extendida para incluir datos de AFIP y campos fiscales del cliente
-    $stmt = $pdo->prepare("SELECT v.*, c.nombre, c.apellido, c.cuit, c.direccion as dir_cliente, vf.cant_cuotas, vf.monto_interes,
-                                  c.dni, c.id_tipo_iva,
-                                  af.cae, af.cae_vto, af.punto_venta, af.n_comprobante, af.tipo_comprobante
-                           FROM ventas v
-                           LEFT JOIN clientes c ON v.id_cliente = c.id 
-                           LEFT JOIN ventas_financiacion vf ON v.id = vf.id_venta
-                           LEFT JOIN ventas_afip af ON v.id = af.id_venta
-                           WHERE v.n_documento = ?");
-    $stmt->execute([$n_doc]);
-    $venta = $stmt->fetch(PDO::FETCH_ASSOC);
+    $venta = null;
+    try {
+        // Buscar por id (prioritario, único y robusto) o por n_documento
+        if ($id_venta > 0) {
+            // El id es PRIMARY KEY global: no filtramos por empresa_id para evitar
+            // fallos por diferencias de sesión/empresa entre páginas.
+            $stmt = $pdo->prepare("SELECT v.*, c.nombre, c.apellido, c.cuit, c.direccion as dir_cliente, vf.cant_cuotas, vf.monto_interes,
+                                          c.dni, c.id_tipo_iva,
+                                          af.cae, af.cae_vto, af.punto_venta, af.n_comprobante, af.tipo_comprobante
+                                  FROM ventas v
+                                  LEFT JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = v.empresa_id
+                                  LEFT JOIN ventas_financiacion vf ON v.id = vf.id_venta
+                                  LEFT JOIN ventas_afip af ON v.id = af.id_venta
+                                  WHERE v.id = :id
+                                  LIMIT 1");
+            $stmt->execute([':id' => $id_venta]);
+        } else {
+            $stmt = $pdo->prepare("SELECT v.*, c.nombre, c.apellido, c.cuit, c.direccion as dir_cliente, vf.cant_cuotas, vf.monto_interes,
+                                          c.dni, c.id_tipo_iva,
+                                          af.cae, af.cae_vto, af.punto_venta, af.n_comprobante, af.tipo_comprobante
+                                  FROM ventas v
+                                  LEFT JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = :empresa_id
+                                  LEFT JOIN ventas_financiacion vf ON v.id = vf.id_venta
+                                  LEFT JOIN ventas_afip af ON v.id = af.id_venta
+                                  WHERE v.n_documento = :n_documento AND v.empresa_id = :empresa_id
+                                  LIMIT 1");
+            $stmt->execute([':n_documento' => $n_doc, ':empresa_id' => $empresa_id]);
+        }
+        $venta = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Exception $e) { /* ignorar */ }
     if (!$venta) die("Venta no encontrada.");
+    
+    // Usar el número de documento real de la venta encontrada (importante cuando se busca por ID)
+    $n_doc = (int)$venta['n_documento'];
 
     // Determinar si es una factura oficial o una orden interna
     $es_oficial = !empty($venta['cae']);
@@ -237,8 +267,12 @@ try {
     $pdf->Cell(23, 7, "TOTAL", 1, 1, 'R', true);
 
     $pdf->SetFont('Arial', '', 8);
-    $stmt_det = $pdo->prepare("SELECT descripcion, cant, p_unit, descuento_unitario, total FROM ventas_detalle WHERE n_documento = ?");
-    $stmt_det->execute([$n_doc]);
+    // Usar siempre el n_documento y empresa_id reales de la venta encontrada
+    // (cuando se accede por id, $n_doc del GET puede ser 0)
+    $n_doc_real = $venta['n_documento'] ?? $n_doc;
+    $empresa_id_real = $venta['empresa_id'] ?? $empresa_id;
+    $stmt_det = $pdo->prepare("SELECT descripcion, cant, p_unit, descuento_unitario, total FROM ventas_detalle WHERE n_documento = ? AND empresa_id = ?");
+    $stmt_det->execute([$n_doc_real, $empresa_id_real]);
     
     $total_bruto_acumulado = 0;
     while ($row = $stmt_det->fetch(PDO::FETCH_ASSOC)) {

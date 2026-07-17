@@ -24,10 +24,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ultimo = $stmt_id->fetch();
         $nuevo_id = $ultimo ? (intval($ultimo['id']) + 1) : 1;
 
-        $sql = "INSERT INTO clientes (id, nombre, apellido, dni, id_tipo_iva, cuit, telefono, direccion, estado, habilita_cta, relacion) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, '', 'Activo', 'No', '')";
+        // Obtener empresa_id de la sesión
+        $empresa_id = isset($_SESSION['empresa_id']) ? (int)$_SESSION['empresa_id'] : 1;
+
+        $sql = "INSERT INTO clientes (id, empresa_id, nombre, apellido, dni, id_tipo_iva, cuit, telefono, direccion, estado, habilita_cta, relacion) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', 'Activo', 'No', '')";
         $stmt = $pdo->prepare($sql);
-        $stmt->execute([$nuevo_id, $nombre, $apellido, $dni, $id_tipo_iva, $cuit, $telefono]);
+        $stmt->execute([$nuevo_id, $empresa_id, $nombre, $apellido, $dni, $id_tipo_iva, $cuit, $telefono]);
         
         $nombre_completo = $apellido . ($nombre ? ", " . $nombre : "");
 

@@ -4,43 +4,42 @@ include 'infosesion.php';
 require '../config/db_config.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+}
+
 $hoy = date('Y-m-d');
 
 try {
-    // 1. Totales por Método de Pago (Solo ingresos de hoy)
     $sql_resumen = "SELECT 
                         SUM(CASE WHEN metodo_pago = 'EFECTIVO' THEN monto ELSE 0 END) as efectivo,
                         SUM(CASE WHEN metodo_pago = 'TRANSFERENCIA' THEN monto ELSE 0 END) as transferencia,
                         SUM(CASE WHEN metodo_pago = 'MIXTO' THEN monto ELSE 0 END) as mixto
                     FROM movimientos 
-                    WHERE tipo = 'INGRESO' AND DATE(fecha) = ?";
+                    WHERE tipo = 'INGRESO' AND DATE(fecha) = ? AND empresa_id = ? AND sucursal_id = ?";
     $stmt = $pdo->prepare($sql_resumen);
-    $stmt->execute([$hoy]);
+    $stmt->execute([$hoy, $empresa_id, $sucursal_id]);
     $resumen = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    // PHP 8.1 Fix: number_format no acepta null. Coalescemos a 0 y aseguramos tipo float.
     $resumen['efectivo'] = (float)($resumen['efectivo'] ?? 0);
     $resumen['transferencia'] = (float)($resumen['transferencia'] ?? 0);
     $resumen['mixto'] = (float)($resumen['mixto'] ?? 0);
 
-    // 2. Total de Egresos (Gastos)
-    $sql_egresos = "SELECT SUM(monto) as total_egresos FROM movimientos WHERE tipo = 'EGRESO' AND DATE(fecha) = ?";
+    $sql_egresos = "SELECT SUM(monto) as total_egresos FROM movimientos WHERE tipo = 'EGRESO' AND DATE(fecha) = ? AND empresa_id = ? AND sucursal_id = ?";
     $stmt_eg = $pdo->prepare($sql_egresos);
-    $stmt_eg->execute([$hoy]);
+    $stmt_eg->execute([$hoy, $empresa_id, $sucursal_id]);
     $egresos = $stmt_eg->fetchColumn() ?: 0;
 
-    // 3. Últimos 10 movimientos del día
     $sql_movs = "SELECT tipo, metodo_pago, detalle, monto, fecha, usuario 
              FROM movimientos 
-             WHERE DATE(fecha) = ? 
+             WHERE DATE(fecha) = ? AND empresa_id = ? AND sucursal_id = ?
              ORDER BY id DESC LIMIT 10";
     $stmt_m = $pdo->prepare($sql_movs);
-    $stmt_m->execute([$hoy]);
+    $stmt_m->execute([$hoy, $empresa_id, $sucursal_id]);
     $lista_movimientos = $stmt_m->fetchAll(PDO::FETCH_ASSOC);
 
-    // Cálculo de caja física esperada (Efectivo + parte proporcional de mixtos - egresos)
-    // Nota: Para ser exactos con 'MIXTO', lo ideal sería desglosarlo, 
-    // pero por ahora sumamos el neto reportado.
     $total_caja_fisica = ($resumen['efectivo'] + $resumen['mixto']) - $egresos;
 
 } catch (Exception $e) {
@@ -52,7 +51,7 @@ try {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Caja del Día | Electricidad Lucyk</title>
+    <title>Caja del Día | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css">
     <style>
         .dashboard-grid {

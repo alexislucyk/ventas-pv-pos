@@ -3,31 +3,36 @@
  * Archivo: /ajax/generar_ticket_cuota.php
  * Descripción: Genera el HTML del ticket para cobro de cuotas (80mm).
  */
-require_once '../config/db_config.php';
+include '../pages/infosesion.php';
+require '../config/db_config.php';
+
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+if (!$empresa_id) {
+    exit("Falta empresa_id en sesión.");
+}
+
 header('Content-Type: text/html; charset=utf-8');
 
 $id_pago = (int)($_GET['id_pago'] ?? 0);
 if ($id_pago <= 0) exit("ID de pago no válido.");
 
 try {
-    // 1. Obtener datos del pago, la cuota, la venta y el cliente
     $sql = "SELECT cp.*, cs.nro_cuota, cs.monto_original as monto_cuota, cs.monto_pagado as acumulado_pagado,
                    v.n_documento, v.fecha_venta as fecha_venta_orig,
                    c.apellido, c.nombre,
                    vf.cant_cuotas
             FROM cuotas_pagos cp
-            JOIN cuotas_seguimiento cs ON cp.id_cuota = cs.id
-            JOIN ventas v ON cs.id_venta = v.id
-            JOIN clientes c ON v.id_cliente = c.id
+            JOIN cuotas_seguimiento cs ON cp.id_cuota = cs.id AND cs.empresa_id = :empresa_id
+            JOIN ventas v ON cs.id_venta = v.id AND v.empresa_id = :empresa_id
+            JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = :empresa_id
             JOIN ventas_financiacion vf ON v.id = vf.id_venta
-            WHERE cp.id = ?";
+            WHERE cp.id = :id_pago AND v.empresa_id = :empresa_id";
     $stmt = $pdo->prepare($sql);
-    $stmt->execute([$id_pago]);
+    $stmt->execute([':id_pago' => $id_pago, ':empresa_id' => $empresa_id]);
     $p = $stmt->fetch();
 
     if (!$p) exit("Registro de pago no encontrado.");
 
-    // 2. Datos de empresa
     $stmt_emp = $pdo->query("SELECT * FROM datos_empresa WHERE id = 1 LIMIT 1");
     $emp = $stmt_emp->fetch();
 

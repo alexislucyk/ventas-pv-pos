@@ -1,8 +1,15 @@
 <?php
 include 'infosesion.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
-// obtener_venta_detalle_ajax.php
-//session_start();
+
+$empresa_id = $_SESSION['empresa_id'] ?? null;
+$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+if (!$empresa_id) {
+    header('Content-Type: application/json');
+    echo json_encode(['error' => 'Falta empresa_id en sesión.']);
+    exit();
+}
+
 header('Content-Type: application/json'); // Indicamos que la respuesta es JSON
 
 // 1. Control de Conexión y Sesión
@@ -33,19 +40,17 @@ $response = [
         'nombre_completo' => 'Venta Genérica',
         'num_documento' => ''
     ],
-    'detalle' => [] // Array de productos del carrito
+    'detalle' => []
 ];
 
 try {
-    // --- A) Construir WHERE dinámico ---
-    $where = "v.id = ?";
-    $val = $id_venta;
+    $where = "v.id = :id";
+    $params = [':id' => $id_venta, ':empresa_id' => $empresa_id];
     if ($id_venta <= 0 && $n_documento_get > 0) {
-        $where = "v.n_documento = ?";
-        $val = $n_documento_get;
+        $where = "v.n_documento = :n_documento";
+        $params[':n_documento'] = $n_documento_get;
     }
 
-    // --- A) Obtener Cabecera de la Venta y datos del Cliente ---
     $sql_cabecera = "
         SELECT 
             v.*, 
@@ -53,11 +58,11 @@ try {
             CONCAT(c.apellido, ', ', c.nombre) AS nombre_completo,
             c.cuit AS num_documento
         FROM ventas v
-        LEFT JOIN clientes c ON v.id_cliente = c.id
-        WHERE $where";
+        LEFT JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = :empresa_id
+        WHERE $where AND v.empresa_id = :empresa_id";
     
     $stmt_cabecera = $pdo->prepare($sql_cabecera);
-    $stmt_cabecera->execute([$val]);
+    $stmt_cabecera->execute($params);
     $venta = $stmt_cabecera->fetch(PDO::FETCH_ASSOC);
 
     if (!$venta) {
@@ -76,7 +81,6 @@ try {
     }
 
     // --- B) Obtener Detalle de la Venta (Productos del Carrito) ---
-    // Usamos el n_documento para obtener el detalle, que es el campo de enlace
     $n_documento = $venta['n_documento'];
     
     $sql_detalle = "
@@ -87,14 +91,11 @@ try {
             p_unit, 
             descuento_unitario,
             total
-            /* NOTA: Para ser perfectos, aquí deberíamos traer el stock actual 
-               de la tabla 'productos' para la validación JS, pero lo omitiremos 
-               por simplicidad inicial. */
         FROM ventas_detalle 
-        WHERE n_documento = ?";
+        WHERE n_documento = :n_documento AND empresa_id = :empresa_id";
     
     $stmt_detalle = $pdo->prepare($sql_detalle);
-    $stmt_detalle->execute([$n_documento]);
+    $stmt_detalle->execute([':n_documento' => $n_documento, ':empresa_id' => $empresa_id]);
     $detalle_productos = $stmt_detalle->fetchAll(PDO::FETCH_ASSOC);
 
     // Ajustamos los tipos de dato (de string a numérico) para que JS los maneje bien
