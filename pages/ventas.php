@@ -15,8 +15,20 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
 } else {
     // 1. Obtener Clientes, Rubros y Proveedores
     try {
-        $sql_clientes = "SELECT id AS id_cliente, CONCAT(apellido, ', ', nombre) AS nombre_completo, cuit AS num_documento FROM clientes ORDER BY nombre_completo ASC";
-        $clientes = $pdo->query($sql_clientes)->fetchAll(PDO::FETCH_ASSOC);
+        $empresa_id = $_SESSION['empresa_id'] ?? 1;
+        $sql_clientes = "SELECT c.id AS id_cliente, 
+                                CONCAT(c.apellido, ', ', c.nombre) AS nombre_completo, 
+                                c.cuit AS num_documento,
+                                COALESCE(SUM(cc.debe - cc.haber), 0) AS saldo_deudor,
+                                c.habilita_cta
+                         FROM clientes c
+                         LEFT JOIN ctacte cc ON c.id = cc.id_cliente AND cc.empresa_id = c.empresa_id
+                         WHERE c.empresa_id = ?
+                         GROUP BY c.id, c.apellido, c.nombre, c.cuit, c.habilita_cta
+                         ORDER BY c.apellido, c.nombre ASC";
+        $stmt_clientes = $pdo->prepare($sql_clientes);
+        $stmt_clientes->execute([$empresa_id]);
+        $clientes = $stmt_clientes->fetchAll(PDO::FETCH_ASSOC);
 
         // Listas para el modal de registro rápido de productos
         $rubros_list = $pdo->query("SELECT nombre FROM rubros ORDER BY nombre ASC")->fetchAll(PDO::FETCH_ASSOC);
@@ -40,6 +52,19 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
         $id_venta_existente = (isset($_POST['id_venta_existente'])) ? (int)$_POST['id_venta_existente'] : 0;
         $id_cliente = (isset($_POST['id_cliente_hidden'])) ? (int)$_POST['id_cliente_hidden'] : 0;
         $cond_pago = (isset($_POST['cond_pago'])) ? trim($_POST['cond_pago']) : 'CONTADO';
+        
+        // Validar que el cliente tenga habilitada la cuenta corriente si aplica
+        if ($es_finalizar && $cond_pago === 'CUENTA CORRIENTE' && $id_cliente > 0) {
+            $stmt_habilita = $pdo->prepare("SELECT habilita_cta FROM clientes WHERE id = ? AND empresa_id = ?");
+            $stmt_habilita->execute([$id_cliente, $empresa_id]);
+            $habilita_cta = strtoupper($stmt_habilita->fetchColumn() ?: 'NO');
+            
+            if ($habilita_cta === 'NO') {
+                $mensaje = "❌ Error: Este cliente no tiene habilitada la cuenta corriente.";
+                header("Location: ventas.php");
+                exit();
+            }
+        }
         // Fix: Soporte para decimales con coma en los campos de pago
         $pago_efectivo = (isset($_POST['pago_efectivo'])) ? max(0.0, (float)str_replace(',', '.', $_POST['pago_efectivo'])) : 0.0;
         $pago_transf = (isset($_POST['pago_transf'])) ? max(0.0, (float)str_replace(',', '.', $_POST['pago_transf'])) : 0.0;

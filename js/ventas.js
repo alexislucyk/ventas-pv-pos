@@ -3,11 +3,8 @@ console.log("Ventas.js cargado correctamente");
 
 let carrito = [];
 
-// Selectores
-const inputBuscarProd = document.getElementById('buscar_producto');
-const resultadosProd = document.getElementById('resultadosBusqueda');
-const inputBuscarCli = document.getElementById('buscar_cliente');
-const resultadosCli = document.getElementById('resultadosBusquedaClientes');
+// Selectores (se inicializarán cuando el DOM esté listo)
+let inputBuscarProd, resultadosProd, inputBuscarCli, resultadosCli;
 
 // --- 0. COTIZACIÓN DÓLAR OPERATIVO (para mostrar productos en USD en pesos) ---
 (function initDolarOperativo() {
@@ -30,122 +27,6 @@ const resultadosCli = document.getElementById('resultadosBusquedaClientes');
     } catch (e) {}
 })();
 
-// --- 1. BUSCADOR DE PRODUCTOS ---
-if (inputBuscarProd) {
-    inputBuscarProd.addEventListener('input', function() {
-        const q = this.value.trim();
-        if (q.length < 2) {
-            resultadosProd.innerHTML = '';
-            return;
-        }
-
-        fetch('../pages/buscar_producto_ajax.php?q=' + encodeURIComponent(q))
-            .then(res => res.json())
-            .then(data => {
-                resultadosProd.innerHTML = '';
-                data.forEach(prod => {
-                    const div = document.createElement('div');
-                    div.className = 'resultado-item';
-                    div.style.cursor = 'pointer';
-                    div.style.padding = '8px';
-                    div.style.borderBottom = '1px solid #eee';
-
-                    const stockColor = prod.stock <= 0 ? 'red' : 'green';
-                    const stockTexto = prod.stock <= 0 ? 'SIN STOCK' : prod.stock;
-
-                    // Preparamos display de precios:
-                    // - Si moneda=dolar: mostrar USD a la izquierda y Pesos a la derecha/abajo.
-                    // - Si moneda=pesos: mostrar solo Pesos (sin referencia a USD).
-                    const precioVentaUSD = parseFloat(prod.p_venta) || 0;
-                    const precioVentaARS = (prod.p_venta_pesos !== null && prod.p_venta_pesos !== undefined)
-                        ? parseFloat(prod.p_venta_pesos)
-                        : null;
-                    // (si moneda=dolar) en la lista se muestra USD y Pesos
-                    const esDolar = (prod.moneda === 'dolar');
-
-                    div.innerHTML = `
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span><strong>${prod.cod_prod}</strong> - ${prod.descripcion}</span>
-                            <span style="font-size: 0.9em; text-align:right; display:flex; gap:10px; align-items:flex-start; justify-content:flex-end;">
-                                ${esDolar ? `<span style="white-space:nowrap;color:#2ecc71">$${precioVentaUSD.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (USD)</span>` : ''}
-                                <span style="white-space:nowrap;color:#3498db">$${(precioVentaARS !== null ? precioVentaARS : precioVentaUSD).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Pesos)</span>
-
-                                <b style="color: ${stockColor};">Stock: ${stockTexto}</b>
-                            </span>
-                        </div>
-                    `;
-
-                    div.onclick = () => {
-                        agregarAlCarrito(prod);
-                        inputBuscarProd.value = '';
-                        resultadosProd.innerHTML = '';
-                    };
-                    resultadosProd.appendChild(div);
-                });
-            })
-            .catch(err => console.error("Error en Fetch Productos:", err));
-    });
-}
-
-// --- 2. BUSCADOR DE CLIENTES ---
-if (inputBuscarCli) {
-    inputBuscarCli.addEventListener('input', function() {
-        const busqueda = this.value.toLowerCase().trim();
-        resultadosCli.innerHTML = '';
-
-        if (typeof clientesData === 'undefined') {
-            console.error("Error: clientesData no está definido");
-            return;
-        }
-
-        if (busqueda.length < 2) {
-            resultadosCli.style.display = 'none';
-            return;
-        }
-
-        const filtrados = clientesData.filter(c => 
-            (c.nombre_completo && c.nombre_completo.toLowerCase().includes(busqueda)) || 
-            (c.num_documento && c.num_documento.includes(busqueda))
-        );
-
-        if (filtrados.length > 0) {
-            resultadosCli.style.display = 'block';
-            filtrados.forEach(cliente => {
-                const div = document.createElement('div');
-                div.className = 'resultado-cliente-item';
-                div.style.padding = '8px';
-                div.style.cursor = 'pointer';
-                div.style.borderBottom = '1px solid #eee';
-                div.dataset.cliente = JSON.stringify(cliente);
-                div.innerHTML = `<strong>${cliente.nombre_completo}</strong> <small>(${cliente.num_documento})</small>`;
-                resultadosCli.appendChild(div);
-            });
-        }
-    });
-
-    resultadosCli.addEventListener('click', function(e) {
-        const item = e.target.closest('.resultado-cliente-item');
-        if (item) {
-            const cliente = JSON.parse(item.dataset.cliente);
-            const idHidden = document.getElementById('id_cliente_hidden'); 
-            const nombreDisplay = document.getElementById('nombre_cliente_display');
-            
-            if (idHidden) idHidden.value = cliente.id_cliente;
-            
-            if (nombreDisplay) {
-                if (nombreDisplay.tagName === 'INPUT') {
-                    nombreDisplay.value = cliente.nombre_completo;
-                } else {
-                    nombreDisplay.innerText = cliente.nombre_completo;
-                }
-            }
-
-            inputBuscarCli.value = '';
-            resultadosCli.innerHTML = '';
-            resultadosCli.style.display = 'none';
-        }
-    });
-}
 
 // --- 3. FUNCIONES DEL CARRITO ---
 function agregarAlCarrito(prod) {
@@ -188,8 +69,170 @@ let pVenta = parseFloat(prod.p_venta) || 0;
     renderizarCarrito();
 }
 
-// Listeners para recalcular todo cuando cambian los valores de financiación
+// Inicializar selectores cuando el DOM esté listo
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOMContentLoaded ejecutado');
+    
+    // Inicializar selectores del DOM
+    inputBuscarProd = document.getElementById('buscar_producto');
+    resultadosProd = document.getElementById('resultadosBusqueda');
+    inputBuscarCli = document.getElementById('buscar_cliente');
+    resultadosCli = document.getElementById('resultadosBusquedaClientes');
+    
+    console.log('inputBuscarCli:', inputBuscarCli);
+    console.log('resultadosCli:', resultadosCli);
+    console.log('clientesData:', typeof clientesData !== 'undefined' ? 'definido' : 'NO definido');
+
+    // --- 1. BUSCADOR DE PRODUCTOS ---
+    if (inputBuscarProd) {
+        inputBuscarProd.addEventListener('input', function() {
+            const q = this.value.trim();
+            if (q.length < 2) {
+                resultadosProd.innerHTML = '';
+                return;
+            }
+
+            fetch('../pages/buscar_producto_ajax.php?q=' + encodeURIComponent(q))
+                .then(res => res.json())
+                .then(data => {
+                    resultadosProd.innerHTML = '';
+                    data.forEach(prod => {
+                        const div = document.createElement('div');
+                        div.className = 'resultado-item';
+                        div.style.cursor = 'pointer';
+                        div.style.padding = '8px';
+                        div.style.borderBottom = '1px solid #eee';
+
+                        const stockColor = prod.stock <= 0 ? 'red' : 'green';
+                        const stockTexto = prod.stock <= 0 ? 'SIN STOCK' : prod.stock;
+
+                        // Preparamos display de precios:
+                        // - Si moneda=dolar: mostrar USD a la izquierda y Pesos a la derecha/abajo.
+                        // - Si moneda=pesos: mostrar solo Pesos (sin referencia a USD).
+                        const precioVentaUSD = parseFloat(prod.p_venta) || 0;
+                        const precioVentaARS = (prod.p_venta_pesos !== null && prod.p_venta_pesos !== undefined)
+                            ? parseFloat(prod.p_venta_pesos)
+                            : null;
+                        // (si moneda=dolar) en la lista se muestra USD y Pesos
+                        const esDolar = (prod.moneda === 'dolar');
+
+                        div.innerHTML = `
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span><strong>${prod.cod_prod}</strong> - ${prod.descripcion}</span>
+                                <span style="font-size: 0.9em; text-align:right; display:flex; gap:10px; align-items:flex-start; justify-content:flex-end;">
+                                    ${esDolar ? `<span style="white-space:nowrap;color:#2ecc71">$${precioVentaUSD.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (USD)</span>` : ''}
+                                    <span style="white-space:nowrap;color:#3498db">$${(precioVentaARS !== null ? precioVentaARS : precioVentaUSD).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Pesos)</span>
+
+                                    <b style="color: ${stockColor};">Stock: ${stockTexto}</b>
+                                </span>
+                            </div>
+                        `;
+
+                        div.onclick = () => {
+                            agregarAlCarrito(prod);
+                            inputBuscarProd.value = '';
+                            resultadosProd.innerHTML = '';
+                        };
+                        resultadosProd.appendChild(div);
+                    });
+                })
+                .catch(err => console.error("Error en Fetch Productos:", err));
+        });
+    }
+
+    // --- 2. BUSCADOR DE CLIENTES ---
+    if (inputBuscarCli) {
+        inputBuscarCli.addEventListener('input', function() {
+            const busqueda = this.value.toLowerCase().trim();
+            resultadosCli.innerHTML = '';
+
+            if (typeof clientesData === 'undefined') {
+                console.error("Error: clientesData no está definido");
+                return;
+            }
+
+            if (busqueda.length < 2) {
+                resultadosCli.style.display = 'none';
+                return;
+            }
+
+            const filtrados = clientesData.filter(c => 
+                (c.nombre_completo && c.nombre_completo.toLowerCase().includes(busqueda)) || 
+                (c.num_documento && c.num_documento.includes(busqueda))
+            );
+
+            if (filtrados.length > 0) {
+                resultadosCli.style.display = 'block';
+                filtrados.forEach(cliente => {
+                    const div = document.createElement('div');
+                    div.className = 'resultado-cliente-item';
+                    div.style.padding = '8px';
+                    div.style.cursor = 'pointer';
+                    div.style.borderBottom = '1px solid #eee';
+                    div.dataset.cliente = JSON.stringify(cliente);
+                    
+                    // Mostrar solo el nombre y documento (sin saldo en la lista)
+                    div.innerHTML = `<strong>${cliente.nombre_completo}</strong> <small>(${cliente.num_documento})</small>`;
+                    resultadosCli.appendChild(div);
+                });
+            }
+        });
+
+        resultadosCli.addEventListener('click', function(e) {
+            const item = e.target.closest('.resultado-cliente-item');
+            if (item) {
+                const cliente = JSON.parse(item.dataset.cliente);
+                const idHidden = document.getElementById('id_cliente_hidden'); 
+                const nombreDisplay = document.getElementById('nombre_cliente_display');
+                const condPagoSelect = document.getElementById('cond_pago');
+                
+                if (idHidden) idHidden.value = cliente.id_cliente;
+                
+                // Validar si el cliente tiene habilitada la cuenta corriente
+                const habilitaCta = (cliente.habilita_cta || '').toUpperCase();
+                const esCuentaCorriente = condPagoSelect && condPagoSelect.value === 'CUENTA CORRIENTE';
+                
+                if (esCuentaCorriente && habilitaCta === 'NO') {
+                    mostrarToast("⛔ Este cliente no tiene habilitada la cuenta corriente.", "error");
+                    // Limpiar selección
+                    if (idHidden) idHidden.value = '0';
+                    if (nombreDisplay) {
+                        if (nombreDisplay.tagName === 'INPUT') {
+                            nombreDisplay.value = '';
+                        } else {
+                            nombreDisplay.innerHTML = 'Venta Genérica';
+                        }
+                    }
+                    inputBuscarCli.value = '';
+                    resultadosCli.innerHTML = '';
+                    resultadosCli.style.display = 'none';
+                    return;
+                }
+                
+                if (nombreDisplay) {
+                    // Mostrar nombre + saldo deudor si existe
+                    const saldo = parseFloat(cliente.saldo_deudor) || 0;
+                    let nombreMostrado = cliente.nombre_completo;
+                    
+                    if (saldo > 0) {
+                        nombreMostrado += ` <span style="color: #e74c3c;"><i class="fas fa-exclamation-circle"></i> Saldo: -$${saldo.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>`;
+                    }
+                    
+                    if (nombreDisplay.tagName === 'INPUT') {
+                        nombreDisplay.value = cliente.nombre_completo;
+                    } else {
+                        nombreDisplay.innerHTML = nombreMostrado;
+                    }
+                }
+
+                inputBuscarCli.value = '';
+                resultadosCli.innerHTML = '';
+                resultadosCli.style.display = 'none';
+            }
+        });
+    }
+
+    // Listeners para recalcular todo cuando cambian los valores de financiación
     const ids = ['cuotas_selector', 'intervalo_cuotas', 'interes_manual', 'pago_efectivo', 'pago_transf', 'cond_pago', 'desc_global_tipo', 'desc_global_valor', 'cobrar_primera_hoy'];
     ids.forEach(id => {
         const el = document.getElementById(id);
@@ -199,6 +242,39 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Validar cuenta corriente cuando cambia la condición de pago
+    const condPagoSelect = document.getElementById('cond_pago');
+    if (condPagoSelect) {
+        condPagoSelect.addEventListener('change', function() {
+            const condicion = this.value;
+            const idCliente = document.getElementById('id_cliente_hidden').value;
+            const nombreDisplay = document.getElementById('nombre_cliente_display');
+            
+            // Si cambia a CUENTA CORRIENTE y hay un cliente seleccionado
+            if (condicion === 'CUENTA CORRIENTE' && idCliente && idCliente != "0") {
+                const clienteSeleccionado = clientesData.find(c => c.id_cliente == idCliente);
+                if (clienteSeleccionado) {
+                    const habilitaCta = (clienteSeleccionado.habilita_cta || '').toUpperCase();
+                    if (habilitaCta === 'NO') {
+                        mostrarToast("⛔ Este cliente no tiene habilitada la cuenta corriente.", "error");
+                        // Limpiar selección del cliente
+                        document.getElementById('id_cliente_hidden').value = '0';
+                        if (nombreDisplay) {
+                            if (nombreDisplay.tagName === 'INPUT') {
+                                nombreDisplay.value = '';
+                            } else {
+                                nombreDisplay.innerHTML = 'Venta Genérica';
+                            }
+                        }
+                        document.getElementById('buscar_cliente').value = '';
+                        document.getElementById('resultadosBusquedaClientes').innerHTML = '';
+                        document.getElementById('resultadosBusquedaClientes').style.display = 'none';
+                    }
+                }
+            }
+        });
+    }
+
     // Botón "Ver Plan de Cuotas" - usar onclick directo para asegurar funcionamiento
     const btnVerPlan = document.getElementById('btnVerPlanCuotas');
     if (btnVerPlan) {
@@ -206,6 +282,45 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             window.mostrarPlanCuotas();
         };
+    }
+
+    // --- LÓGICA DE VUELTO ---
+    const inputEfectivo = document.getElementById('pago_efectivo');
+    const inputTransf = document.getElementById('pago_transf');
+    const selectCond = document.getElementById('cond_pago');
+
+    if (inputEfectivo) inputEfectivo.addEventListener('input', calcularVuelto);
+    if (inputTransf) inputTransf.addEventListener('input', calcularVuelto);
+    if (selectCond) selectCond.addEventListener('change', calcularVuelto);
+
+    // --- GESTIÓN DE PENDIENTES ---
+    const btnPendiente = document.getElementById('btnGuardarPendiente');
+    if (btnPendiente) {
+        btnPendiente.onclick = () => {
+            const form = document.getElementById('formVenta');
+            if (carrito.length === 0) { 
+                mostrarMensaje("Carrito Vacío", "Debe agregar productos antes de guardar la venta.", "error");
+                return; 
+            }
+            document.getElementById('venta_action_input').value = 'Pendiente';
+            form.submit();
+        };
+    }
+
+    // Botón ver pendientes
+    const btnVerPendiente = document.getElementById('btnVerPendiente');
+    if (btnVerPendiente) {
+        btnVerPendiente.addEventListener('click', function() {
+            const modal = document.getElementById('pendientesModal');
+            const lista = document.getElementById('listaPendientes');
+            modal.style.display = 'block';
+            lista.innerHTML = '<p>Cargando ventas...</p>';
+
+            fetch('../ajax/ventas_pendientes_ajax.php')
+                .then(response => response.text())
+                .then(html => { lista.innerHTML = html; })
+                .catch(error => { lista.innerHTML = 'Error al cargar los datos.'; });
+        });
     }
 });
 
@@ -309,14 +424,6 @@ function actualizarTotal() {
 }
 
 // --- LÓGICA DE VUELTO ---
-const inputEfectivo = document.getElementById('pago_efectivo');
-const inputTransf = document.getElementById('pago_transf');
-const selectCond = document.getElementById('cond_pago');
-
-if (inputEfectivo) inputEfectivo.addEventListener('input', calcularVuelto);
-if (inputTransf) inputTransf.addEventListener('input', calcularVuelto);
-if (selectCond) selectCond.addEventListener('change', calcularVuelto);
-
 function calcularVuelto() {
     const inputTotal = document.getElementById('total_venta_input');
     const condicion = document.getElementById('cond_pago').value;
@@ -342,19 +449,6 @@ function calcularVuelto() {
 }
 
 // --- GESTIÓN DE PENDIENTES ---
-const btnPendiente = document.getElementById('btnGuardarPendiente');
-if (btnPendiente) {
-    btnPendiente.onclick = () => {
-        const form = document.getElementById('formVenta');
-        if (carrito.length === 0) { 
-            mostrarMensaje("Carrito Vacío", "Debe agregar productos antes de guardar la venta.", "error");
-            return; 
-        }
-        document.getElementById('venta_action_input').value = 'Pendiente';
-        form.submit();
-    };
-}
-
 window.reanudarVenta = function(nDocumento) {
     fetch(`../ajax/obtener_detalle_venta.php?n_documento=${nDocumento}&formato=json`)
         .then(res => res.json())
@@ -400,23 +494,6 @@ window.reanudarVenta = function(nDocumento) {
             mostrarMensaje("Error de Conexión", "No se pudieron recuperar los datos de la venta.", "error");
         });
 };
-
-document.addEventListener('DOMContentLoaded', function() {
-    const btnVer = document.getElementById('btnVerPendiente');
-    if (btnVer) {
-        btnVer.addEventListener('click', function() {
-            const modal = document.getElementById('pendientesModal');
-            const lista = document.getElementById('listaPendientes');
-            modal.style.display = 'block';
-            lista.innerHTML = '<p>Cargando ventas...</p>';
-
-            fetch('../ajax/ventas_pendientes_ajax.php')
-                .then(response => response.text())
-                .then(html => { lista.innerHTML = html; })
-                .catch(error => { lista.innerHTML = 'Error al cargar los datos.'; });
-        });
-    }
-});
 
 function cerrarModalPendientes() {
     const modal = document.getElementById('pendientesModal');
@@ -522,6 +599,17 @@ if (formVenta) {
                 e.preventDefault();
                 mostrarMensaje("Cliente Requerido", "⛔ Para vender en CUENTA CORRIENTE debes seleccionar un cliente real.", "error");
                 return false;
+            }
+            
+            // Validar que el cliente tenga habilitada la cuenta corriente
+            const clienteSeleccionado = clientesData.find(c => c.id_cliente == idCliente);
+            if (clienteSeleccionado) {
+                const habilitaCta = (clienteSeleccionado.habilita_cta || '').toUpperCase();
+                if (habilitaCta === 'NO') {
+                    e.preventDefault();
+                    mostrarMensaje("Cuenta Corriente No Habilitada", "⛔ Este cliente no tiene habilitada la cuenta corriente. Selecciona otro cliente o cambia la condición de pago.", "error");
+                    return false;
+                }
             }
         }
     });

@@ -129,12 +129,30 @@ try {
     <title>Proveedores | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css?v=<?php echo time(); ?>">
     <style>
+        :root { --accent: #00bcd4; --success: #2ecc71; --warning: #f1c40f; --danger: #e74c3c; }
+        
         .flex-row { display: flex; gap: 20px; margin-bottom: 15px; }
         .flex-row > div { flex: 1; }
         label { display: block; margin-bottom: 5px; color: #3498db; font-weight: bold; font-size: 0.9em; }
         input { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #444; background: #222; color: #fff; box-sizing: border-box; }
         .input-auto { border-color: #27ae60 !important; color: #2ecc71 !important; font-weight: bold; }
         #filtro-proveedores { width: 100%; max-width: 450px; margin-bottom: 20px; background: #1a1a1a; border: 1px solid #333; height: 40px; color: white; padding-left: 10px; }
+        
+        /* ===== ESTILOS DE TABLA ALINEADOS CON REPORTE ===== */
+        .card { background: #1e1e1e; border-radius: 12px; border: 1px solid #333; padding: 20px; }
+        table { border-collapse: separate; border-spacing: 0 6px; width: 100%; }
+        table thead th { color: var(--accent); text-transform: uppercase; font-size: 0.75em; letter-spacing: 1px; padding: 10px 8px; text-align: left; white-space: nowrap; font-weight: bold; }
+        table tbody tr { background: #252525; transition: 0.3s; }
+        table tbody tr:hover { background: #2a2a2a; }
+        table tbody td { padding: 10px 8px; border-top: 1px solid #333; border-bottom: 1px solid #333; color: #ccc; font-size: 0.9em; }
+        table tbody td:first-child { border-left: 1px solid #333; border-radius: 8px 0 0 8px; }
+        table tbody td:last-child { border-right: 1px solid #333; border-radius: 0 8px 8px 0; }
+        
+        .text-right { text-align: right; }
+        .text-bold { font-weight: bold; color: #fff; }
+        .text-success { color: var(--success); }
+        .text-danger { color: var(--danger); }
+        .text-warning { color: var(--warning); }
     </style>
 </head>
 <body>
@@ -171,7 +189,7 @@ try {
                     <tbody>
                         <?php foreach ($proveedores as $p): ?>
                         <tr>
-                            <td><span style="color: #3498db; font-weight: bold;"><?php echo htmlspecialchars($p['cod_prov']); ?></span></td>
+                            <td><span class="text-bold" style="color: var(--accent);"><?php echo htmlspecialchars($p['cod_prov']); ?></span></td>
                             <td><strong><?php echo htmlspecialchars($p['razon']); ?></strong></td>
                             <td><?php echo htmlspecialchars($p['cuit'] ? $p['cuit'] : '---'); ?></td>
                             <td><?php echo htmlspecialchars($p['telefono'] ? $p['telefono'] : '---'); ?></td>
@@ -186,7 +204,7 @@ try {
                                     <button class="btn btn-success btn-sm" onclick="abrirImportar('<?php echo $p['cod_prov']; ?>', '<?php echo addslashes($p['razon']); ?>')" title="Importar lista CSV">Importar</button>
                                 <?php endif; ?>
                             </td>
-                            <td>
+                            <td style="white-space: nowrap;">
                                 <a href="abm_proveedores.php?accion=editar&cod_prov=<?php echo $p['cod_prov']; ?>" class="btn btn-primary btn-sm">Editar</a>
                                 <a href="abm_proveedores.php?accion=eliminar&cod_prov=<?php echo $p['cod_prov']; ?>" 
                                    class="btn btn-danger btn-sm" 

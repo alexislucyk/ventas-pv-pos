@@ -78,7 +78,8 @@ function calcularInteresesCliente($id_cliente, $pdo, $empresa_id, $fecha_calculo
         ];
     }
     
-    // 2. Obtener movimientos deudores vencidos
+    // 2. Obtener movimientos deudores vencidos CON SALDO PENDIENTE
+    // Excluir movimientos de intereses para evitar intereses sobre intereses
     $sql = "
         SELECT 
             c.id,
@@ -92,14 +93,12 @@ function calcularInteresesCliente($id_cliente, $pdo, $empresa_id, $fecha_calculo
         FROM ctacte c
         WHERE c.id_cliente = :id_cliente
         AND c.empresa_id = :empresa_id
-        AND c.debe > 0
+        AND (c.debe - c.haber) > 0
         AND c.fecha_vencimiento IS NOT NULL
         AND c.fecha_vencimiento < :fecha_calc2
+        AND LOWER(c.movimiento) NOT LIKE 'inter%por%mora%'
         ORDER BY c.fecha_vencimiento ASC
     ";
-    
-    error_log("SQL Consulta movimientos: $sql");
-    error_log("Params: id_cliente=$id_cliente, empresa_id=$empresa_id, fecha_calc=$fecha_calculo");
     
     $stmt = $pdo->prepare($sql);
     $params = [
@@ -108,30 +107,58 @@ function calcularInteresesCliente($id_cliente, $pdo, $empresa_id, $fecha_calculo
         ':fecha_calc1' => $fecha_calculo,
         ':fecha_calc2' => $fecha_calculo
     ];
-    error_log("Array params: " . print_r($params, true));
     
-    $stmt->execute($params);
-    
-    error_log("Movimientos encontrados: " . count($stmt->fetchAll(PDO::FETCH_ASSOC)));
-    
-    // Re-ejecutar para obtener los datos
     $stmt->execute($params);
     $movimientos = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // 3. Calcular interés por cada movimiento
+    // 3. Calcular saldo pendiente considerando pagos acumulados (FIFO)
+    // Obtener todos los pagos del cliente
+    $sql_pagos = "
+        SELECT 
+            id,
+            fecha,
+            haber
+        FROM ctacte
+        WHERE id_cliente = :id_cliente
+        AND empresa_id = :empresa_id
+        AND haber > 0
+        AND movimiento NOT LIKE 'INTERÉS POR MORA%'
+        ORDER BY fecha ASC, id ASC
+    ";
+    
+    $stmt_pagos = $pdo->prepare($sql_pagos);
+    $stmt_pagos->execute([
+        ':id_cliente' => $id_cliente,
+        ':empresa_id' => $empresa_id
+    ]);
+    $pagos = $stmt_pagos->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Aplicar pagos a facturas usando FIFO
     $interes_total = 0;
     $detalle = [];
+    $pagos_restantes = array_column($pagos, 'haber');
+    $total_pagos = count($pagos_restantes);
     
     foreach ($movimientos as $mov) {
         // Aplicar días de gracia
         $dias_mora = max(0, $mov['dias_mora'] - $config['dias_gracia']);
         
         if ($dias_mora > 0) {
-            $saldo_pendiente = $mov['debe'] - $mov['haber'];
+            // Calcular saldo pendiente de esta factura
+            $saldo_factura = $mov['debe'];
             
-            // Solo calcular si hay saldo pendiente
-            if ($saldo_pendiente > 0) {
-                $interes = calcularInteresMora($saldo_pendiente, $dias_mora, $config['tasa_mensual']);
+            // Aplicar pagos disponibles (FIFO)
+            for ($i = 0; $i < $total_pagos && $saldo_factura > 0; $i++) {
+                if ($pagos_restantes[$i] > 0) {
+                    $pago_aplicado = min($saldo_factura, $pagos_restantes[$i]);
+                    $saldo_factura -= $pago_aplicado;
+                    $pagos_restantes[$i] -= $pago_aplicado;
+                }
+            }
+            
+            // Solo calcular intereses si queda saldo pendiente
+            if ($saldo_factura > 0) {
+                $interes = calcularInteresMora($saldo_factura, $dias_mora, $config['tasa_mensual']);
                 
                 if ($interes > 0) {
                     $interes_total += $interes;
@@ -141,7 +168,7 @@ function calcularInteresesCliente($id_cliente, $pdo, $empresa_id, $fecha_calculo
                         'movimiento' => $mov['movimiento'],
                         'fecha' => $mov['fecha'],
                         'fecha_vencimiento' => $mov['fecha_vencimiento'],
-                        'saldo_pendiente' => $saldo_pendiente,
+                        'saldo_pendiente' => $saldo_factura,
                         'dias_mora' => $dias_mora,
                         'tasa_aplicada' => $config['tasa_mensual'],
                         'interes_calculado' => $interes
@@ -199,9 +226,6 @@ function generarNumeroInteres($pdo, $empresa_id) {
  */
 function aplicarInteresesMora($id_cliente, $pdo, $usuario_id = null) {
     try {
-        error_log("=== INICIO aplicarInteresesMora ===");
-        error_log("Cliente: $id_cliente");
-        
         $pdo->beginTransaction();
         
         // 1. Calcular intereses
@@ -210,9 +234,7 @@ function aplicarInteresesMora($id_cliente, $pdo, $usuario_id = null) {
             throw new Exception('Empresa no definida en sesión');
         }
         
-        error_log("Calculando intereses para cliente $id_cliente, empresa $empresa_id");
         $resultado = calcularInteresesCliente($id_cliente, $pdo, $empresa_id);
-        error_log("Resultado cálculo: " . print_r($resultado, true));
         
         if ($resultado['interes_total'] <= 0) {
             $pdo->rollBack();
@@ -234,33 +256,32 @@ function aplicarInteresesMora($id_cliente, $pdo, $usuario_id = null) {
             throw new Exception('Cliente no encontrado');
         }
         
-        // 3. Insertar movimiento de interés en ctacte
-        // Nota: n_documento debe ser INT, usaremos el ID del movimiento como referencia
+        // 3. Generar número único para el interés
+        $n_documento = generarNumeroInteres($pdo, $empresa_id);
+        
+        // 4. Insertar movimiento de interés en ctacte
         $sql_insert = "
             INSERT INTO ctacte 
             (id_cliente, movimiento, n_documento, debe, haber, fecha, fecha_vencimiento, usuario, empresa_id)
             VALUES
-            (:id_cliente, :movimiento, 0, :debe, 0, :fecha, :fecha_vencimiento, :usuario, :empresa_id)
+            (:id_cliente, :movimiento, :n_documento, :debe, 0, :fecha, :fecha_vencimiento, :usuario, :empresa_id)
         ";
         
         $movimiento_texto = "INTERÉS POR MORA - " . date('Y-m-d');
         $fecha_hoy = date('Y-m-d');
         $fecha_vencimiento = date('Y-m-d', strtotime('+30 days'));
         
-        error_log("Insertando en ctacte: $sql_insert");
-        
         $stmt_insert = $pdo->prepare($sql_insert);
         $stmt_insert->execute([
             ':id_cliente' => $id_cliente,
             ':movimiento' => $movimiento_texto,
+            ':n_documento' => $n_documento,
             ':debe' => $resultado['interes_total'],
             ':fecha' => $fecha_hoy,
             ':fecha_vencimiento' => $fecha_vencimiento,
             ':usuario' => $usuario_id ?: 'Sistema',
             ':empresa_id' => $empresa_id
         ]);
-        
-        error_log("Insert en ctacte exitoso, ID: " . $pdo->lastInsertId());
         
         $id_interes_generado = $pdo->lastInsertId();
         
@@ -279,8 +300,6 @@ function aplicarInteresesMora($id_cliente, $pdo, $usuario_id = null) {
             ? round(array_sum(array_column($resultado['detalle'], 'dias_mora')) / count($resultado['detalle']))
             : 0;
         
-        error_log("Insertando en intereses_generados: $sql_registro");
-        
         $stmt_registro = $pdo->prepare($sql_registro);
         $stmt_registro->execute([
             ':empresa_id' => $empresa_id,
@@ -295,11 +314,7 @@ function aplicarInteresesMora($id_cliente, $pdo, $usuario_id = null) {
             ':observaciones' => 'Interés aplicado sobre ' . count($resultado['detalle']) . ' movimiento(s)'
         ]);
         
-        error_log("Insert en intereses_generados exitoso");
-        
         $pdo->commit();
-        
-        error_log("=== FIN aplicarInteresesMora - ÉXITO ===");
         
         return [
             'success' => true,
@@ -310,8 +325,7 @@ function aplicarInteresesMora($id_cliente, $pdo, $usuario_id = null) {
         
     } catch (Exception $e) {
         $pdo->rollBack();
-        error_log("ERROR en aplicarInteresesMora: " . $e->getMessage());
-        error_log("Trace: " . $e->getTraceAsString());
+        error_log("Error en aplicarInteresesMora: " . $e->getMessage());
         return [
             'success' => false, 
             'error' => $e->getMessage()
@@ -348,7 +362,7 @@ function obtenerResumenInteresesPendientes($pdo, $empresa_id) {
         FROM ctacte c
         INNER JOIN clientes cl ON cl.id = c.id_cliente
         WHERE c.empresa_id = :emp_id
-        AND c.debe > 0
+        AND (c.debe - c.haber) > 0
         AND c.fecha_vencimiento IS NOT NULL
         AND c.fecha_vencimiento < CURDATE()
         GROUP BY c.id_cliente, cl.apellido, cl.nombre

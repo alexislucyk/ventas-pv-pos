@@ -185,23 +185,44 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
     <title>Productos | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="../css/style.css?v=<?php echo time(); ?>">
 <style>
-         .flex-row { display: flex; gap: 20px; margin-bottom: 15px; }
-         .flex-row > div { flex: 1; }
-         label { display: block; margin-bottom: 5px; color: #3498db; font-weight: bold; font-size: 0.9em; }
-         input, select { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #444; background: #222; color: #fff; box-sizing: border-box; }
-         input:focus { border-color: #3498db; outline: none; }
-         .btn-sm { padding: 5px 10px; font-size: 0.85em; }
-         .alert { padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-         .alert-success { background: rgba(46, 204, 113, 0.2); border: 1px solid #2ecc71; color: #2ecc71; }
-         .alert-error { background: rgba(231, 76, 60, 0.2); border: 1px solid #e74c3c; color: #e74c3c; }
-         .table-container { overflow-x: auto; }
-         #filtroProductos { width: 100%; max-width: 400px; margin-bottom: 20px; background: #1a1a1a url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="white" viewBox="0 0 16 16"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>') no-repeat 10px center; padding-left: 40px !important; }
-         
-         /* Ocultar spinners de inputs number */
-         #modalMultiples input[type=number]::-webkit-inner-spin-button,
-         #modalMultiples input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-         #modalMultiples input[type=number] { -moz-appearance: textfield; }
-     </style>
+     :root { --accent: #00bcd4; --success: #2ecc71; --warning: #f1c40f; --danger: #e74c3c; }
+     
+     .flex-row { display: flex; gap: 20px; margin-bottom: 15px; }
+     .flex-row > div { flex: 1; }
+     label { display: block; margin-bottom: 5px; color: #3498db; font-weight: bold; font-size: 0.9em; }
+     input, select { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #444; background: #222; color: #fff; box-sizing: border-box; }
+     input:focus { border-color: #3498db; outline: none; }
+     .btn-sm { padding: 5px 10px; font-size: 0.85em; }
+     .alert { padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+     .alert-success { background: rgba(46, 204, 113, 0.2); border: 1px solid #2ecc71; color: #2ecc71; }
+     .alert-error { background: rgba(231, 76, 60, 0.2); border: 1px solid #e74c3c; color: #e74c3c; }
+     .table-container { overflow-x: auto; }
+     #filtroProductos { width: 100%; max-width: 400px; margin-bottom: 20px; background: #1a1a1a url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="white" viewBox="0 0 16 16"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>') no-repeat 10px center; padding-left: 40px !important; }
+     
+     /* Ocultar spinners de inputs number */
+     #modalMultiples input[type=number]::-webkit-inner-spin-button,
+     #modalMultiples input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+     #modalMultiples input[type=number] { -moz-appearance: textfield; }
+     
+     /* Estilos de tabla alineados con reporte_movimientos_productos.php */
+     .card { background: #1e1e1e; border-radius: 12px; border: 1px solid #333; padding: 20px; }
+     table { border-collapse: separate; border-spacing: 0 6px; width: 100%; }
+     table thead th { color: var(--accent); text-transform: uppercase; font-size: 0.75em; letter-spacing: 1px; padding: 10px 8px; text-align: left; white-space: nowrap; font-weight: bold; }
+     table tbody tr { background: #252525; transition: 0.3s; }
+     table tbody tr:hover { background: #2a2a2a; }
+     table tbody td { padding: 10px 8px; border-top: 1px solid #333; border-bottom: 1px solid #333; color: #ccc; font-size: 0.9em; }
+     table tbody td:first-child { border-left: 1px solid #333; border-radius: 8px 0 0 8px; }
+     table tbody td:last-child { border-right: 1px solid #333; border-radius: 0 8px 8px 0; }
+     
+     .text-right { text-align: right; }
+     .text-bold { font-weight: bold; color: #fff; }
+     .text-success { color: var(--success); }
+     .text-danger { color: var(--danger); }
+     .text-warning { color: var(--warning); }
+     
+     .badge { padding: 3px 8px; border-radius: 4px; font-size: 0.75em; font-weight: bold; display: inline-block; }
+     .badge-warning { background: rgba(241, 196, 15, 0.15); color: var(--warning); border: 1px solid var(--warning); }
+ </style>
 </head>
 <body>
     <?php include 'sidebar.php'; ?>
@@ -238,8 +259,8 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
                                 <th>Descripción</th>
                                 <th>Rubro</th>
                                 <th>Moneda</th>
-                                <th>Stock</th>
-                                <th>P. Venta</th>
+                                <th class="text-right">Stock</th>
+                                <th class="text-right">P. Venta</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
@@ -251,8 +272,8 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
                                 <td><strong><?php echo htmlspecialchars($p['descripcion']); ?></strong></td>
                                 <td><?php echo htmlspecialchars($p['rubro']); ?></td>
                                 <td><?php echo $p['moneda'] == 'dolar' ? 'U$S' : '$'; ?></td>
-                                <td style="text-align: center;"><?php echo number_format($p['stock'], 2, ',', '.'); ?></td>
-                                <td style="text-align: right; color: #2ecc71;"><?php echo $p['moneda'] == 'dolar' ? 'U$S' : '$'; ?><?php echo number_format($p['p_venta'], 2, ',', '.'); ?></td>
+                                <td class="text-right"><?php echo number_format($p['stock'], 2, ',', '.'); ?></td>
+                                <td class="text-right text-bold text-success"><?php echo $p['moneda'] == 'dolar' ? 'U$S' : '$'; ?><?php echo number_format($p['p_venta'], 2, ',', '.'); ?></td>
                                 <td>
                                     <a href="abm_productos.php?accion=editar&id=<?php echo $p['id']; ?>" class="btn btn-primary btn-sm">Editar</a>
                                     <a href="abm_productos.php?accion=eliminar&id=<?php echo $p['id']; ?>" 

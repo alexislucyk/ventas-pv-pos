@@ -19,68 +19,56 @@ if (!isset($_GET['id_cliente']) || !is_numeric($_GET['id_cliente'])) {
 
 $id_cliente = (int)$_GET['id_cliente'];
 
-// Obtener datos del cliente
-try {
-    error_log("=== INICIO CARGA DETALLE CLIENTE $id_cliente ===");
-    
-    $sql_cliente = "SELECT id, nombre, apellido, cuit, telefono FROM clientes WHERE id = :id AND empresa_id = :empresa_id";
-    error_log("SQL Cliente: $sql_cliente");
-    error_log("Params: id=$id_cliente, empresa_id=$empresa_id");
-    
-    $stmt_cliente = $pdo->prepare($sql_cliente);
-    $stmt_cliente->execute([':id' => $id_cliente, ':empresa_id' => $empresa_id]);
-    $cliente = $stmt_cliente->fetch(PDO::FETCH_ASSOC);
-    
-    if (!$cliente) {
-        die('❌ Error: Cliente no encontrado.');
-    }
-    
-    $nombre_completo = $cliente['apellido'] . ', ' . $cliente['nombre'];
-    
-    // Obtener movimientos del cliente
-    $sql_movimientos = "
-        SELECT
-            id,
-            movimiento,
-            n_documento,
-            debe,
-            haber,
-            fecha
-        FROM ctacte
-        WHERE id_cliente = :id_cliente AND empresa_id = :empresa_id
-        ORDER BY fecha ASC, id ASC
-    ";
-    
-    error_log("SQL Movimientos: $sql_movimientos");
-    
-    $stmt_mov = $pdo->prepare($sql_movimientos);
-    $stmt_mov->execute([':id_cliente' => $id_cliente, ':empresa_id' => $empresa_id]);
-    $movimientos = $stmt_mov->fetchAll(PDO::FETCH_ASSOC);
-    
-    error_log("Movimientos encontrados: " . count($movimientos));
-    
-    // Calcular saldo actual
-    $saldo_actual = 0;
-    foreach ($movimientos as $mov) {
-        $saldo_actual += (float)$mov['debe'] - (float)$mov['haber'];
-    }
-    
-    // Calcular intereses pendientes
+    // Obtener datos del cliente
     try {
-        error_log("Llamando a calcularInteresesCliente...");
-        $intereses = calcularInteresesCliente($id_cliente, $pdo, $empresa_id);
-        error_log("Intereses calculados: " . print_r($intereses, true));
-    } catch (Exception $e2) {
-        error_log("ERROR al calcular intereses: " . $e2->getMessage());
-        // Si hay error en intereses, continuar sin ellos
-        $intereses = [
-            'interes_total' => 0,
-            'detalle' => [],
-            'config' => []
-        ];
-    }
-    
-    error_log("=== FIN CARGA DETALLE CLIENTE ===");
+        $sql_cliente = "SELECT id, nombre, apellido, cuit, telefono FROM clientes WHERE id = :id AND empresa_id = :empresa_id";
+        
+        $stmt_cliente = $pdo->prepare($sql_cliente);
+        $stmt_cliente->execute([':id' => $id_cliente, ':empresa_id' => $empresa_id]);
+        $cliente = $stmt_cliente->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$cliente) {
+            die('❌ Error: Cliente no encontrado.');
+        }
+        
+        $nombre_completo = $cliente['apellido'] . ', ' . $cliente['nombre'];
+        
+        // Obtener movimientos del cliente
+        $sql_movimientos = "
+            SELECT
+                id,
+                movimiento,
+                n_documento,
+                debe,
+                haber,
+                fecha
+            FROM ctacte
+            WHERE id_cliente = :id_cliente AND empresa_id = :empresa_id
+            ORDER BY fecha ASC, id ASC
+        ";
+        
+        $stmt_mov = $pdo->prepare($sql_movimientos);
+        $stmt_mov->execute([':id_cliente' => $id_cliente, ':empresa_id' => $empresa_id]);
+        $movimientos = $stmt_mov->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Calcular saldo actual
+        $saldo_actual = 0;
+        foreach ($movimientos as $mov) {
+            $saldo_actual += (float)$mov['debe'] - (float)$mov['haber'];
+        }
+        
+        // Calcular intereses pendientes
+        try {
+            $intereses = calcularInteresesCliente($id_cliente, $pdo, $empresa_id);
+        } catch (Exception $e2) {
+            error_log("Error al calcular intereses: " . $e2->getMessage());
+            // Si hay error en intereses, continuar sin ellos
+            $intereses = [
+                'interes_total' => 0,
+                'detalle' => [],
+                'config' => []
+            ];
+        }
     
 } catch (Exception $e) {
     error_log("ERROR en detalle CC: " . $e->getMessage());

@@ -487,6 +487,22 @@ if ($accion === 'listar' && $id && isset($_GET['accion']) && $_GET['accion'] ===
             text-decoration: none;
         }
         .btn-export:hover { background: #2ecc71; }
+        
+        /* ===== ESTILOS DE TABLA ALINEADOS CON REPORTE ===== */
+        .card { background: #1e1e1e; border-radius: 12px; border: 1px solid #333; padding: 20px; }
+        table { border-collapse: separate; border-spacing: 0 6px; width: 100%; }
+        table thead th { color: var(--accent); text-transform: uppercase; font-size: 0.75em; letter-spacing: 1px; padding: 10px 8px; text-align: left; white-space: nowrap; font-weight: bold; }
+        table tbody tr { background: #252525; transition: 0.3s; }
+        table tbody tr:hover { background: #2a2a2a; }
+        table tbody td { padding: 10px 8px; border-top: 1px solid #333; border-bottom: 1px solid #333; color: #ccc; font-size: 0.9em; }
+        table tbody td:first-child { border-left: 1px solid #333; border-radius: 8px 0 0 8px; }
+        table tbody td:last-child { border-right: 1px solid #333; border-radius: 0 8px 8px 0; }
+        
+        .text-right { text-align: right; }
+        .text-bold { font-weight: bold; color: #fff; }
+        .text-success { color: var(--success); }
+        .text-danger { color: var(--danger); }
+        .text-warning { color: var(--warning); }
     </style>
 </head>
 <body>
@@ -562,7 +578,7 @@ if ($accion === 'listar' && $id && isset($_GET['accion']) && $_GET['accion'] ===
                                 <th>IVA</th>
                                 <th>Teléfono</th>
                                 <th>Cta. Cte.</th>
-                                <th>Saldo CC</th>
+                                <th class="text-right">Saldo CC</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
@@ -596,22 +612,22 @@ if ($accion === 'listar' && $id && isset($_GET['accion']) && $_GET['accion'] ===
                                         <span style="color: #666;">No</span>
                                     <?php endif; ?>
                                 </td>
-                                <td>
+                                <td class="text-right">
                                     <?php if ($saldo > 0): ?>
-                                        <span class="saldo-positivo">$<?php echo number_format($saldo, 2, ',', '.'); ?></span>
+                                        <span class="saldo-positivo text-bold">$<?php echo number_format($saldo, 2, ',', '.'); ?></span>
                                     <?php elseif ($saldo < 0): ?>
                                         <span class="saldo-negativo">$<?php echo number_format(abs($saldo), 2, ',', '.'); ?> a favor</span>
                                     <?php else: ?>
-                                        <span class="saldo-cero">$0,00</span>
+                                        <span class="saldo-cero text-bold">$0,00</span>
                                     <?php endif; ?>
                                 </td>
                                 <td style="white-space: nowrap;">
-                                    <a href="abm_clientes.php?accion=editar&id=<?php echo $c['id']; ?>" class="btn btn-primary btn-sm" title="Editar"><i class="fas fa-edit"></i></a>
+                                    <a href="abm_clientes.php?accion=editar&id=<?php echo $c['id']; ?>" class="btn btn-primary btn-sm">Editar</a>
                                     <a href="#" onclick="verVentas(<?php echo $c['id']; ?>, '<?php echo htmlspecialchars($c['apellido'] . ', ' . $c['nombre']); ?>'); return false;" class="btn btn-info btn-sm" title="Ver ventas"><i class="fas fa-receipt"></i></a>
                                     <a href="abm_clientes.php?accion=eliminar&id=<?php echo $c['id']; ?>" 
                                        class="btn btn-danger btn-sm" 
                                        onclick="event.preventDefault(); const url=this.href; confirmarAccion('Eliminar Cliente', '¿Estás seguro de eliminar a este cliente? Se perderán sus datos de contacto.', 'ELIMINAR', 'btn-danger', () => window.location.href=url);">
-                                       <i class="fas fa-trash"></i>
+                                        <i class="fas fa-trash"></i>
                                     </a>
                                 </td>
                             </tr>
