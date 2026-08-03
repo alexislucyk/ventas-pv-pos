@@ -389,7 +389,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     <div class="content" style="padding-top: 70px;">
         <?php include 'topbar.php'; ?>
-        <h1><i class="fas fa-industry"></i> Perfil del Negocio</h1>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+            <h1><i class="fas fa-industry"></i> Perfil del Negocio</h1>
+        </div>
 
         <?php if ($mensaje): ?>
             <div class="alert alert-<?php echo $tipo_mensaje; ?>" style="background: <?php echo $tipo_mensaje === 'error' ? '#b71c1c' : ($tipo_mensaje === 'warning' ? '#f57c00' : '#1b5e20'); ?>; color: white; padding: 15px; margin-bottom: 20px; border-radius: 5px; border: 1px solid <?php echo $tipo_mensaje === 'error' ? '#c62828' : ($tipo_mensaje === 'warning' ? '#ef6c00' : '#2e7d32'); ?>;">
@@ -397,7 +399,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         <?php endif; ?>
 
-        <div class="preview-header">
+        <div class="preview-header" style="position: relative;">
+            <div style="position: absolute; top: 20px; right: 20px; z-index: 9999;">
+                <a href="abm_empresas.php" style="background: #28a745; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: inline-block;">
+                    <i class="fas fa-plus"></i>
+                </a>
+            </div>
             <div class="info-group">
                 <p style="text-transform: uppercase; font-size: 0.7rem; letter-spacing: 1px;">Datos actuales del sistema</p>
                 <h2><?php echo htmlspecialchars(isset($empresa['nombre_fantasia']) ? $empresa['nombre_fantasia'] : 'Nombre del Negocio'); ?></h2>

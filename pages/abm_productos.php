@@ -103,14 +103,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Normalización robusta de stock (soporta 1.234,56 y 1,5 y 1234.56 y números redondos)
         $stock_raw = trim((string)($_POST['stock'] ?? '0'));
         $stock_raw = str_replace([' '], '', $stock_raw);
-        // si tiene coma decimal (ej: 1.234,56) => quitar miles con '.' y cambiar ',' por '.'
+        // Si tiene coma decimal (ej: 1.234,56) => quitar puntos de miles y cambiar coma por punto
         if (strpos($stock_raw, ',') !== false) {
             $stock_raw = str_replace('.', '', $stock_raw);
             $stock_raw = str_replace(',', '.', $stock_raw);
-        } else {
-            // si no tiene coma, pero tiene puntos, asumimos que son miles (ej: 1.234) => quitar '. '
-            $stock_raw = str_replace('.', '', $stock_raw);
         }
+        // Si no tiene coma, el valor está en formato punto decimal (ej: 10.5) o es entero (ej: 10)
+        // NO eliminar puntos porque serían el separador decimal, no de miles.
         $stock = (float)$stock_raw;
 
         
@@ -128,8 +127,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception("Ya existe un producto con ese código en esta empresa.");
             }
             
-            // Insertar producto SIN el campo stock (se maneja en tabla stocks)
-            $sql = "INSERT INTO productos (cod_prod, descripcion, p_compra, p_venta, fecha_ult_compra, rubro, proveedor, moneda, empresa_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            // Insertar producto (stock se maneja en tabla stocks, pero la tabla productos requiere el campo)
+            $sql = "INSERT INTO productos (cod_prod, descripcion, p_compra, p_venta, fecha_ult_compra, rubro, proveedor, moneda, empresa_id, stock) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)";
             $pdo->prepare($sql)->execute([$cod_prod, $descripcion, $p_compra, $p_venta, $fecha_ult_compra, $rubro, $proveedor, $_POST['moneda'] ?? 'pesos', $empresa_id]);
             
             // Guardar stock en tabla stocks (por sucursal)
@@ -739,7 +738,7 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
                                      <td style="padding: 5px; width: 160px;"><input type="text" class="prod-cod" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" data-enter-next="prod-descrip"></td>
                                      <td style="padding: 5px; width: 420px;"><input type="text" class="prod-descrip" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" data-enter-next="prod-compra"></td>
                                      <td style="padding: 5px; width: 180px;"><input type="number" class="prod-compra" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" onchange="calcularVenta(this)" data-enter-next="prod-venta"></td>
-                                     <td style="padding: 5px; width: 180px;"><input type="number" class="prod-venta" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" readonly data-enter-next="prod-stock"></td>
+                                     <td style="padding: 5px; width: 180px;"><input type="number" class="prod-venta" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" data-enter-next="prod-stock"></td>
                                      <td style="padding: 5px; width: 160px;"><input type="number" class="prod-stock" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" value="0" data-enter-next="__nueva_fila__"></td>
                                      <td style="padding: 5px; text-align: center; width: 68px;"><button type="button" class="btn btn-success btn-sm" onclick="agregarFila()" title="Agregar fila"><i class="fas fa-plus"></i></button></td>
                                  </tr>
@@ -807,7 +806,7 @@ function cerrarModalMultiples() {
               '<td style="padding: 5px; width: 160px;"><input type="text" class="prod-cod" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;"></td>' +
               '<td style="padding: 5px; width: 420px;"><input type="text" class="prod-descrip" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;"></td>' +
               '<td style="padding: 5px; width: 180px;"><input type="number" class="prod-compra" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" onchange="calcularVenta(this)"></td>' +
-              '<td style="padding: 5px; width: 180px;"><input type="number" class="prod-venta" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" readonly></td>' +
+              '<td style="padding: 5px; width: 180px;"><input type="number" class="prod-venta" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;"></td>' +
               '<td style="padding: 5px; width: 160px;"><input type="number" class="prod-stock" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" value="0"></td>' +
               '<td style="padding: 5px; text-align: center; width: 68px;"><button type="button" class="btn btn-success btn-sm" onclick="agregarFila()" title="Agregar fila"><i class="fas fa-plus"></i></button></td>' +
           '</tr>'; 
@@ -826,7 +825,7 @@ function cerrarModalMultiples() {
           tr.innerHTML = '<td style="padding: 5px; width: 160px;"><input type="text" class="prod-cod" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" data-enter-next="prod-descrip"></td>' +
               '<td style="padding: 5px; width: 420px;"><input type="text" class="prod-descrip" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" data-enter-next="prod-compra"></td>' +
               '<td style="padding: 5px; width: 180px;"><input type="number" class="prod-compra" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" onchange="calcularVenta(this)" data-enter-next="prod-venta"></td>' +
-              '<td style="padding: 5px; width: 180px;"><input type="number" class="prod-venta" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" readonly data-enter-next="prod-stock"></td>' +
+              '<td style="padding: 5px; width: 180px;"><input type="number" class="prod-venta" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" data-enter-next="prod-stock"></td>' +
               '<td style="padding: 5px; width: 160px;"><input type="number" class="prod-stock" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" value="0" data-enter-next="__nueva_fila__"></td>' +
               '<td style="padding: 5px; text-align: center; width: 68px; white-space: nowrap;">'
                 + '<div style="display:flex; gap:6px; justify-content:center; align-items:center;">'

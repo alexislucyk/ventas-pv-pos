@@ -607,11 +607,17 @@ body.sidebar-collapsed .topbar {
         <?php if (tiene_permiso('pages/cuentas_corrientes.php')): ?>
             <a href="<?php echo URL_BASE; ?>pages/cuentas_corrientes.php" data-title="Cta. Cte. Clientes"><i class="fas fa-user-clock"></i> <span>Cta. Cte. Clientes</span></a>
         <?php endif; ?>
+        <?php if (tiene_permiso('pages/configuracion_intereses.php')): ?>
+            <a href="<?php echo URL_BASE; ?>pages/configuracion_intereses.php" data-title="Config. Intereses"><i class="fas fa-percentage"></i> <span>Config. Intereses</span></a>
+        <?php endif; ?>
         <?php if (tiene_permiso('pages/ctacte_proveedores.php')): ?>
             <a href="<?php echo URL_BASE; ?>pages/ctacte_proveedores.php" data-title="Cta. Cte. Proveedores"><i class="fas fa-history"></i> <span>Cta. Cte. Proveedores</span></a>
         <?php endif; ?>
         <?php if (tiene_permiso('pages/reportes_inventario.php')): ?>
             <a href="<?php echo URL_BASE; ?>pages/reportes_inventario.php" data-title="Inventario"><i class="fas fa-warehouse"></i> <span>Inventario</span></a>
+        <?php endif; ?>
+        <?php if (tiene_permiso('pages/reporte_movimientos_productos.php')): ?>
+            <a href="<?php echo URL_BASE; ?>pages/reporte_movimientos_productos.php" data-title="Mov. de Productos"><i class="fas fa-exchange-alt"></i> <span>Mov. de Productos</span></a>
         <?php endif; ?>
         <?php if (tiene_permiso('pages/reportes_financieros.php')): ?>
             <a href="<?php echo URL_BASE; ?>pages/reportes_financieros.php" data-title="Financieros"><i class="fas fa-money-check-alt"></i> <span>Financieros</span></a>

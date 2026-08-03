@@ -8,15 +8,15 @@ if (!isset($_SESSION['permisos'])) return;
 try {
     $sql_empresas = "SELECT id, nombre_fantasia FROM empresas WHERE activa = 1 ORDER BY nombre_fantasia";
     $stmt_empresas = $pdo->query($sql_empresas);
-    $empresas = $stmt_empresas->fetchAll(PDO::FETCH_ASSOC);
+    $selector_empresas = $stmt_empresas->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
-    $empresas = [];
+    $selector_empresas = [];
 }
 ?>
 
 <div class="empresa-selector-container">
     <select id="selectorEmpresa" class="empresa-selector" onchange="cambiarEmpresa(this.value)">
-        <?php foreach ($empresas as $emp): ?>
+        <?php foreach ($selector_empresas as $emp): ?>
             <option value="<?php echo $emp['id']; ?>" 
                 <?php echo (isset($_SESSION['empresa_id']) && $_SESSION['empresa_id'] == $emp['id']) ? 'selected' : ''; ?>>
                 <?php echo htmlspecialchars($emp['nombre_fantasia']); ?>

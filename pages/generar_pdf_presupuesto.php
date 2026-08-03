@@ -39,16 +39,18 @@ if (!$presu) {
 
 // 2.1. Buscamos datos de la empresa y sucursal principal de forma dinámica
 try {
-    $stmt_emp = $pdo->query("SELECT nombre_fantasia, cuit, direccion, localidad, telefono FROM datos_empresa WHERE id = 1 LIMIT 1");
+    $empresa_id = $_SESSION['empresa_id'] ?? 1;
+    $stmt_emp = $pdo->prepare("SELECT nombre_fantasia, cuit, direccion, localidad, telefono FROM empresas WHERE id = ? LIMIT 1");
+    $stmt_emp->execute([$empresa_id]);
     $emp_d = $stmt_emp->fetch(PDO::FETCH_ASSOC);
     
-    // Buscamos el email en la sucursal principal (ya que no está en datos_empresa)
+    // Buscamos el email en la sucursal principal (ya que no está en empresas)
     $stmt_suc = $pdo->query("SELECT email FROM sucursales WHERE es_principal = 1 LIMIT 1");
     $suc_d = $stmt_suc->fetch(PDO::FETCH_ASSOC);
     
     $nombreEmpresa = !empty($emp_d['nombre_fantasia']) ? $emp_d['nombre_fantasia'] : 'Mi Negocio';
     
-    // Construimos la dirección completa usando los nuevos campos de datos_empresa
+    // Construimos la dirección completa usando los campos de empresas
     $dirEmpresa    = !empty($emp_d['direccion']) ? $emp_d['direccion'] . (!empty($emp_d['localidad']) ? ' - ' . $emp_d['localidad'] : '') : 'Dirección no configurada';
     
     $telEmpresa    = !empty($emp_d['telefono']) ? $emp_d['telefono'] : '';

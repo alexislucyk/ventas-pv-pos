@@ -249,15 +249,27 @@ try {
                                     $ <?php echo number_format($c['saldo_actual'], 2, ',', '.'); ?>
                                 </td>
                                 <td style="text-align: center;">
-<button class="btn-view" onclick="verDetalle(<?php echo $c['id_cliente']; ?>, '<?php echo htmlspecialchars($c['nombre_completo'], ENT_QUOTES); ?>')" aria-label="Ver historial de <?php echo htmlspecialchars($c['nombre_completo'], ENT_QUOTES); ?>">
-                                            <i class="fas fa-eye" aria-hidden="true"></i> Ver Historial
+                                    <a href="cuentas_corrientes_detalle.php?id_cliente=<?php echo $c['id_cliente']; ?>" class="btn-view" style="text-decoration: none; display: inline-block;" aria-label="Ver detalle de <?php echo htmlspecialchars($c['nombre_completo'], ENT_QUOTES); ?>">
+                                        <i class="fas fa-eye" aria-hidden="true"></i> Ver Detalle
+                                    </a>
+                                    
+                                    <!-- Botón de Intereses por Mora -->
+                                    <button class="btn-aplicar-interes" 
+                                            data-id-cliente="<?php echo $c['id_cliente']; ?>"
+                                            data-nombre-cliente="<?php echo htmlspecialchars($c['nombre_completo'], ENT_QUOTES); ?>"
+                                            title="Aplicar intereses por mora"
+                                            style="background: #f39c12; color: white; border: none; padding: 6px 12px; 
+                                                   border-radius: 4px; cursor: pointer; margin-left: 5px;"
+                                            aria-label="Aplicar intereses a <?php echo htmlspecialchars($c['nombre_completo'], ENT_QUOTES); ?>">
+                                        <i class="fas fa-percentage"></i> Intereses
+                                    </button>
+                                    
+                                    <?php if (tiene_permiso('whatsapp_enviar')): ?>
+                                        <button class="btn-whatsapp-nodered" title="Enviar saldo vía Node-RED" aria-label="Enviar WhatsApp a <?php echo htmlspecialchars($c['nombre_completo'], ENT_QUOTES); ?>"
+                                                onclick="enviarWhatsAppNodeRed('<?php echo htmlspecialchars($c['telefono'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($c['nombre_completo'], ENT_QUOTES); ?>', <?php echo $c['saldo_actual']; ?>)">
+                                            <i class="fab fa-whatsapp" aria-hidden="true"></i> WhatsApp
                                         </button>
-<?php if (tiene_permiso('whatsapp_enviar')): ?>
-                                            <button class="btn-whatsapp-nodered" title="Enviar saldo vía Node-RED" aria-label="Enviar WhatsApp a <?php echo htmlspecialchars($c['nombre_completo'], ENT_QUOTES); ?>"
-                                                    onclick="enviarWhatsAppNodeRed('<?php echo htmlspecialchars($c['telefono'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($c['nombre_completo'], ENT_QUOTES); ?>', <?php echo $c['saldo_actual']; ?>)">
-                                                <i class="fab fa-whatsapp" aria-hidden="true"></i> WhatsApp
-                                            </button>
-                                        <?php endif; ?>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -672,7 +684,7 @@ try {
                                 const div = document.createElement('div');
                                 div.style.padding = '12px'; div.style.cursor = 'pointer'; div.style.borderBottom = '1px solid #333'; div.style.color = '#fff';
                                 div.innerHTML = `<strong>${c.nombre_completo}</strong> <small style="color:#888;">(Doc: ${c.num_documento || 'S/D'})</small>`;
-                                div.onclick = () => { verDetalle(c.id_cliente, c.nombre_completo); inputCC.value = ''; resCC.style.display = 'none'; };
+                                div.onclick = () => { window.location.href = 'cuentas_corrientes_detalle.php?id_cliente=' + c.id_cliente; };
                                 resCC.appendChild(div);
                             });
                         } else {
@@ -702,6 +714,47 @@ try {
             document.getElementById('modalWhatsApp').style.display = 'none';
             document.getElementById('modalRegistrarPagoCliente').style.display = 'none';
         }
+    });
+
+    // --- LÓGICA DE INTERESES POR MORA ---
+
+    // Aplicar intereses por mora
+    document.querySelectorAll('.btn-aplicar-interes').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const idCliente = this.dataset.idCliente;
+            const nombreCliente = this.dataset.nombreCliente;
+            
+            if (!confirm(`¿Aplicar intereses por mora a ${nombreCliente}?\n\nSe calcularán los intereses según la configuración de la empresa y se agregarán como un nuevo movimiento en la cuenta corriente.`)) {
+                return;
+            }
+            
+            this.disabled = true;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            
+            const formData = new FormData();
+            formData.append('id_cliente', idCliente);
+            
+            fetch('../ajax/aplicar_interes_ajax.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    mostrarToast(data.mensaje, 'success');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    mostrarToast('Error: ' + data.error, 'error');
+                    this.disabled = false;
+                    this.innerHTML = '<i class="fas fa-percentage"></i> Intereses';
+                }
+            })
+            .catch(err => {
+                mostrarToast('Error de conexión', 'error');
+                this.disabled = false;
+                this.innerHTML = '<i class="fas fa-percentage"></i> Intereses';
+            });
+        });
     });
 </script>
 </body>

@@ -36,7 +36,7 @@ try {
     foreach ($imputar_docs as $id_compra) {
         if ($monto_restante <= 0.001) break;
 
-        $sql_saldo = "SELECT c.n_documento, (c.total_compra - COALESCE((SELECT SUM(debe) FROM ctacte_proveedores WHERE compra_id = c.id AND empresa_id = :empresa_id), 0)) as saldo 
+        $sql_saldo = "SELECT c.n_documento, (c.total_compra - COALESCE((SELECT SUM(debe) FROM ctacte_proveedores WHERE compra_id = c.id AND ctacte_proveedores.empresa_id = :empresa_id), 0)) as saldo 
                       FROM compras c 
                       WHERE c.id = ? AND c.cod_proveedor = ? AND c.empresa_id = :empresa_id";
         $stmt_saldo = $pdo->prepare($sql_saldo);

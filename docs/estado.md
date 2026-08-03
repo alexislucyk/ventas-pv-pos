@@ -1,7 +1,7 @@
 # Estado del Sistema — POS Electricidad Lucyk (pos_dev)
 
 > **Versión del sistema:** `2.0.0` (app_version en BD)
-> **Última actualización del informe:** 17/07/2026
+> **Última actualización del informe:** 29/07/2026
 > **Entorno activo:** Desarrollo (`/pos_dev/`)
 > **Base de datos:** `pos_dev` (desarrollo) / `pos_prod` (producción)
 > **Servidor BD:** `192.168.7.45:3306`
@@ -31,9 +31,10 @@ pos_dev/
 ├── pages/                 → Vistas PHP (controladores + UI)
 │   ├── infosesion.php     → Guardia de seguridad global
 │   ├── sidebar.php        → Menú de navegación
-│   ├── topbar.php         → Barra superior
+│   ├── topbar.php         → Barra superior (dólar, usuario)
 │   ├── components/        → Componentes reutilizables
-│   ├── abm_*.php          → CRUDs (clientes, productos, proveedores)
+│   │   └── selector_empresa.php → Selector multi-empresa
+│   ├── abm_*.php          → CRUDs (clientes, productos, proveedores, empresas)
 │   ├── ventas.php         → Módulo de ventas (core)
 │   ├── compras.php        → Módulo de compras
 │   ├── *.php              → Resto de módulos
@@ -46,7 +47,8 @@ pos_dev/
 ├── css/                   → Hojas de estilo
 ├── afip_res/              → Certificados AFIP/ARCA
 ├── migrations/            → Migraciones SQL
-└── cache/                 → Caché (ej. dólar)
+├── cache/                 → Caché (ej. dólar)
+└── docs/                  → Documentación adicional
 ```
 
 ---
@@ -61,28 +63,38 @@ pos_dev/
 | | Clientes (ABM) | `pages/abm_clientes.php` | ✅ Completo |
 | | Proveedores (ABM) | `pages/abm_proveedores.php` | ✅ Completo |
 | | Consulta de Precios | `pages/consulta_precios.php` | ✅ Completo |
+| | Rubros | (inline en ABM productos) | ✅ Completo |
 | **Ventas** | Nueva Venta | `pages/ventas.php` | ✅ Completo (Core) |
 | | Presupuestos | `pages/presupuestos.php` | ✅ Completo |
+| | Consultar Presupuestos | `pages/consultar_presupuestos.php` | ✅ Completo |
 | | Anulaciones | `pages/anulaciones.php` | ✅ Completo |
 | | Cobro de Cuotas | `pages/cobro_cuotas.php` | ✅ Completo |
 | | Pagos Cta. Cte. | `pages/pagos_ctacte.php` | ✅ Completo |
+| | Imprimir Presupuesto | `pages/imprimir_presupuesto.php` | ✅ Completo |
 | **Compras** | Compras | `pages/compras.php` | ✅ Completo |
 | | Compra Rápida | `pages/compras_rapidas.php` | ✅ Completo |
 | **Facturación y Caja** | Comprobantes AFIP/ARCA | `pages/facturacion_arca.php` | ✅ Completo |
 | | Panel de Caja | `pages/caja_dashboard.php` | ✅ Completo |
 | | Movimiento Manual | `pages/movimiento_manual.php` | ✅ Completo |
 | | Cierre de Caja | `pages/cierre_caja.php` | ✅ Completo |
+| | Vista Recibo | `pages/vista_recibo.php` | ✅ Completo |
 | **Informes** | Resumen de Ventas | `pages/resumen_ventas.php` | ✅ Completo |
 | | Cuentas a Cobrar | `pages/reporte_cuotas.php` | ✅ Completo |
 | | Cta. Cte. Clientes | `pages/cuentas_corrientes.php` | ✅ Completo |
 | | Cta. Cte. Proveedores | `pages/ctacte_proveedores.php` | ✅ Completo |
 | | Inventario | `pages/reportes_inventario.php` | ✅ Completo |
+| | Mov. de Productos | `pages/reporte_movimientos_productos.php` | ✅ Completo |
 | | Financieros | `pages/reportes_financieros.php` | ✅ Completo |
+| | Consignaciones | `pages/consignacion_reporte.php` | ✅ Completo |
 | **Administración** | Usuarios | `pages/usuarios.php` | ✅ Completo |
 | | Permisos por Usuario | `pages/abm_permisos_usuarios.php` | ✅ Completo |
 | | Backup | `pages/backup.php` | ✅ Completo |
+| | Gestión de Empresas | `pages/abm_empresas.php` | ✅ Completo |
 | | Datos de Empresa | `pages/abm_empresa.php` | ✅ Completo |
 | | Configuración | `pages/configuracion.php` | ✅ Completo |
+| | Perfil de Usuario | `pages/perfil.php` | ✅ Completo |
+| | Licencia | `pages/licencia.php` | ✅ Completo |
+| | Verificar Módulos | `pages/verificar_modulos.php` | ✅ Completo |
 
 ### 2.2 Funcionalidades Transversales
 
@@ -91,16 +103,19 @@ pos_dev/
 | Autenticación por sesión | ✅ | `login.php` con `password_verify()` |
 | Control de permisos (rol) | ✅ | Roles: vendedor, cajero, supervisor, admin, developer |
 | Control de permisos (individual) | ✅ | Permisos granulares por usuario/módulo |
-| Sidebar colapsable con buscador | ✅ | Búsqueda en vivo de módulos |
+| Sidebar colapsable con buscador | ✅ | Búsqueda en vivo de módulos, tooltips, persistencia en localStorage |
+| Topbar con dólar | ✅ | Cotización dólar con margen operativo configurable (`dolar_margen`), caché de 1h |
 | Dashboard con gráficos | ✅ | Chart.js, cards con indicadores |
-| Multi-empresa | ✅ | Tabla `empresas`, sesión por empresa |
-| Multi-sucursal | 🟡 Parcial | Existe `sucursal_id` en sesión, pero no hay selector de sucursal funcional ni menú de gestión de sucursales |
+| Multi-empresa | ✅ | Tabla `empresas`, sesión por empresa, selector en sidebar |
+| Multi-sucursal | 🟡 Parcial | CRUD de sucursales en `abm_empresa.php`, endpoint `cambiar_sucursal.php`, pero sin stock por sucursal ni reportes filtrados |
 | Facturación electrónica AFIP/ARCA | ✅ | SDK `afipsdk/afip.php`, emisión de CAE |
-| Cotización dólar | ✅ | Cache automático, actualización desde API externa |
+| Cotización dólar | ✅ | Cache automático, actualización desde API externa (`dolarapi.com`) |
 | Tickets PDF | ✅ | FPDF + QR + vista previa |
 | Backup de BD | ✅ | Exportación SQL + explorador de archivos |
 | Consignaciones | ✅ | `pages/consignacion_reporte.php` |
 | Envío WhatsApp | 🟡 Parcial | Endpoint `ajax/enviar_whatsapp_nodered.php` (requiere Node-RED externo) |
+| CSRF Protection | ✅ | Tokens CSRF en formularios críticos (abm_empresas, abm_empresa) |
+| Upload de logos | ✅ | `abm_empresas.php` y `abm_empresa.php` con validación de formato |
 
 ---
 
@@ -120,6 +135,7 @@ Usuario → login.php → validar credenciales → verificar estado='ACTIVO'
   - `require_permiso($archivo)`: igual pero termina con 403 si no tiene acceso.
   - `restringirPagina($rolMinimo)`: control por jerarquía numérica de roles.
 - **Excepción global:** `set_exception_handler()` captura errores fatales y muestra pantalla amigable (con detalles técnicos solo para developer).
+- **Cambio de contraseña:** `pages/perfil.php` permite al usuario cambiar su contraseña con verificación de la actual.
 
 ### 3.2 Roles y Jerarquía
 
@@ -159,6 +175,7 @@ Usuario → login.php → validar credenciales → verificar estado='ACTIVO'
 | Ventas pendientes | ✅ | Guardar como "Pendiente" y retomar después |
 | Anulación de ventas | ✅ | Con control de stock |
 | Devoluciones | ✅ | Con reintegro |
+| Presupuestos | ✅ | Crear, guardar, imprimir, convertir a venta |
 
 ### 4.3 Cálculos Financieros
 
@@ -223,6 +240,7 @@ composer.json → "afipsdk/afip.php": "^1.2"
 - `pages/resumen_ventas.php`: Ventas por período, método de pago, ganancias estimadas.
 - `pages/reportes_financieros.php`: Reportes financieros generales.
 - `pages/reporte_cuotas.php`: Cuentas a cobrar (cuotas pendientes).
+- `pages/reporte_movimientos_productos.php`: Historial de movimientos de stock.
 
 ---
 
@@ -241,7 +259,8 @@ composer.json → "afipsdk/afip.php": "^1.2"
 | Tabla | Propósito |
 |-------|-----------|
 | `usuarios` | Autenticación, roles, permisos |
-| `empresas` | Multi-empresa |
+| `empresas` | Multi-empresa (nombre_fantasia, razon_social, cuit, logo_path, etc.) |
+| `sucursales` | Sucursales por empresa (nombre_sucursal, direccion, es_principal) |
 | `clientes` | Datos de clientes (dni, CUIT, tipo IVA, etc.) |
 | `proveedores` | Datos de proveedores |
 | `productos` | Catálogo con stock, precios, moneda |
@@ -259,7 +278,7 @@ composer.json → "afipsdk/afip.php": "^1.2"
 | `modulos` | Registro de módulos para permisos |
 | `permisos_rol` | Permisos por rol |
 | `permisos_usuario` | Permisos individuales |
-| `configuracion` | Configuraciones clave/valor (ganancia, versión, etc.) |
+| `configuracion` | Configuraciones clave/valor (ganancia, versión, dolar_margen, etc.) |
 
 ### 7.3 Migraciones
 
@@ -283,6 +302,7 @@ composer.json → "afipsdk/afip.php": "^1.2"
 | `ajax/importar_catalogo_csv.php` | Importación de CSV |
 | `ajax/obtener_precios_proveedor.php` | Precios por proveedor |
 | `ajax/obtener_catalogo_proveedor.php` | Catálogo de proveedor |
+| `ajax/buscar_ventas_cliente_ajax.php` | Ventas por cliente |
 
 ### 8.2 Ventas y Operaciones
 
@@ -294,7 +314,7 @@ composer.json → "afipsdk/afip.php": "^1.2"
 | `ajax/obtener_venta_anulacion.php` | Datos para anulación |
 | `ajax/cargar_venta_pendiente_ajax.php` | Cargar venta pendiente |
 | `ajax/ventas_pendientes_ajax.php` | Listar ventas pendientes |
-| `ajax/buscar_ventas_cliente_ajax.php` | Ventas por cliente |
+| `ajax/obtener_detalle_cuotas_venta.php` | Detalle de cuotas de venta |
 
 ### 8.3 Pagos y Cuentas Corrientes
 
@@ -325,9 +345,9 @@ composer.json → "afipsdk/afip.php": "^1.2"
 
 | Endpoint | Función |
 |----------|---------|
-| `ajax/cambiar_empresa.php` | Cambio de empresa |
-| `ajax/cambiar_sucursal.php` | Cambio de sucursal (parcialmente implementado) |
-| `ajax/explorador_archivos_backup.php` | Explorar backups |
+| `ajax/cambiar_empresa.php` | Cambio de empresa activa |
+| `ajax/cambiar_sucursal.php` | Cambio de sucursal activa (nuevo) |
+| `ajax/explorador_archivos_backup.php` | Explorar backups en el servidor |
 | `ajax/update_licencia_ip.php` | Actualizar licencia por IP |
 
 ---
@@ -347,9 +367,12 @@ composer.json → "afipsdk/afip.php": "^1.2"
 | `pages/generar_pdf_presupuesto.php` | PDF de presupuesto |
 | `pages/generar_pdf_devolucion.php` | PDF de devolución |
 | `pages/generar_pdf_consignacion.php` | PDF de consignación |
+| `pages/generar_pdf_lista_precios.php` | PDF de lista de precios |
 | `pages/vista_previa_ticket.php` | Vista previa en HTML |
 | `pages/vista_previa_ticket_cuota.php` | Vista previa cuota |
 | `pages/vista_previa_ticket_devolucion.php` | Vista previa devolución |
+| `pages/vista_recibo.php` | Vista previa de recibo |
+| `js/vista_previa_ticket.php` | JS para vista previa de ticket |
 
 ### 9.2 Estilos de Impresión
 
@@ -378,6 +401,7 @@ composer.json → "afipsdk/afip.php": "^1.2"
 | Permisos individuales | Asignación por usuario a módulos específicos |
 | Validación en páginas | `tiene_permiso()` / `require_permiso()` en cada página |
 | Validación en AJAX | Misma función de permisos en endpoints |
+| CSRF Protection | Tokens CSRF en formularios críticos |
 | Manejo de errores | `set_exception_handler()` con pantalla segura |
 | SQL Injection | Prepared statements (PDO) en toda la app |
 | XSS | `htmlspecialchars()` en salidas |
@@ -399,7 +423,8 @@ composer.json → "afipsdk/afip.php": "^1.2"
 ### 11.1 Diseño
 
 - **Tema:** Dark mode completo (#121212 fondo, #1e1e1e tarjetas, #00bcd4 acento)
-- **Sidebar:** Colapsable con animación, categorías coloreadas, buscador en vivo
+- **Sidebar:** Colapsable con animación, categorías coloreadas, buscador en vivo, tooltips en modo colapsado, persistencia de estado en localStorage
+- **Topbar:** Barra superior fija con cotización dólar (compra/venta con margen operativo), nombre de usuario y rol
 - **Dashboard:** Grid responsive con cards, tabla de top productos, gráfico Chart.js
 - **Tipografía:** Segoe UI, Tahoma, Geneva, sans-serif
 
@@ -423,6 +448,7 @@ composer.json → "afipsdk/afip.php": "^1.2"
 | `ganancia_global` | Porcentaje de ganancia default (ej: 60%) |
 | `app_version` | Versión del sistema (ej: "2.0.0") |
 | `nombre_empresa` | Nombre de la empresa (fallback) |
+| `dolar_margen` | Margen operativo del dólar en porcentaje (ej: 2) |
 | Otras | Configuraciones diversas |
 
 ### 12.2 Constantes del Sistema (definidas en `config/db_config.php`)
@@ -432,25 +458,37 @@ composer.json → "afipsdk/afip.php": "^1.2"
 | `URL_BASE` | `/pos_dev/` o `/pos_prod/` según entorno |
 | `PATH_BASE` | Directorio raíz absoluto |
 
+### 12.3 Funciones de Configuración
+
+| Archivo | Función |
+|---------|---------|
+| `funciones/funciones_configuracion.php` | `obtener_configuracion()`, `guardar_configuracion()`, `obtener_version_app()`, `guardar_version_app()`, `obtener_todas_configuraciones()` |
+| `funciones/obtener_dolar.php` | Obtención de cotización del dólar |
+| `funciones/actualizar_dolar.php` | Actualización de cotización del dólar |
+
 ---
 
-## 13. SISTEMA DE MULTI-EMPRESA
+## 13. SISTEMA DE MULTI-EMPRESA Y MULTI-SUCCIONAL
 
-### 13.1 Estado Actual
+### 13.1 Multi-Empresa
 
 - **Soporte multi-empresa:** ✅ Implementado
-  - Tabla `empresas` con datos de cada empresa
+  - Tabla `empresas` con datos completos (nombre_fantasia, razon_social, cuit, condicion_iva, direccion, logo_path, etc.)
   - Sesión con `empresa_id`
   - Todas las consultas filtran por `empresa_id`
   - Selector de empresa en sidebar (`components/selector_empresa.php`)
   - Endpoint `ajax/cambiar_empresa.php` para cambio en caliente
-  - Página `pages/abm_empresas.php` para gestión
+  - Página `pages/abm_empresas.php` para gestión completa (CRUD + logo + sucursales)
+  - Página `pages/abm_empresa.php` para configuración de la empresa activa
+
+### 13.2 Multi-Sucursal
 
 - **Soporte multi-sucursal:** 🟡 Parcial
-  - Existe `sucursal_id` en sesión
-  - Algunas consultas lo incluyen (ej: caja)
-  - Endpoint `ajax/cambiar_sucursal.php` creado
-  - **No hay:** selector de sucursal en UI, gestión de sucursales, stock por sucursal, reportes filtrados por sucursal
+  - Tabla `sucursales` con gestión completa (CRUD en `abm_empresa.php`)
+  - `sucursal_id` en sesión
+  - Endpoint `ajax/cambiar_sucursal.php` para cambio de sucursal activa
+  - Opción de "Central (Todas las sucursales)" con sucursal_id = 0
+  - **No hay:** stock por sucursal, reportes filtrados por sucursal, selector de sucursal en UI
 
 ---
 
@@ -462,10 +500,11 @@ composer.json → "afipsdk/afip.php": "^1.2"
 |---------|-----------|
 | `manifiesto.md` | Arquitectura, flujos, estructura del sistema |
 | `arca.md` | Manual de errores ARCA/AFIP |
-| `ANALISIS_SISTEMA_POS.md` | Análisis general del sistema |
+| `ANALISIS_SISTEMA_POS.md` | Análisis general del sistema (nuevo) |
 | `informe_sistema_permisos.md` | Informe de permisos |
 | `implementacion_arca.md` | Detalles de implementación ARCA |
 | `TODO.md` | Tareas pendientes actuales |
+| `estado.md` | Estado del sistema (este archivo) |
 | `docs/BACKUP_SISTEMA.md` | Documentación de backups |
 | `docs/VERSION_MANAGEMENT.md` | Gestión de versiones |
 
@@ -479,21 +518,46 @@ composer.json → "afipsdk/afip.php": "^1.2"
 
 ---
 
-## 15. ESTADO DE TAREAS PENDIENTES (TODO.md)
+## 15. CAMBIOS RECIENTES (desde 17/07/2026)
+
+| Fecha | Commit | Descripción |
+|-------|--------|-------------|
+| 29/07/2026 | `22b72ed` | Fix multiempresas - Correcciones finales multi-empresa |
+| 29/07/2026 | `0b05d8f` | Selector de empresas - Componente selector en sidebar |
+| 29/07/2026 | `8ac3fed` | fix empresas en proceso - Correcciones en gestión de empresas |
+| 29/07/2026 | `ccde1e2` | fix clientes - Correcciones en ABM de clientes |
+| 29/07/2026 | `3b660ce` | fix precios en dolar para venta - Corrección de precios en dólares |
+| 29/07/2026 | `bd3657c` | Agrego dolar a topar - Margen operativo del dólar en topbar |
+| 29/07/2026 | `19abb01` | Agrego topbar a abm clientes, proveedores y productos |
+| 29/07/2026 | `5ca3943` | Estado funcional antes de implementar modificaciones, topbar, sucursales |
+
+### Cambios destacados:
+
+1. **Multi-empresa completo:** `abm_empresas.php` con CRUD completo, upload de logos, gestión de sucursales
+2. **Selector de empresas:** Componente `selector_empresa.php` en el sidebar
+3. **Topbar con dólar:** Barra superior con cotización dólar (compra/venta) con margen operativo configurable (`dolar_margen`)
+4. **Multi-sucursal parcial:** Endpoint `cambiar_sucursal.php` y CRUD de sucursales en `abm_empresa.php`
+5. **Nuevo endpoint AJAX:** `ajax/explorador_archivos_backup.php` - Explorador de archivos de backup
+6. **Nueva documentación:** `ANALISIS_SISTEMA_POS.md` (612 líneas)
+7. **CSRF Protection:** Tokens CSRF en formularios de gestión de empresas
+
+---
+
+## 16. ESTADO DE TAREAS PENDIENTES (TODO.md)
 
 ```
-- [x] Crear migración SQL para stock con DEFAULT 0
-- [ ] Ejecutar migración en BD y probar:
-  - [ ] ajax/agregar_producto_rapido.php
-  - [ ] ajax/cargar_multiples_productos.php
-- [ ] Actualizar INSERTs de productos.stock si es necesario
+- [x] Crear migración SQL para setear `productos.stock` con DEFAULT 0 (o convertirlo a NULL) para evitar `1364 Field 'stock' doesn't have a default value`.
+- [ ] Ejecutar migración en BD y probar los endpoints:
+  - [ ] `ajax/agregar_producto_rapido.php`
+  - [ ] `ajax/cargar_multiples_productos.php`
+- [ ] (Opcional) Actualizar código si hubiera INSERTs en otros lugares que sí dependan de `productos.stock`.
 ```
 
 ---
 
-## 16. PROCESOS DEL SISTEMA
+## 17. PROCESOS DEL SISTEMA
 
-### 16.1 Procesos Batch/Programados
+### 17.1 Procesos Batch/Programados
 
 | Archivo | Propósito |
 |---------|-----------|
@@ -505,29 +569,32 @@ composer.json → "afipsdk/afip.php": "^1.2"
 | `procesos/probar_backup.php` | Test de backup |
 | `procesos/probar_explorador.php` | Test de explorador de archivos |
 | `procesos/ejecutar_migracion_20.php` | Ejecutor de migraciones |
+| `procesos/registrar_pago_cc.php` | Registro de pagos en cuenta corriente |
+| `procesos/test_backup_directo.php` | Test de backup directo |
+| `procesos/verificar_archivos_backup.php` | Verificación de archivos de backup |
 
 ---
 
-## 17. RESUMEN DE MÉTRICAS
+## 18. RESUMEN DE MÉTRICAS
 
 | Métrica | Valor |
 |---------|-------|
-| Archivos PHP totales | ~80 |
-| Páginas (pages/) | ~35 |
-| Endpoints AJAX | ~28 |
+| Archivos PHP totales | ~120 |
+| Páginas (pages/) | ~58 |
+| Endpoints AJAX | ~35 |
 | Procesos backend | ~10 |
 | Funciones auxiliares | ~7 |
 | Archivos CSS | 5 |
 | Archivos JS | 2 |
-| Documentos .md | 10 |
+| Documentos .md | 9 |
 | Tablas BD estimadas | ~25 |
 | Versión actual | 2.0.0 |
 
 ---
 
-## 18. CONCLUSIONES Y RECOMENDACIONES
+## 19. CONCLUSIONES Y RECOMENDACIONES
 
-### 18.1 Fortalezas
+### 19.1 Fortalezas
 
 1. **Arquitectura sólida** para un sistema monolítico PHP con buena separación de responsabilidades.
 2. **Cobertura funcional completa** para un POS: ventas, compras, CC, caja, AFIP, reportes.
@@ -536,29 +603,34 @@ composer.json → "afipsdk/afip.php": "^1.2"
 5. **Prepared statements** en toda la aplicación (buena práctica de seguridad).
 6. **Manejo global de excepciones** con interfaz amigable.
 7. **Control de versiones** con migraciones.
+8. **Multi-empresa con UI completa** (abm_empresas.php con CRUD, logo, sucursales).
+9. **Topbar informativo** con dólar en tiempo real y margen operativo configurable.
+10. **CSRF Protection** implementado en formularios críticos.
 
-### 18.2 Debilidades
+### 19.2 Debilidades
 
 1. **Credenciales de BD** hardcodeadas en `config/db_config.php`.
 2. **Usuario root** en lugar de un usuario de BD con permisos limitados.
 3. **Inconsistencia en validación de permisos**: algunos archivos usan `restringirPagina()` y otros `tiene_permiso()`.
-4. **Multi-sucursal incompleta**: falta selector UI, gestión y stock por sucursal.
+4. **Multi-sucursal incompleta**: falta selector UI, stock por sucursal, reportes filtrados por sucursal.
 5. **Código duplicado** en múltiples generadores de tickets (varias versiones).
 6. **Archivos legacy** como `db_config copy.php` y versiones antiguas de ticket generators.
 7. **Sin tests automatizados** (no se detectaron archivos de test unitarios).
 8. **Dependencia de CDN** para librerías críticas (Chart.js, Font Awesome) sin fallback local.
 9. **Sin API REST** - todo el frontend se renderiza desde PHP, no hay backend desacoplado.
+10. **Búsqueda en sidebar comentada** - El buscador del menú está comentado en el código.
 
-### 18.3 Recomendaciones Prioritarias
+### 19.3 Recomendaciones Prioritarias
 
 1. **🔴 Crítica:** Mover credenciales de BD a variables de entorno o archivo `.env` fuera del repo.
 2. **🔴 Crítica:** Crear usuario de BD específico para la app (no root).
-3. **🟡 Media:** Completar implementación multi-sucursal (selector, stock por sucursal, reportes).
+3. **🟡 Media:** Completar implementación multi-sucursal (selector UI, stock por sucursal, reportes).
 4. **🟡 Media:** Unificar los generadores de tickets en una sola versión estable.
-5. **🟢 Baja:** Agregar tests básicos para flujos críticos (login, ventas, pagos).
-6. **🟢 Baja:** Migrar dependencias CDN a archivos locales.
-7. **🟢 Baja:** Limpiar archivos legacy y duplicados.
+5. **🟡 Media:** Habilitar el buscador del sidebar (actualmente comentado).
+6. **🟢 Baja:** Agregar tests básicos para flujos críticos (login, ventas, pagos).
+7. **🟢 Baja:** Migrar dependencias CDN a archivos locales.
+8. **🟢 Baja:** Limpiar archivos legacy y duplicados.
 
 ---
 
-*Documento generado el 17/07/2026 basado en el análisis del código fuente del repositorio `pos_dev`.*
+*Documento generado el 29/07/2026 basado en el análisis del código fuente del repositorio `pos_dev`.*

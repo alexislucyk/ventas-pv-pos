@@ -29,9 +29,9 @@ try {
 
     $stmt = $pdo->prepare("SELECT codigo, descripcion, precio 
                            FROM proveedores_catalogos 
-                           WHERE cod_prov = ? AND empresa_id = ?
+                           WHERE cod_prov = ?
                            ORDER BY descripcion ASC");
-    $stmt->execute([$cod_prov, $empresa_id]);
+    $stmt->execute([$cod_prov]);
     $productos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     if (empty($productos)) {

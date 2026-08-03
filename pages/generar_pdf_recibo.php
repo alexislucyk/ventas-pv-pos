@@ -114,7 +114,9 @@ try {
     if (!$mov) die("Movimiento no encontrado.");
 
     // Consulta de datos de la empresa
-    $stmt_emp = $pdo->query("SELECT * FROM datos_empresa WHERE id = 1 LIMIT 1");
+    $empresa_id = $_SESSION['empresa_id'] ?? 1;
+    $stmt_emp = $pdo->prepare("SELECT * FROM empresas WHERE id = ? LIMIT 1");
+    $stmt_emp->execute([$empresa_id]);
     $emp = $stmt_emp->fetch(PDO::FETCH_ASSOC);
 
     // --- CONFIGURACIÓN A5 ---
@@ -201,7 +203,7 @@ try {
     $pdf->Rect(5, $pdf->GetY(), $ancho_total, 40);
     $pdf->SetY($pdf->GetY() + 10);
     $pdf->SetX(10);
-    $pdf->MultiCell($ancho_total - 20, 8, to_iso("Recibimos del Sr./Sra. " . $cliente . " la suma de pesos:"), 0, 'L');
+    $pdf->MultiCell($ancho_total - 20, 8, to_iso("Recibimos de " . $cliente . " la suma de pesos:"), 0, 'L');
     
     // Renglón de abajo: Monto en letras formateado correctamente
     $pdf->SetX(10);

@@ -38,8 +38,8 @@ try {
     $stmt_c = $pdo->prepare("SELECT cs.id_venta, cs.nro_cuota, cs.monto_pagado, v.n_documento 
                              FROM cuotas_seguimiento cs 
                              JOIN ventas v ON cs.id_venta = v.id AND v.empresa_id = :empresa_id
-                             WHERE cs.id = ? AND cs.empresa_id = :empresa_id");
-    $stmt_c->execute([':empresa_id' => $empresa_id, 'id' => $id_cuota]);
+                             WHERE cs.id = ?");
+    $stmt_c->execute([$empresa_id, $id_cuota]);
     $cuota = $stmt_c->fetch();
 
     if (!$cuota) throw new Exception("Error al recuperar datos de la cuota vinculada.");
@@ -49,8 +49,8 @@ try {
     $nuevo_pagado = max(0, $cuota['monto_pagado'] - $monto_anular);
     $nuevo_estado = ($nuevo_pagado <= 0) ? 'Pendiente' : 'Parcial';
     
-    $stmt_upd = $pdo->prepare("UPDATE cuotas_seguimiento SET monto_pagado = ?, estado = ? WHERE id = ? AND empresa_id = ?");
-    $stmt_upd->execute([$nuevo_pagado, $nuevo_estado, $id_cuota, $empresa_id]);
+    $stmt_upd = $pdo->prepare("UPDATE cuotas_seguimiento SET monto_pagado = ?, estado = ? WHERE id = ?");
+    $stmt_upd->execute([$nuevo_pagado, $nuevo_estado, $id_cuota]);
 
     $detalle = "ANULACIÓN PAGO PARCIAL CUOTA {$cuota['nro_cuota']} - VENTA N° {$cuota['n_documento']}";
     $sql_mov = "INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado, empresa_id, sucursal_id) 

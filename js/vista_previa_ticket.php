@@ -17,7 +17,10 @@ $stmt_d->execute([$n_doc]);
 $detalles = $stmt_d->fetchAll();
 
 // 3. Obtener datos de la empresa
-$emp = $pdo->query("SELECT * FROM datos_empresa LIMIT 1")->fetch();
+$empresa_id = $_SESSION['empresa_id'] ?? 1;
+$stmt_emp = $pdo->prepare("SELECT * FROM empresas WHERE id = ? LIMIT 1");
+$stmt_emp->execute([$empresa_id]);
+$emp = $stmt_emp->fetch();
 ?>
 <!DOCTYPE html>
 <html lang="es">

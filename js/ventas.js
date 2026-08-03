@@ -190,11 +190,23 @@ let pVenta = parseFloat(prod.p_venta) || 0;
 
 // Listeners para recalcular todo cuando cambian los valores de financiación
 document.addEventListener('DOMContentLoaded', function() {
-    const ids = ['cuotas_selector', 'intervalo_cuotas', 'interes_manual', 'pago_efectivo', 'pago_transf', 'cond_pago', 'desc_global_tipo', 'desc_global_valor'];
+    const ids = ['cuotas_selector', 'intervalo_cuotas', 'interes_manual', 'pago_efectivo', 'pago_transf', 'cond_pago', 'desc_global_tipo', 'desc_global_valor', 'cobrar_primera_hoy'];
     ids.forEach(id => {
-        document.getElementById(id)?.addEventListener('input', actualizarTotal);
-        document.getElementById(id)?.addEventListener('change', actualizarTotal);
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', actualizarTotal);
+            el.addEventListener('change', actualizarTotal);
+        }
     });
+
+    // Botón "Ver Plan de Cuotas" - usar onclick directo para asegurar funcionamiento
+    const btnVerPlan = document.getElementById('btnVerPlanCuotas');
+    if (btnVerPlan) {
+        btnVerPlan.onclick = function(e) {
+            e.preventDefault();
+            window.mostrarPlanCuotas();
+        };
+    }
 });
 
 function renderizarCarrito() {
@@ -409,6 +421,92 @@ document.addEventListener('DOMContentLoaded', function() {
 function cerrarModalPendientes() {
     const modal = document.getElementById('pendientesModal');
     if (modal) modal.style.display = 'none';
+}
+
+// --- PLAN DE CUOTAS DETALLADO ---
+window.mostrarPlanCuotas = function() {
+    const itemsTotal = carrito.reduce((sum, item) => sum + item.total, 0);
+    const tipoDesc = document.getElementById('desc_global_tipo').value;
+    const valorDesc = parseFloat(document.getElementById('desc_global_valor').value) || 0;
+    const montoDescGlobal = (tipoDesc === 'porcentaje') ? (itemsTotal * (valorDesc / 100)) : valorDesc;
+    const finalTotal = Math.max(0, itemsTotal - montoDescGlobal);
+
+    const efe = parseFloat(document.getElementById('pago_efectivo').value) || 0;
+    const tra = parseFloat(document.getElementById('pago_transf').value) || 0;
+    const entrega = efe + tra;
+    const cantCuotas = parseInt(document.getElementById('cuotas_selector').value) || 1;
+    const intervaloDias = parseInt(document.getElementById('intervalo_cuotas').value) || 30;
+    const interesPorc = parseFloat(document.getElementById('interes_manual').value) || 0;
+    const cobrarHoy = document.getElementById('cobrar_primera_hoy').checked;
+
+    const saldo = Math.max(0, finalTotal - entrega);
+    const montoInteres = saldo * (interesPorc / 100);
+    const montoAFinanciar = saldo + montoInteres;
+    const valorCuota = montoAFinanciar / cantCuotas;
+
+    // Construir tabla HTML
+    let html = `
+        <div style="margin-bottom: 20px; padding: 15px; background: #252525; border-radius: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div><strong style="color: #aaa;">Total Venta:</strong> <span style="color: #4caf50;">$${finalTotal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span></div>
+            <div><strong style="color: #aaa;">Entrega Inicial:</strong> <span style="color: #f1c40f;">$${entrega.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span></div>
+            <div><strong style="color: #aaa;">Saldo a Financiar:</strong> <span style="color: #e0e0e0;">$${saldo.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span></div>
+            <div><strong style="color: #aaa;">Interés (${interesPorc}%):</strong> <span style="color: #e74c3c;">$${montoInteres.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span></div>
+            <div><strong style="color: #aaa;">Total Financiado:</strong> <span style="color: #3498db;">$${montoAFinanciar.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span></div>
+            <div><strong style="color: #aaa;">Valor por Cuota:</strong> <span style="color: #2ecc71; font-size: 1.1em;">$${valorCuota.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span></div>
+        </div>
+        <table class="table-full">
+            <thead>
+                <tr>
+                    <th>N° Cuota</th>
+                    <th>Fecha Vencimiento</th>
+                    <th>Monto</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    for (let i = 1; i <= cantCuotas; i++) {
+        let fechaVto;
+        let estado;
+        let estadoColor;
+
+        if (cobrarHoy && i === 1) {
+            fechaVto = new Date().toLocaleDateString('es-AR', { year: 'numeric', month: '2-digit', day: '2-digit' });
+            estado = 'Pagada (Hoy)';
+            estadoColor = '#2ecc71';
+        } else {
+            const diasSumar = cobrarHoy ? (i - 1) * intervaloDias : i * intervaloDias;
+            const fecha = new Date();
+            fecha.setDate(fecha.getDate() + diasSumar);
+            fechaVto = fecha.toLocaleDateString('es-AR', { year: 'numeric', month: '2-digit', day: '2-digit' });
+            estado = 'Pendiente';
+            estadoColor = '#f1c40f';
+        }
+
+        html += `
+            <tr>
+                <td><strong>${i}</strong></td>
+                <td>${fechaVto}</td>
+                <td>$${valorCuota.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+                <td style="color: ${estadoColor}; font-weight: bold;">${estado}</td>
+            </tr>
+        `;
+    }
+
+    html += `
+            </tbody>
+        </table>
+        <div style="margin-top: 15px; padding: 10px; background: #1a1a1a; border-radius: 6px; text-align: center; color: #888;">
+            <i class="fas fa-info-circle"></i> 
+            ${cobrarHoy 
+                ? 'La primera cuota se cobra hoy. Las restantes ' + (cantCuotas - 1) + ' cuotas vencen cada ' + intervaloDias + ' días.'
+                : 'Las ' + cantCuotas + ' cuotas vencen cada ' + intervaloDias + ' días a partir de hoy.'}
+        </div>
+    `;
+
+    document.getElementById('contenidoPlanCuotas').innerHTML = html;
+    document.getElementById('modalPlanCuotas').style.display = 'block';
 }
 
 // --- VALIDACIÓN DE VENTA FINAL ---

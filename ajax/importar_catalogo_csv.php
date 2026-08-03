@@ -53,7 +53,7 @@ try {
     $stmtDel = $pdo->prepare("DELETE FROM proveedores_catalogos WHERE cod_prov = ?");
     $stmtDel->execute([$cod_prov]);
 
-    $stmtIns = $pdo->prepare("INSERT INTO proveedores_catalogos (cod_prov, codigo, descripcion, precio, empresa_id) VALUES (?, ?, ?, ?, ?)");
+    $stmtIns = $pdo->prepare("INSERT INTO proveedores_catalogos (cod_prov, codigo, descripcion, precio) VALUES (?, ?, ?, ?)");
 
     $contador = 0;
     $omitidos = 0;
@@ -79,7 +79,7 @@ try {
         
         $precio = is_numeric($precio_raw) ? (float)$precio_raw : 0.00;
 
-        $stmtIns->execute([$cod_prov, $codigo, $descripcion, $precio, $empresa_id]);
+        $stmtIns->execute([$cod_prov, $codigo, $descripcion, $precio]);
         $contador++;
     }
 

@@ -45,7 +45,7 @@ $response = [
 
 try {
     $where = "v.id = :id";
-    $params = [':id' => $id_venta, ':empresa_id' => $empresa_id];
+    $params = [':id' => $id_venta, ':empresa_id1' => $empresa_id, ':empresa_id2' => $empresa_id];
     if ($id_venta <= 0 && $n_documento_get > 0) {
         $where = "v.n_documento = :n_documento";
         $params[':n_documento'] = $n_documento_get;
@@ -58,8 +58,8 @@ try {
             CONCAT(c.apellido, ', ', c.nombre) AS nombre_completo,
             c.cuit AS num_documento
         FROM ventas v
-        LEFT JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = :empresa_id
-        WHERE $where AND v.empresa_id = :empresa_id";
+        LEFT JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = :empresa_id1
+        WHERE $where AND v.empresa_id = :empresa_id2";
     
     $stmt_cabecera = $pdo->prepare($sql_cabecera);
     $stmt_cabecera->execute($params);

@@ -13,7 +13,8 @@ setlocale(LC_NUMERIC, 'C');
 // Usamos SCRIPT_NAME que es más estable que REQUEST_URI para detectar carpetas
 $script_path = $_SERVER['SCRIPT_NAME'];
 
-if (strpos($script_path, '/pos_dev/') !== false) {
+//if (strpos($script_path, '/pos_dev/') !== false) {
+if (preg_match('#/([a-zA-Z0-9_-]+)_dev/#', $script_path)) {
     // --- AMBIENTE DE DESARROLLO ---
     $db_name = 'pos_dev';      // Tu DB de pruebas
     $folder  = '/pos_dev/';    // Tu carpeta de pruebas

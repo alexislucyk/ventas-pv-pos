@@ -50,6 +50,7 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
         $cant_cuotas = isset($_POST['cuotas_selector']) ? (int)$_POST['cuotas_selector'] : 1;
         $intervalo_dias = isset($_POST['intervalo_cuotas']) ? (int)$_POST['intervalo_cuotas'] : 30;
         $interes_porc = isset($_POST['interes_manual']) ? (float)$_POST['interes_manual'] : 0;
+        $cobrar_primera_hoy = isset($_POST['cobrar_primera_hoy']) && $_POST['cobrar_primera_hoy'] === '1';
         $detalle_productos = json_decode($_POST['detalle_productos'], true);
 
         if (empty($detalle_productos)) {
@@ -61,15 +62,29 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
 
                 // --- RECALCULO Y VALIDACIÓN ---
                 $total_bruto = 0;
+                $empresa_id = $_SESSION['empresa_id'] ?? 1;
+                $sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+                
                 foreach ($detalle_productos as &$item) {
-                    $stmt_v = $pdo->prepare("SELECT p_venta, p_compra, stock, descripcion, moneda FROM productos WHERE cod_prod = ?");
-                    $stmt_v->execute([$item['cod_prod']]);
+                    // Consultar producto y stock por sucursal
+                    // CORRECCIÓN: Forzar collation en el JOIN para evitar error 1267
+                    // (misma collation que usan los demás archivos del proyecto)
+                    $sql_v = "SELECT p.p_venta, p.p_compra, p.descripcion, p.moneda, 
+                                     COALESCE(s.stock_actual, 0) as stock_actual
+                              FROM productos p 
+                              LEFT JOIN stocks s ON p.cod_prod COLLATE utf8mb4_unicode_ci = s.cod_prod COLLATE utf8mb4_unicode_ci 
+                                  AND s.empresa_id = ? 
+                                  AND s.sucursal_id = ?
+                              WHERE p.cod_prod = ?";
+                    $stmt_v = $pdo->prepare($sql_v);
+                    $stmt_v->execute([$empresa_id, $sucursal_id, $item['cod_prod']]);
                     $prod_db = $stmt_v->fetch(PDO::FETCH_ASSOC);
 
                     if (!$prod_db) throw new Exception("Producto no encontrado: " . $item['cod_prod']);
                     
                     // Ya no lanzamos excepción, solo guardamos el nombre para avisar luego
-                    if ($es_finalizar && (float)$prod_db['stock'] < (float)$item['cant']) {
+                    // CORRECCIÓN: Validar stock de tabla stocks (stock_actual) en vez de productos (stock)
+                    if ($es_finalizar && (float)$prod_db['stock_actual'] < (float)$item['cant']) {
                         $productos_sin_stock[] = $prod_db['descripcion'];
                     }
 
@@ -175,7 +190,9 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                     $stmt_d->execute([$empresa_id, $sucursal_id, $item['cod_prod'], $item['descripcion'], $item['cant'], $item['p_unit'], $desc_u, $item['p_costo_venta'], $item['total'], $n_documento, date('Y-m-d H:i:s')]);
                     
                     if ($es_finalizar) {
-                        $pdo->prepare("UPDATE productos SET stock = stock - ? WHERE cod_prod = ?")->execute([$item['cant'], $item['cod_prod']]);
+                        // Actualizar stock en la tabla stocks (por sucursal)
+                        $pdo->prepare("UPDATE stocks SET stock_actual = stock_actual - ? WHERE empresa_id = ? AND sucursal_id = ? AND cod_prod = ?")
+                            ->execute([$item['cant'], $empresa_id, $sucursal_id, $item['cod_prod']]);
                     }
                 }
 
@@ -215,21 +232,31 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
 
                     // 2. Generar plan de cuotas en seguimiento
                     $sql_cuota = "INSERT INTO cuotas_seguimiento 
-                                  (empresa_id, id_venta, nro_cuota, fecha_vencimiento, monto_original, estado)
-                                  VALUES (?, ?, ?, ?, ?, 'Pendiente')";
+                                  (id_venta, nro_cuota, fecha_vencimiento, monto_original, estado)
+                                  VALUES (?, ?, ?, ?, ?)";
                     $stmt_cuota = $pdo->prepare($sql_cuota);
 
                     for ($i = 1; $i <= $cant_cuotas; $i++) {
-                        // Calcular fecha de vencimiento sumando los días de intervalo
-                        $dias_sumar = $i * $intervalo_dias;
-                        $vencimiento = date('Y-m-d', strtotime("+$dias_sumar days"));
+                        // Si "cobrar primera cuota hoy" está activo:
+                        // - Cuota 1: vence hoy, estado "Pagada"
+                        // - Cuotas 2..N: vencimiento según intervalo corrido desde hoy
+                        if ($cobrar_primera_hoy && $i === 1) {
+                            $vencimiento = date('Y-m-d'); // Hoy
+                            $estado_cuota = 'Pagada';
+                        } else {
+                            // Para cuota 1 sin checkbox: vence según intervalo
+                            // Para cuotas 2..N con checkbox: se corre el intervalo desde hoy
+                            $dias_sumar = $cobrar_primera_hoy ? ($i - 1) * $intervalo_dias : $i * $intervalo_dias;
+                            $vencimiento = date('Y-m-d', strtotime("+$dias_sumar days"));
+                            $estado_cuota = 'Pendiente';
+                        }
                         
                         $stmt_cuota->execute([
-                            $empresa_id,
                             $id_venta_actual,
                             $i,
                             $vencimiento,
-                            $valor_cuota
+                            $valor_cuota,
+                            $estado_cuota
                         ]);
                     }
                 }
@@ -554,9 +581,25 @@ unset($_SESSION['ticket_a_imprimir_doc']);
                         <label for="interes_manual">Interés Manual (%)</label>
                         <input type="number" step="0.01" id="interes_manual" name="interes_manual" class="input-field" value="0" min="0">
 
+                        <!-- Checkbox: Cobrar primera cuota hoy -->
+                        <div style="margin-top: 15px; padding-top: 10px; border-top: 1px dashed #444;">
+                            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; color: #e0e0e0;">
+                                <input type="checkbox" id="cobrar_primera_hoy" name="cobrar_primera_hoy" value="1" style="width: 18px; height: 18px; cursor: pointer;">
+                                <span><i class="fas fa-hand-holding-usd"></i> Cobrar primera cuota hoy</span>
+                            </label>
+                            <small style="color: #888; display: block; margin-top: 5px;">La primera cuota se cobra en el día de hoy. Las restantes se difieren según el intervalo.</small>
+                        </div>
+
                         <div style="display: flex; justify-content: space-between; font-size: 1.1em; margin-top: 15px; padding-top: 10px; border-top: 1px dashed #444;">
                             <strong>Valor Cuota:</strong>
                             <strong id="info_valor_cuota" style="color: #2ecc71;">$0.00</strong>
+                        </div>
+
+                        <!-- Botón Ver Plan de Cuotas -->
+                        <div style="margin-top: 15px;">
+                            <button type="button" class="btn btn-info btn-block" id="btnVerPlanCuotas" style="background: #17a2b8; color: white; padding: 10px; border: none; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold;">
+                                <i class="fas fa-table"></i> Ver Plan de Cuotas Detallado
+                            </button>
                         </div>
                     </div>
 
@@ -707,6 +750,19 @@ unset($_SESSION['ticket_a_imprimir_doc']);
         </div>
     </div>
     <?php endif; ?>
+
+    <!-- Modal Plan de Cuotas Detallado -->
+    <div id="modalPlanCuotas" style="display:none; position:fixed; z-index:10000; left:0; top:0; width:100%; height:100%; background: rgba(0,0,0,0.9);">
+        <div class="modal-content" style="background: #1a1a1a; margin: 3% auto; padding: 25px; width: 70%; border-radius: 12px; border: 1px solid #333; max-height: 90vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px;">
+                <h2 style="margin:0; color:#00bcd4;"><i class="fas fa-table"></i> Plan de Cuotas Detallado</h2>
+                <span onclick="document.getElementById('modalPlanCuotas').style.display='none'" style="cursor:pointer; font-size: 28px; color: #ff4444;">&times;</span>
+            </div>
+            <div id="contenidoPlanCuotas">
+                <p style="color: #888;">Cargando...</p>
+            </div>
+        </div>
+    </div>
 
     <script src="../js/ventas.js"></script>
     <script>

@@ -31,12 +31,12 @@ try {
                 c.nombre,
                 c.apellido
             FROM ventas v
-            LEFT JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = :empresa_id
-            WHERE v.estado = 'Pendiente' AND v.empresa_id = :empresa_id
+            LEFT JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = :empresa_id1
+            WHERE v.estado = 'Pendiente' AND v.empresa_id = :empresa_id2
             ORDER BY v.fecha_venta DESC";
 
     $stmt = $pdo->prepare($sql);
-    $stmt->execute([':empresa_id' => $empresa_id]);
+    $stmt->execute([':empresa_id1' => $empresa_id, ':empresa_id2' => $empresa_id]);
     $ventas_pendientes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 } catch (Exception $e) {

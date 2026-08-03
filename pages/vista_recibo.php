@@ -12,7 +12,9 @@ if (!$id_movimiento) {
 $formato = isset($_GET['formato']) ? $_GET['formato'] : 'ticket';
 
 // 1.1. Obtener datos de la empresa dinámicamente
-$stmt_emp = $pdo->query("SELECT * FROM datos_empresa WHERE id = 1 LIMIT 1");
+$empresa_id = $_SESSION['empresa_id'] ?? 1;
+$stmt_emp = $pdo->prepare("SELECT * FROM empresas WHERE id = ? LIMIT 1");
+$stmt_emp->execute([$empresa_id]);
 $emp = $stmt_emp->fetch(PDO::FETCH_ASSOC);
 
 // Obtener configuración de ancho de papel

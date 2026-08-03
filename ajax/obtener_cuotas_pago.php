@@ -14,8 +14,8 @@ if (!tiene_permiso('pages/cobro_cuotas.php')) {
 $id_cliente_raw = $_GET['id_cliente'] ?? '0';
 $desde = $_GET['desde'] ?? '';
 $hasta = $_GET['hasta'] ?? '';
-$params = [':empresa_id' => $empresa_id];
-$where_clause = "WHERE v.empresa_id = :empresa_id";
+$params = [':empresa_id1' => $empresa_id, ':empresa_id2' => $empresa_id];
+$where_clause = "WHERE v.empresa_id = :empresa_id2";
 $is_all = ($id_cliente_raw === 'all');
 
 if (!$is_all) {
@@ -37,11 +37,11 @@ try {
                 v.estado AS estado_venta,
                 vf.cant_cuotas, vf.interes_porcentaje, vf.monto_interes,
                 CONCAT(c.apellido, ', ', c.nombre) as nombre_cliente,
-                (SELECT COALESCE(SUM(monto_original), 0) FROM cuotas_seguimiento WHERE id_venta = v.id AND estado != 'Anulada' AND empresa_id = :empresa_id) as total_financiado,
-                (SELECT COALESCE(SUM(monto_original - monto_pagado), 0) FROM cuotas_seguimiento WHERE id_venta = v.id AND estado != 'Anulada' AND empresa_id = :empresa_id) as saldo_total
+                (SELECT COALESCE(SUM(monto_original), 0) FROM cuotas_seguimiento WHERE id_venta = v.id AND estado != 'Anulada') as total_financiado,
+                (SELECT COALESCE(SUM(monto_original - monto_pagado), 0) FROM cuotas_seguimiento WHERE id_venta = v.id AND estado != 'Anulada') as saldo_total
             FROM ventas v
             JOIN ventas_financiacion vf ON v.id = vf.id_venta
-            JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = :empresa_id
+            JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = :empresa_id1
             $where_clause
             ORDER BY v.fecha_venta DESC";
     

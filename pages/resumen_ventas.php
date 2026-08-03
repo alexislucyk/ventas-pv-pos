@@ -15,6 +15,11 @@ $fecha_inicio = isset($_GET['fecha_inicio']) ? $_GET['fecha_inicio'] : date('Y-m
 $fecha_fin = isset($_GET['fecha_fin']) ? $_GET['fecha_fin'] : date('Y-m-d');
 $id_cliente_filtro = isset($_GET['id_cliente']) ? (int)$_GET['id_cliente'] : 0;
 
+// Paginación
+$pagina = isset($_GET['pagina']) ? max(1, (int)$_GET['pagina']) : 1;
+$por_pagina = 50;
+$offset = ($pagina - 1) * $por_pagina;
+
 try {
     // Obtener lista de clientes para el filtro
     $stmt_cli = $pdo->prepare("SELECT id, CONCAT(apellido, ', ', nombre) as nombre FROM clientes WHERE empresa_id = ? ORDER BY apellido ASC");
@@ -23,6 +28,7 @@ try {
 
     $where_cliente = ($id_cliente_filtro > 0) ? " AND id_cliente = :cliente " : "";
     $where_v_cliente = ($id_cliente_filtro > 0) ? " AND v.id_cliente = :cliente " : "";
+    $where_sucursal = ($sucursal_id > 0) ? " AND v.sucursal_id = :sucursal_id " : "";
 
     // 1. Ventas Cobradas (Contado)
     $sql_resumen = "SELECT 
@@ -30,10 +36,11 @@ try {
                     FROM ventas v
                     WHERE estado = 'Finalizada' 
                     AND DATE(fecha_venta) BETWEEN :inicio AND :fin 
-                    AND v.empresa_id = :empresa_id" . $where_v_cliente;
+                    AND v.empresa_id = :empresa_id" . $where_v_cliente . $where_sucursal;
     $stmt_res = $pdo->prepare($sql_resumen);
     $params_res = [':inicio' => $fecha_inicio, ':fin' => $fecha_fin, ':empresa_id' => $empresa_id];
     if ($id_cliente_filtro > 0) $params_res[':cliente'] = $id_cliente_filtro;
+    if ($sucursal_id > 0) $params_res[':sucursal_id'] = $sucursal_id;
     $stmt_res->execute($params_res);
     $resumen = $stmt_res->fetch(PDO::FETCH_ASSOC);
 
@@ -54,10 +61,11 @@ try {
     $sql_total_ventas = "SELECT SUM(total_venta) as total FROM ventas v
                         WHERE estado = 'Finalizada' 
                         AND DATE(fecha_venta) BETWEEN :inicio AND :fin 
-                        AND v.empresa_id = :empresa_id" . $where_v_cliente;
+                        AND v.empresa_id = :empresa_id" . $where_v_cliente . $where_sucursal;
     $stmt_total_ventas = $pdo->prepare($sql_total_ventas);
     $params_tv = [':inicio' => $fecha_inicio, ':fin' => $fecha_fin, ':empresa_id' => $empresa_id];
     if ($id_cliente_filtro > 0) $params_tv[':cliente'] = $id_cliente_filtro;
+    if ($sucursal_id > 0) $params_tv[':sucursal_id'] = $sucursal_id;
     $stmt_total_ventas->execute($params_tv);
     $total_ventas = (float)$stmt_total_ventas->fetchColumn() ?: 0;
 
@@ -67,10 +75,11 @@ try {
                         WHERE DATE(v.fecha_venta) BETWEEN :inicio AND :fin 
                         AND v.estado = 'Finalizada' 
                         AND v.empresa_id = :empresa_id
-                        AND vd.empresa_id = :empresa_id2" . $where_v_cliente;
+                        AND vd.empresa_id = :empresa_id2" . $where_v_cliente . $where_sucursal;
     $stmt_costo = $pdo->prepare($sql_costo_ventas);
     $params_costo = [':inicio' => $fecha_inicio, ':fin' => $fecha_fin, ':empresa_id' => $empresa_id, ':empresa_id2' => $empresa_id];
     if ($id_cliente_filtro > 0) $params_costo[':cliente'] = $id_cliente_filtro;
+    if ($sucursal_id > 0) $params_costo[':sucursal_id'] = $sucursal_id;
     $stmt_costo->execute($params_costo);
     $costo_ventas = (float)$stmt_costo->fetchColumn() ?: 0;
 
@@ -91,10 +100,11 @@ try {
                            WHERE estado = 'Finalizada' 
                            AND cond_pago = 'CUENTA CORRIENTE'
                            AND DATE(fecha_venta) BETWEEN :inicio AND :fin 
-                           AND v.empresa_id = :empresa_id" . $where_v_cliente;
+                           AND v.empresa_id = :empresa_id" . $where_v_cliente . $where_sucursal;
     $stmt_ctacte = $pdo->prepare($sql_ctacte_periodo);
     $params_ct = [':inicio' => $fecha_inicio, ':fin' => $fecha_fin, ':empresa_id' => $empresa_id];
     if ($id_cliente_filtro > 0) $params_ct[':cliente'] = $id_cliente_filtro;
+    if ($sucursal_id > 0) $params_ct[':sucursal_id'] = $sucursal_id;
     $stmt_ctacte->execute($params_ct);
     $res_ctacte = $stmt_ctacte->fetch(PDO::FETCH_ASSOC);
 
@@ -110,7 +120,22 @@ try {
 
     $total_ctacte = (isset($res_ctacte['total_ctacte']) ? (float)$res_ctacte['total_ctacte'] : 0) - $total_ctacte_dev;
 
-    // 6. Obtener ventas para la tabla (consulta separada)
+    // 6. Contar total de ventas para paginación
+    $sql_count = "SELECT COUNT(*) as total FROM ventas v
+                  WHERE DATE(v.fecha_venta) BETWEEN :inicio_c AND :fin_c 
+                  AND v.estado = 'Finalizada'
+                  AND v.empresa_id = :empresa_id_c" .
+                  ($id_cliente_filtro > 0 ? " AND v.id_cliente = :v_cliente_c" : "") .
+                  $where_sucursal;
+    $params_count = [':inicio_c' => $fecha_inicio, ':fin_c' => $fecha_fin, ':empresa_id_c' => $empresa_id];
+    if ($id_cliente_filtro > 0) $params_count[':v_cliente_c'] = $id_cliente_filtro;
+    if ($sucursal_id > 0) $params_count[':sucursal_id'] = $sucursal_id;
+    $stmt_count = $pdo->prepare($sql_count);
+    $stmt_count->execute($params_count);
+    $total_ventas_count = (int)$stmt_count->fetchColumn();
+    $total_paginas = max(1, ceil($total_ventas_count / $por_pagina));
+
+    // 7. Obtener ventas para la tabla (consulta separada) - con paginación
     $sql_ventas = "SELECT 
                         v.id AS id_ref, v.n_documento, v.fecha_venta as fecha, v.total_venta as monto,
                         v.cond_pago,
@@ -123,15 +148,18 @@ try {
                     WHERE DATE(v.fecha_venta) BETWEEN :inicio1 AND :fin1 
                     AND v.estado = 'Finalizada'
                     AND v.empresa_id = :empresa_id" . 
-                    ($id_cliente_filtro > 0 ? " AND v.id_cliente = :v_cliente" : "") . "
-                    ORDER BY v.fecha_venta DESC, v.n_documento DESC";
-    $params_v = [':inicio1' => $fecha_inicio, ':fin1' => $fecha_fin, ':empresa_id' => $empresa_id];
+                    ($id_cliente_filtro > 0 ? " AND v.id_cliente = :v_cliente" : "") . 
+                    $where_sucursal . "
+                    ORDER BY v.fecha_venta DESC, v.n_documento DESC
+                    LIMIT :limit OFFSET :offset";
+    $params_v = [':inicio1' => $fecha_inicio, ':fin1' => $fecha_fin, ':empresa_id' => $empresa_id, ':limit' => $por_pagina, ':offset' => $offset];
     if ($id_cliente_filtro > 0) $params_v[':v_cliente'] = $id_cliente_filtro;
+    if ($sucursal_id > 0) $params_v[':sucursal_id'] = $sucursal_id;
     $stmt_ventas = $pdo->prepare($sql_ventas);
     $stmt_ventas->execute($params_v);
     $ventas = $stmt_ventas->fetchAll(PDO::FETCH_ASSOC);
 
-    // 7. Obtener devoluciones (consulta separada)
+    // 8. Obtener devoluciones (consulta separada)
     $sql_devol = "SELECT 
                       d.op_n as id_ref, d.fecha, -d.total_reintegrado as monto,
                       d.cond_pago,
@@ -149,7 +177,7 @@ try {
     $stmt_devol->execute($params_d);
     $devoluciones = $stmt_devol->fetchAll(PDO::FETCH_ASSOC);
 
-    // 8. Combinar y ordenar
+    // 9. Combinar y ordenar
     foreach ($devoluciones as $d) {
         $d['tipo_registro'] = 'DEVOLUCION';
         $d['n_documento'] = $d['id_ref'];
@@ -298,6 +326,23 @@ try {
             </div>
         </div>
         
+        <?php if ($total_paginas > 1): ?>
+        <div class="pagination-bar" style="display: flex; justify-content: space-between; align-items: center; margin: 10px 0; padding: 8px 15px; background: #2d2d2d; border-radius: 5px; color: white;">
+            <span>Total: <?php echo $total_ventas_count; ?> ventas — Página <?php echo $pagina; ?> de <?php echo $total_paginas; ?></span>
+            <div style="display: flex; gap: 5px;">
+                <?php if ($pagina > 1): ?>
+                    <a href="?fecha_inicio=<?php echo urlencode($fecha_inicio); ?>&fecha_fin=<?php echo urlencode($fecha_fin); ?>&id_cliente=<?php echo $id_cliente_filtro; ?>&pagina=<?php echo ($pagina - 1); ?>" class="btn-filter-action btn-filter-secondary" style="height: 32px; min-width: auto; padding: 0 12px; font-size: 0.8rem;">⬅ Anterior</a>
+                <?php endif; ?>
+                <?php for ($i = max(1, $pagina - 2); $i <= min($total_paginas, $pagina + 2); $i++): ?>
+                    <a href="?fecha_inicio=<?php echo urlencode($fecha_inicio); ?>&fecha_fin=<?php echo urlencode($fecha_fin); ?>&id_cliente=<?php echo $id_cliente_filtro; ?>&pagina=<?php echo $i; ?>" class="btn-filter-action <?php echo ($i == $pagina) ? 'btn-filter-primary' : 'btn-filter-secondary'; ?>" style="height: 32px; min-width: 36px; padding: 0 8px; font-size: 0.8rem;"><?php echo $i; ?></a>
+                <?php endfor; ?>
+                <?php if ($pagina < $total_paginas): ?>
+                    <a href="?fecha_inicio=<?php echo urlencode($fecha_inicio); ?>&fecha_fin=<?php echo urlencode($fecha_fin); ?>&id_cliente=<?php echo $id_cliente_filtro; ?>&pagina=<?php echo ($pagina + 1); ?>" class="btn-filter-action btn-filter-secondary" style="height: 32px; min-width: auto; padding: 0 12px; font-size: 0.8rem;">Siguiente ➡</a>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <div class="card">
             <table id="tablaVentas" style="width: 100%;">
                 <thead>
@@ -376,10 +421,10 @@ try {
             </div>
             
             <div style="text-align: right; margin-top: 25px; border-top: 1px solid #444; padding-top: 15px;">
-                <button class="btn btn-success" onclick="imprimirTicket(document.getElementById('detalleNdocumento').textContent)">
+                <button class="btn btn-success" onclick="reimprimirDesdeModal()">
                     🖨️ Reimprimir Ticket
                 </button>
-                <button class="btn" style="background-color: #00bcd4; color: white; margin-left: 10px;" onclick="descargarPDF(document.getElementById('detalleNdocumento').textContent)">
+                <button class="btn" style="background-color: #00bcd4; color: white; margin-left: 10px;" onclick="descargarPDFDesdeModal()">
                     📥 Descargar Orden (A5)
                 </button>
                 <button class="btn btn-secondary" onclick="cerrarModal()" style="margin-left: 10px;">Cerrar</button>
@@ -392,7 +437,14 @@ try {
     const detalleBody = document.getElementById('detalleBody');
     const detalleNdocumento = document.getElementById('detalleNdocumento');
     
+    // Variables para controlar qué tipo de registro se está viendo en el modal
+    let modalTipoRegistro = 'VENTA'; // 'VENTA' o 'DEVOLUCION'
+    let modalIdRef = 0;
+    let modalCondPago = '';
+    
     function mostrarDetalle(nDocumento) {
+        modalTipoRegistro = 'VENTA';
+        modalIdRef = nDocumento;
         detalleNdocumento.textContent = nDocumento;
         detalleBody.innerHTML = '<div style="text-align:center; padding:20px;"><p>Cargando información del sistema...</p></div>';
         detalleModal.style.display = 'block';
@@ -415,6 +467,22 @@ try {
         detalleModal.style.display = 'none';
     }
 
+    function reimprimirDesdeModal() {
+        if (modalTipoRegistro === 'VENTA') {
+            imprimirTicket(modalIdRef);
+        } else {
+            imprimirTicketDevolucion(modalIdRef, modalCondPago);
+        }
+    }
+
+    function descargarPDFDesdeModal() {
+        if (modalTipoRegistro === 'VENTA') {
+            descargarPDF(modalIdRef, true);
+        } else {
+            descargarPDFDevolucion(modalIdRef, modalCondPago);
+        }
+    }
+
     function imprimirTicket(nDocumento) {
         const url = 'vista_previa_ticket.php?n_documento=' + nDocumento;
         window.open(url, '_blank', 'width=400,height=700,scrollbars=yes');
@@ -426,6 +494,9 @@ try {
     }
 
     function mostrarDetalleDevolucion(id, tipo) {
+        modalTipoRegistro = 'DEVOLUCION';
+        modalIdRef = id;
+        modalCondPago = tipo;
         detalleNdocumento.textContent = 'N° ' + id;
         detalleBody.innerHTML = '<div style="text-align:center; padding:20px;"><p>Cargando información del sistema...</p></div>';
         detalleModal.style.display = 'block';

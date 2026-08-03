@@ -22,18 +22,19 @@ try {
                    c.apellido, c.nombre,
                    vf.cant_cuotas
             FROM cuotas_pagos cp
-            JOIN cuotas_seguimiento cs ON cp.id_cuota = cs.id AND cs.empresa_id = :empresa_id
-            JOIN ventas v ON cs.id_venta = v.id AND v.empresa_id = :empresa_id
-            JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = :empresa_id
+            JOIN cuotas_seguimiento cs ON cp.id_cuota = cs.id
+            JOIN ventas v ON cs.id_venta = v.id AND v.empresa_id = :empresa_id1
+            JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = :empresa_id2
             JOIN ventas_financiacion vf ON v.id = vf.id_venta
-            WHERE cp.id = :id_pago AND v.empresa_id = :empresa_id";
+            WHERE cp.id = :id_pago AND v.empresa_id = :empresa_id3";
     $stmt = $pdo->prepare($sql);
-    $stmt->execute([':id_pago' => $id_pago, ':empresa_id' => $empresa_id]);
+    $stmt->execute([':id_pago' => $id_pago, ':empresa_id1' => $empresa_id, ':empresa_id2' => $empresa_id, ':empresa_id3' => $empresa_id]);
     $p = $stmt->fetch();
 
     if (!$p) exit("Registro de pago no encontrado.");
 
-    $stmt_emp = $pdo->query("SELECT * FROM datos_empresa WHERE id = 1 LIMIT 1");
+    $stmt_emp = $pdo->prepare("SELECT * FROM empresas WHERE id = ? LIMIT 1");
+    $stmt_emp->execute([$empresa_id]);
     $emp = $stmt_emp->fetch();
 
     $nombre_cliente = htmlspecialchars($p['apellido'] . ', ' . $p['nombre']);

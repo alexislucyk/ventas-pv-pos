@@ -320,12 +320,24 @@ try {
     </div>
 
     <div class="quick-actions">
+        <?php if (tiene_permiso('pages/ventas.php')): ?>
         <a href="pages/ventas.php" class="action-btn btn-venta"><i class="fas fa-shopping-cart"></i><span>Nueva Venta</span></a>
+        <?php endif; ?>
+        <?php if (tiene_permiso('pages/cuentas_corrientes.php')): ?>
         <a href="pages/cuentas_corrientes.php" class="action-btn btn-cc"><i class="fas fa-users"></i><span>Clientes CC</span></a>
+        <?php endif; ?>
+        <?php if (tiene_permiso('pages/compras.php')): ?>
         <a href="pages/compras.php" class="action-btn btn-compra"><i class="fas fa-truck-loading"></i><span>Cargar Compra</span></a>
+        <?php endif; ?>
+        <?php if (tiene_permiso('pages/consulta_precios.php')): ?>
         <a href="pages/consulta_precios.php" class="action-btn btn-precio"><i class="fas fa-search-dollar"></i><span>Consultar Precio</span></a>
+        <?php endif; ?>
+        <?php if (tiene_permiso('pages/reporte_cuotas.php')): ?>
         <a href="pages/reporte_cuotas.php" class="action-btn" style="border-color: #ff5252;"><i class="fas fa-hand-holding-usd" style="color: #ff5252; background: rgba(255, 82, 82, 0.1);"></i><span>Cuentas a Cobrar</span></a>
+        <?php endif; ?>
+        <?php if (tiene_permiso('pages/consignacion_reporte.php')): ?>
         <a href="pages/consignacion_reporte.php" class="action-btn" style="border-color: #9C27B0;"><i class="fas fa-clipboard-list" style="color: #9C27B0; background: rgba(156, 39, 176, 0.1);"></i><span>Consignaciones</span></a>
+        <?php endif; ?>
     </div>
 
     <div class="dashboard-grid">

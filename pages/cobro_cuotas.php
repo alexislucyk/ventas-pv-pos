@@ -72,8 +72,8 @@ try {
                 <div>
                     <label for="input_busqueda_venta">Buscar por N° de Venta / Documento</label>
                     <div style="display: flex; gap: 10px;">
-                        <input type="number" id="input_busqueda_venta" class="input-field" placeholder="Ingrese N° de Venta..." style="margin-bottom:0 !important;">
-                        <button type="button" class="btn btn-primary" onclick="buscarVentaParaCobro(document.getElementById('input_busqueda_venta').value)"><i class="fas fa-search"></i> BUSCAR</button>
+                        <input type="number" id="input_busqueda_venta" class="input-field" placeholder="Ingrese N° de Venta..." style="margin-bottom:0 !important;" min="1">
+                        <button type="button" class="btn btn-primary" onclick="buscarVentaDesdeInput()"><i class="fas fa-search"></i> BUSCAR</button>
                     </div>
                 </div>
             </div>
@@ -169,9 +169,12 @@ try {
                 const inputBusqVenta = document.getElementById('input_busqueda_venta');
                 if (inputBusqVenta) {
                     inputBusqVenta.value = idVenta;
-                    if (typeof buscarVentaParaCobro === 'function') {
-                        buscarVentaParaCobro(idVenta);
-                    }
+                    // Pequeño delay para asegurar que todo esté cargado
+                    setTimeout(() => {
+                        if (typeof buscarVentaParaCobro === 'function') {
+                            buscarVentaParaCobro(parseInt(idVenta, 10));
+                        }
+                    }, 300);
                 }
             }
         });
@@ -224,20 +227,55 @@ try {
         };
 
         window.buscarVentaParaCobro = function(nDoc) {
-            if (!nDoc) return;
+            if (!nDoc || nDoc <= 0) {
+                mostrarMensaje("Dato Inválido", "⚠️ Por favor ingrese un número de venta válido.", "error");
+                return;
+            }
             // Usamos obtener_venta_detalle_ajax.php que está en la misma carpeta 'pages' y ya soporta n_documento
             fetch(`obtener_venta_detalle_ajax.php?n_documento=${nDoc}`)
-                .then(res => res.json())
+                .then(res => {
+                    if (!res.ok) {
+                        throw new Error('Error en la respuesta del servidor');
+                    }
+                    return res.json();
+                })
                 .then(data => {
                     if (data.error) {
-                        mostrarMensaje("No encontrado", "⚠️ No se encontró ninguna venta financiada con el N° " + nDoc, "error");
+                        mostrarMensaje("No encontrado", "⚠️ No se encontró ninguna venta financiada con el N° " + nDoc + ". Verifique el número e intente nuevamente.", "error");
                     } else {
                         const internalId = data.cabecera.id;
-                        if (internalId) verDetalleCuotas(internalId, data.cabecera.n_documento);
-                        else console.error("La respuesta del servidor no incluyó un ID de venta válido.");
+                        if (internalId) {
+                            verDetalleCuotas(internalId, data.cabecera.n_documento);
+                        } else {
+                            mostrarMensaje("Error", "❌ La respuesta del servidor no incluyó un ID de venta válido.", "error");
+                        }
                     }
                 })
-                .catch(err => console.error("Error buscando venta:", err));
+                .catch(err => {
+                    console.error("Error buscando venta:", err);
+                    mostrarMensaje("Error de Conexión", "❌ No se pudo conectar con el servidor. Intente nuevamente.", "error");
+                });
+        };
+
+        window.buscarVentaDesdeInput = function() {
+            const input = document.getElementById('input_busqueda_venta');
+            const valor = input.value.trim();
+            
+            if (!valor) {
+                mostrarMensaje("Campo Vacío", "⚠️ Por favor ingrese un número de venta para buscar.", "error");
+                input.focus();
+                return;
+            }
+            
+            const nDoc = parseInt(valor, 10);
+            if (isNaN(nDoc) || nDoc <= 0) {
+                mostrarMensaje("Valor Inválido", "⚠️ El número de venta debe ser un valor numérico mayor a 0.", "error");
+                input.focus();
+                input.select();
+                return;
+            }
+            
+            buscarVentaParaCobro(nDoc);
         };
 
         window.verDetalleCuotas = function(idVenta, nDoc) {

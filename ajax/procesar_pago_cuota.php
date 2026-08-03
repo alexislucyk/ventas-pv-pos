@@ -31,8 +31,11 @@ $id_pago_generado = 0;
 try {
     $pdo->beginTransaction();
 
-    $stmt = $pdo->prepare("SELECT monto_original, monto_pagado, nro_cuota FROM cuotas_seguimiento WHERE id = ? AND empresa_id = ?");
-    $stmt->execute([$id_cuota, $empresa_id]);
+    $stmt = $pdo->prepare("SELECT cs.monto_original, cs.monto_pagado, cs.nro_cuota 
+                           FROM cuotas_seguimiento cs 
+                           JOIN ventas v ON cs.id_venta = v.id AND v.empresa_id = ?
+                           WHERE cs.id = ?");
+    $stmt->execute([$empresa_id, $id_cuota]);
     $cuota = $stmt->fetch();
 
     if (!$cuota) throw new Exception("Cuota no encontrada");
@@ -40,8 +43,8 @@ try {
     $nuevo_pagado = $cuota['monto_pagado'] + $monto_pago + $descuento;
     $estado = ($nuevo_pagado >= $cuota['monto_original']) ? 'Pagada' : 'Parcial';
 
-    $stmt_upd = $pdo->prepare("UPDATE cuotas_seguimiento SET monto_pagado = ?, estado = ? WHERE id = ? AND empresa_id = ?");
-    $stmt_upd->execute([$nuevo_pagado, $estado, $id_cuota, $empresa_id]);
+    $stmt_upd = $pdo->prepare("UPDATE cuotas_seguimiento SET monto_pagado = ?, estado = ? WHERE id = ?");
+    $stmt_upd->execute([$nuevo_pagado, $estado, $id_cuota]);
 
     $stmt_v = $pdo->prepare("SELECT n_documento FROM ventas WHERE id = ? AND empresa_id = ?");
     $stmt_v->execute([$id_venta, $empresa_id]);

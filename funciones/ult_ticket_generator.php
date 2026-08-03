@@ -4,7 +4,7 @@ session_start();
 date_default_timezone_set('America/Argentina/Buenos_Aires'); 
 
 /**
- * Genera el HTML del ticket con datos de contacto desde datos_empresa.
+ * Genera el HTML del ticket con datos de contacto desde la tabla empresas.
  */
 function generar_html_ticket_contenido(PDO $pdo, int|string $n_documento, int $empresa_id): string { 
     
@@ -19,8 +19,9 @@ function generar_html_ticket_contenido(PDO $pdo, int|string $n_documento, int $e
     }
 
     try {
-        $sql_empresa = "SELECT nombre_fantasia, direccion, localidad, telefono FROM datos_empresa WHERE id = 1";
-        $stmt_emp = $pdo->query($sql_empresa);
+        $sql_empresa = "SELECT nombre_fantasia, direccion, localidad, telefono FROM empresas WHERE id = ?";
+        $stmt_emp = $pdo->prepare($sql_empresa);
+        $stmt_emp->execute([$empresa_id]);
         $emp = $stmt_emp->fetch(PDO::FETCH_ASSOC);
 
         $nombre = !empty($emp['nombre_fantasia']) ? $emp['nombre_fantasia'] : "";

@@ -16,14 +16,18 @@ $id_venta = (int)($_GET['id_venta'] ?? 0);
 if ($id_venta <= 0) exit("ID de venta no válido.");
 
 try {
-    $stmt = $pdo->prepare("SELECT * FROM cuotas_seguimiento WHERE id_venta = ? AND empresa_id = ? ORDER BY nro_cuota ASC");
-    $stmt->execute([$id_venta, $empresa_id]);
+    $stmt = $pdo->prepare("SELECT cs.* FROM cuotas_seguimiento cs 
+                           JOIN ventas v ON cs.id_venta = v.id AND v.empresa_id = ?
+                           WHERE cs.id_venta = ? ORDER BY cs.nro_cuota ASC");
+    $stmt->execute([$empresa_id, $id_venta]);
     $cuotas = $stmt->fetchAll();
 
     $stmt_p = $pdo->prepare("SELECT id_cuota, id, monto, fecha, metodo_pago, usuario FROM cuotas_pagos 
-                             WHERE id_cuota IN (SELECT id FROM cuotas_seguimiento WHERE id_venta = ? AND empresa_id = ?) 
+                             WHERE id_cuota IN (SELECT cs.id FROM cuotas_seguimiento cs 
+                                                JOIN ventas v ON cs.id_venta = v.id AND v.empresa_id = ?
+                                                WHERE cs.id_venta = ?) 
                              ORDER BY fecha DESC");
-    $stmt_p->execute([$id_venta, $empresa_id]);
+    $stmt_p->execute([$empresa_id, $id_venta]);
     $todos_pagos = $stmt_p->fetchAll(PDO::FETCH_GROUP | PDO::FETCH_ASSOC); 
 
     if (!$cuotas) exit("<p>No se encontró el plan de cuotas.</p>");

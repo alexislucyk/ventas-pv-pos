@@ -404,7 +404,7 @@ if (file_exists($cache_file) && (time() - filemtime($cache_file)) < $cache_tiemp
         <i class="fas fa-dollar-sign"></i>
         <span class="compra">Compra: <strong><?php echo $dolar_compra; ?></strong></span>
         <span class="venta">Venta: <strong><?php echo $dolar_venta; ?></strong></span>
-        <span class="operativo">Operativo (+ <?php echo $dolar_margen; ?>%): <strong><?php echo $dolar_venta * $factor_operativo; ?></strong></span>
+        <span class="operativo">Operativo (+ <?php echo $dolar_margen; ?>%): <strong><?php echo is_numeric($dolar_venta) ? number_format($dolar_venta * $factor_operativo, 2) : '-'; ?></strong></span>
         <?php if ($dolar_fecha): ?>
             <small style="color: #666; margin-left: 5px;">(<?php echo $dolar_fecha; ?>)</small>
         <?php endif; ?>
@@ -512,7 +512,8 @@ function refreshDolar() {
             if (data.compra && data.venta) {
                 document.querySelector('.topbar__dolar .compra strong').textContent = data.compra;
                 document.querySelector('.topbar__dolar .venta strong').textContent = data.venta;
-                document.querySelector('.topbar__dolar .operativo strong').textContent = (data.venta * <?php echo $factor_operativo; ?>).toFixed(2);
+                const operativo = parseFloat(data.venta) * <?php echo $factor_operativo; ?>;
+                document.querySelector('.topbar__dolar .operativo strong').textContent = isNaN(operativo) ? '-' : operativo.toFixed(2);
                 document.querySelector('.topbar__dolar small').textContent = '(' + String(new Date().getHours()).padStart(2, '0') + ':' + String(new Date().getMinutes()).padStart(2, '0') + ')';
             }
         })
