@@ -4,12 +4,12 @@ require_once '../config/db_config.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 
 $empresa_id = $_SESSION['empresa_id'] ?? null;
-$sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+
 if (!$empresa_id) {
     die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
 }
 
-// 1. Cargar lista de proveedores que tienen productos cargados
+// Cargar lista de proveedores
 $proveedores = [];
 try {
     $stmt_p = $pdo->prepare("SELECT DISTINCT TRIM(proveedor) as proveedor_nombre FROM productos WHERE empresa_id = :empresa_id AND proveedor IS NOT NULL AND TRIM(proveedor) != '' ORDER BY proveedor_nombre ASC");

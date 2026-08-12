@@ -28,8 +28,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['eliminar_modulo'])) {
     }
 }
 
+// --- CAMBIAR TIPO DE MÓDULO ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cambiar_tipo'])) {
+    $id_cambiar = (int)$_POST['modulo_id'];
+    $nuevo_tipo = $_POST['nuevo_tipo'];
+    
+    if (in_array($nuevo_tipo, ['pagina', 'funcion'])) {
+        try {
+            $stmt_cambio = $pdo->prepare("UPDATE modulos SET tipo = ? WHERE id = ?");
+            $stmt_cambio->execute(array($nuevo_tipo, $id_cambiar));
+            $mensaje = "✅ Tipo de módulo actualizado correctamente.";
+        } catch (Exception $e) {
+            $mensaje = "❌ Error al cambiar tipo: " . $e->getMessage();
+        }
+    }
+}
+
 // --- CARGAR MÓDULOS ---
-$modulos = $pdo->query("SELECT * FROM modulos ORDER BY seccion, nombre")->fetchAll();
+// Filtro por tipo (pagina | funcion | todos)
+$filtro_tipo = isset($_GET['tipo']) ? $_GET['tipo'] : 'todos';
+if (!in_array($filtro_tipo, ['pagina', 'funcion'])) {
+    $filtro_tipo = 'todos';
+}
+
+$sql_modulos = "SELECT * FROM modulos";
+if ($filtro_tipo !== 'todos') {
+    $sql_modulos .= " WHERE tipo = '" . $filtro_tipo . "'";
+}
+$sql_modulos .= " ORDER BY seccion, nombre";
+$modulos = $pdo->query($sql_modulos)->fetchAll();
 
 // --- DETECTAR DUPLICADOS (por archivo y por nombre) ---
 $conteo_archivo = array();
@@ -344,6 +371,18 @@ $porcentaje = $total > 0 ? round(($existentes / $total) * 100) : 0;
                 <a href="verificar_modulos.php" class="btn-primary">
                     <i class="fas fa-sync-alt"></i> Re-verificar
                 </a>
+                <div style="margin-left: auto; display: flex; gap: 8px; align-items: center;">
+                    <span style="color: #888; font-size: 0.85rem;">Filtrar:</span>
+                    <a href="verificar_modulos.php?tipo=todos" class="btn-secondary <?php echo $filtro_tipo === 'todos' ? 'btn-primary' : ''; ?>" style="padding: 8px 14px; font-size: 0.8rem; text-decoration: none;">
+                        Todos
+                    </a>
+                    <a href="verificar_modulos.php?tipo=pagina" class="btn-secondary <?php echo $filtro_tipo === 'pagina' ? 'btn-primary' : ''; ?>" style="padding: 8px 14px; font-size: 0.8rem; text-decoration: none;">
+                        <i class="fas fa-file-alt"></i> Páginas
+                    </a>
+                    <a href="verificar_modulos.php?tipo=funcion" class="btn-secondary <?php echo $filtro_tipo === 'funcion' ? 'btn-primary' : ''; ?>" style="padding: 8px 14px; font-size: 0.8rem; text-decoration: none;">
+                        <i class="fas fa-cogs"></i> Funciones
+                    </a>
+                </div>
             </div>
 
             <div class="table-wrap">
@@ -352,6 +391,7 @@ $porcentaje = $total > 0 ? round(($existentes / $total) * 100) : 0;
                         <thead>
                             <tr>
                                 <th>Módulo</th>
+                                <th>Tipo</th>
                                 <th>Sección</th>
                                 <th>Ruta del Archivo</th>
                                 <th>Tamaño</th>
@@ -370,6 +410,17 @@ $porcentaje = $total > 0 ? round(($existentes / $total) * 100) : 0;
                                         </span>
                                     </td>
                                     <td>
+                                        <?php if ($r['modulo']['tipo'] === 'funcion'): ?>
+                                            <span class="badge badge-bad" title="Función / Acción">
+                                                <i class="fas fa-cogs"></i> Función
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="badge badge-ok" title="Página / Vista">
+                                                <i class="fas fa-file-alt"></i> Página
+                                            </span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
                                         <span class="seccion-tag"><?php echo htmlspecialchars($r['modulo']['seccion']); ?></span>
                                     </td>
                                     <td>
@@ -379,7 +430,11 @@ $porcentaje = $total > 0 ? round(($existentes / $total) * 100) : 0;
                                         <?php echo $r['existe'] ? number_format($r['tamano']) . ' B' : '—'; ?>
                                     </td>
                                     <td>
-                                        <?php if ($r['existe']): ?>
+                                        <?php if ($r['modulo']['tipo'] === 'funcion'): ?>
+                                            <span class="badge badge-ok" title="Función/Acción">
+                                                <i class="fas fa-check-circle"></i> OK
+                                            </span>
+                                        <?php elseif ($r['existe']): ?>
                                             <span class="badge badge-ok">
                                                 <i class="fas fa-check-circle"></i> Existe
                                             </span>
@@ -413,6 +468,10 @@ $porcentaje = $total > 0 ? round(($existentes / $total) * 100) : 0;
                                                     <i class="fas fa-exclamation-triangle"></i> No disponible
                                                 </span>
                                             <?php endif; ?>
+                                            <button type="button" class="btn-primary" style="padding: 6px 12px; font-size: 0.8rem;"
+                                                    onclick="cambiarTipo(<?php echo (int)$r['modulo']['id']; ?>, '<?php echo htmlspecialchars($r['modulo']['tipo']); ?>', '<?php echo htmlspecialchars(addslashes($r['modulo']['nombre'])); ?>')">
+                                                <i class="fas fa-exchange-alt"></i> Cambiar Tipo
+                                            </button>
                                             <button type="button" class="btn-delete" style="padding: 6px 12px; font-size: 0.8rem;"
                                                     onclick="confirmarEliminar(<?php echo (int)$r['modulo']['id']; ?>, '<?php echo htmlspecialchars(addslashes($r['modulo']['nombre'])); ?>')">
                                                 <i class="fas fa-trash-alt"></i> Borrar
@@ -468,6 +527,40 @@ $porcentaje = $total > 0 ? round(($existentes / $total) * 100) : 0;
                 inputId.name = 'modulo_id';
                 inputId.value = id;
                 form.appendChild(inputId);
+                document.body.appendChild(form);
+                form.submit();
+            }
+        );
+    }
+
+    function cambiarTipo(id, tipo_actual, nombre) {
+        const nuevo_tipo = tipo_actual === 'pagina' ? 'funcion' : 'pagina';
+        const tipo_nombre = nuevo_tipo === 'pagina' ? 'Página' : 'Función';
+        
+        confirmarAccion(
+            'Cambiar Tipo de Módulo',
+            `¿Estás seguro de cambiar el módulo "${nombre}" de ${tipo_actual === 'pagina' ? 'Página' : 'Función'} a ${tipo_nombre}?`,
+            'CAMBIAR',
+            'btn-primary',
+            function() {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = 'verificar_modulos.php';
+                const inputId = document.createElement('input');
+                inputId.type = 'hidden';
+                inputId.name = 'modulo_id';
+                inputId.value = id;
+                form.appendChild(inputId);
+                const inputTipo = document.createElement('input');
+                inputTipo.type = 'hidden';
+                inputTipo.name = 'nuevo_tipo';
+                inputTipo.value = nuevo_tipo;
+                form.appendChild(inputTipo);
+                const inputCambiar = document.createElement('input');
+                inputCambiar.type = 'hidden';
+                inputCambiar.name = 'cambiar_tipo';
+                inputCambiar.value = '1';
+                form.appendChild(inputCambiar);
                 document.body.appendChild(form);
                 form.submit();
             }

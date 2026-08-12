@@ -221,8 +221,9 @@ $usuarios = $pdo->query("SELECT * FROM usuarios ORDER BY id DESC")->fetchAll(PDO
             </div>
 
             <table class="table-custom">
-                <thead>
+<thead>
                     <tr>
+                        <th>ID</th>
                         <th>Usuario</th>
                         <th>Rango / Permisos</th>
                         <th>Estado Actual</th>
@@ -232,6 +233,11 @@ $usuarios = $pdo->query("SELECT * FROM usuarios ORDER BY id DESC")->fetchAll(PDO
                 <tbody>
                     <?php foreach ($usuarios as $u): ?>
                     <tr>
+                        <td>
+                            <span style="background:#333; color:var(--accent); padding:5px 12px; border-radius:6px; font-weight:bold; display:inline-block;">
+                                <?php echo $u['id']; ?>
+                            </span>
+                        </td>
                         <td>
                             <div style="display:flex; align-items:center; gap:12px;">
                                 <div style="background:#333; height:35px; width:35px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:var(--accent);">

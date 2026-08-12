@@ -338,6 +338,9 @@ try {
         <?php if (tiene_permiso('pages/consignacion_reporte.php')): ?>
         <a href="pages/consignacion_reporte.php" class="action-btn" style="border-color: #9C27B0;"><i class="fas fa-clipboard-list" style="color: #9C27B0; background: rgba(156, 39, 176, 0.1);"></i><span>Consignaciones</span></a>
         <?php endif; ?>
+        <?php if (tiene_permiso('pages/consulta_consignaciones_remota.php')): ?>
+        <a href="pages/consulta_consignaciones_remota.php" class="action-btn" style="border-color: #00bcd4;"><i class="fas fa-search" style="color: #00bcd4; background: rgba(0, 188, 212, 0.1);"></i><span>Consulta Consig. Remota</span></a>
+        <?php endif; ?>
     </div>
 
     <div class="dashboard-grid">

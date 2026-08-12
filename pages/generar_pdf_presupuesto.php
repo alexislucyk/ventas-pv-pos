@@ -161,10 +161,10 @@ if (!empty($presu['observaciones'])) {
     $pdf->MultiCell(0, 5, to_iso($presu['observaciones']), 1, 'L');
 }
 
-// Mensaje de validez (Opcional)
+/* // Mensaje de validez (Opcional)
 $pdf->Ln(10);
 $pdf->SetFont('Arial', 'I', 9);
-$pdf->Cell(0, 5, to_iso('Este presupuesto tiene una validez de 15 días.'), 0, 1, 'C');
+$pdf->Cell(0, 5, to_iso('Este presupuesto tiene una validez de 15 días.'), 0, 1, 'C'); */
 
 
 // 7. Salida del PDF - 'I' fuerza la visualizacion en el navegador

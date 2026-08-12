@@ -294,11 +294,16 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                         $metodo_pago_mov = ($pago_efectivo > 0 && $pago_transf > 0) ? 'MIXTO' : ($pago_efectivo > 0 ? 'EFECTIVO' : 'TRANSFERENCIA');
                         $empresa_id = $_SESSION['empresa_id'] ?? 1;
                         $sucursal_id = $_SESSION['sucursal_id'] ?? 1;
-                        $sql_mov = "INSERT INTO movimientos (empresa_id, sucursal_id, tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado) VALUES (?, ?, 'INGRESO', ?, ?, ?, NOW(), ?, 0)";
+                        
+                        // Desglose de montos para ventas mixtas
+                        $monto_efectivo_mov = ($metodo_pago_mov === 'MIXTO') ? $pago_efectivo : (($metodo_pago_mov === 'EFECTIVO') ? $monto_ingreso : 0);
+                        $monto_transferencia_mov = ($metodo_pago_mov === 'MIXTO') ? $pago_transf : (($metodo_pago_mov === 'TRANSFERENCIA') ? $monto_ingreso : 0);
+                        
+                        $sql_mov = "INSERT INTO movimientos (empresa_id, sucursal_id, tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado, monto_efectivo, monto_transferencia) VALUES (?, ?, 'INGRESO', ?, ?, ?, NOW(), ?, 0, ?, ?)";
                         
                         $detalle_mov = ($cond_pago === 'CUENTA CORRIENTE') ? "ENTREGA/PAGO - VENTA N° $n_documento (CTA. CTE.)" : "VENTA CONTADO N° $n_documento";
                         
-                        $pdo->prepare($sql_mov)->execute([$empresa_id, $sucursal_id, $monto_ingreso, $metodo_pago_mov, $detalle_mov, $usuario_activo]);
+                        $pdo->prepare($sql_mov)->execute([$empresa_id, $sucursal_id, $monto_ingreso, $metodo_pago_mov, $detalle_mov, $usuario_activo, $monto_efectivo_mov, $monto_transferencia_mov]);
                     }
                 }
 

@@ -11,8 +11,15 @@ if (!$data) {
 try {
     $pdo->beginTransaction();
 
-    // 1. Insertar Cabecera (Agregamos la columna observaciones)
-    $sqlH = "INSERT INTO presupuestos (id_cliente, fecha_presupuesto, total_presupuesto, observaciones) VALUES (?, NOW(), ?, ?)";
+    // Obtener empresa_id de la sesión
+    $empresa_id = $_SESSION['empresa_id'] ?? null;
+    
+    if (!$empresa_id) {
+        throw new Exception('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
+    }
+
+    // 1. Insertar Cabecera (Agregamos la columna observaciones y empresa_id)
+    $sqlH = "INSERT INTO presupuestos (id_cliente, fecha_presupuesto, total_presupuesto, observaciones, empresa_id) VALUES (?, NOW(), ?, ?, ?)";
     $stmtH = $pdo->prepare($sqlH);
     
     // Capturamos el campo del JSON, si no existe mandamos un string vacío
@@ -21,13 +28,14 @@ try {
     $stmtH->execute([
         $data['id_cliente'], 
         $data['total'], 
-        $obs
+        $obs,
+        $empresa_id
     ]);
     
     $idPresupuesto = $pdo->lastInsertId();
 
-    // 2. Insertar Detalles
-    $sqlD = "INSERT INTO presupuestos_detalle (id_presupuesto, cod_prod, descripcion, cantidad, precio_unitario, subtotal) VALUES (?, ?, ?, ?, ?, ?)";
+    // 2. Insertar Detalles (incluyendo empresa_id)
+    $sqlD = "INSERT INTO presupuestos_detalle (id_presupuesto, cod_prod, descripcion, cantidad, precio_unitario, subtotal, empresa_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
     $stmtD = $pdo->prepare($sqlD);
 
     foreach ($data['productos'] as $prod) {
@@ -40,7 +48,8 @@ try {
             $prod['descripcion'], 
             $prod['cantidad'], 
             $prod['precio'],
-            $subtotal
+            $subtotal,
+            $empresa_id
         ]);
     }
 

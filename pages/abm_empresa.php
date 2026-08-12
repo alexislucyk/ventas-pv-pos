@@ -36,6 +36,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception("El teléfono contiene caracteres inválidos");
             }
 
+            $modulo_cierre_caja = isset($_POST['modulo_cierre_caja']) ? 1 : 0;
+
             $sql = "UPDATE empresas SET 
                     nombre_fantasia = :nombre_fantasia,
                     razon_social = :razon_social,
@@ -45,7 +47,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     inicio_actividades = :inicio_actividades,
                     direccion = :direccion,
                     localidad = :localidad,
-                    telefono = :telefono
+                    telefono = :telefono,
+                    modulo_cierre_caja = :modulo_cierre_caja
                     WHERE id = :empresa_id";
             
             $stmt = $pdo->prepare($sql);
@@ -59,6 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':direccion' => $_POST['direccion'],
                 ':localidad' => $_POST['localidad'],
                 ':telefono' => $telefono,
+                ':modulo_cierre_caja' => $modulo_cierre_caja,
                 ':empresa_id' => $empresa_id
             ]);
             $mensaje = "✅ Datos de la empresa guardados correctamente.";
@@ -488,6 +492,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="logo-upload">
                         <input type="file" name="logo" id="logo" class="input-field" accept="image/jpeg,image/png,image/gif,image/webp">
                         <div class="help-text">Formatos: JPG, PNG, GIF, WebP. Tamaño máximo: 2MB</div>
+                    </div>
+
+                    <div style="margin-top: 20px; padding: 15px; background: #252525; border: 1px solid #333; border-radius: 8px;">
+                        <label style="margin-top: 0; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" name="modulo_cierre_caja" value="1" style="width: 18px; height: 18px;"
+                                <?php echo (isset($empresa['modulo_cierre_caja']) ? (int)$empresa['modulo_cierre_caja'] : 1) ? 'checked' : ''; ?>>
+                            Módulo "Cierre de Caja" habilitado para esta empresa
+                        </label>
+                        <div class="help-text" style="margin-top: 6px;">
+                            Si está habilitado, la empresa opera con cierres de caja (apertura y cierre diario).
+                            Si NO, opera sin cierres: no se exige abrir caja y las opciones de caja se ocultan.
+                        </div>
                     </div>
 
                     <button type="submit" name="guardar_empresa" class="btn-save" onclick="return confirm('¿Guardar cambios en datos de empresa?')">

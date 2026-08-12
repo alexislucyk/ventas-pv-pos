@@ -70,6 +70,80 @@ if (!isset($_SESSION['sucursal_id']) || (int)$_SESSION['sucursal_id'] <= 0) {
     $_SESSION['sucursal_id'] = 1;
 }
 
+// ============================================
+// ============================================
+// MÓDULOS POR EMPRESA: "Cierre de Caja"
+// ============================================
+// La empresa puede operar con cierres de caja (habilitado) o sin cierres (deshabilitado).
+if (!function_exists('empresa_cierre_caja_habilitado')) {
+    function empresa_cierre_caja_habilitado() {
+        global $pdo;
+        $empresa_id = $_SESSION['empresa_id'] ?? null;
+        if (!$empresa_id) {
+            return true; // sin empresa definida, comportamiento conservador: flujo actual
+        }
+        try {
+            $st = $pdo->prepare("SELECT modulo_cierre_caja FROM empresas WHERE id = :id");
+            $st->execute([':id' => $empresa_id]);
+            return (bool)(int)$st->fetchColumn();
+        } catch (Exception $e) {
+            return true; // ante error de lectura, no bloquear: flujo actual
+        }
+    }
+}
+
+// ============================================
+// VALIDACIÓN DE ESTADO DE CAJA (solo si la empresa usa cierres)
+// ============================================
+// Solo para páginas que requieren caja abierta
+$paginas_requieren_caja = [
+    'ventas.php',
+    'compras.php',
+    'compras_rapidas.php',
+    'cobro_cuotas.php',
+    'anulaciones.php',
+    'movimiento_manual.php',
+    'caja_dashboard.php',
+    'cierre_caja.php'
+];
+
+$modulo_cierre_caja = empresa_cierre_caja_habilitado();
+$pagina_actual = basename($_SERVER['PHP_SELF']);
+
+// Páginas exclusivas del módulo "Cierre de Caja": inaccesibles si la empresa NO lo tiene habilitado
+$paginas_modulo_cierre_caja = [
+    'abrir_caja.php', 'caja_dashboard.php', 'movimiento_manual.php',
+    'cierre_caja.php', 'procesar_cierre.php', 'reporte_cierres.php',
+    'cerrar_cajas_historicas.php', 'verificar_cajas_historicas.php'
+];
+
+if (in_array($pagina_actual, $paginas_modulo_cierre_caja) && !$modulo_cierre_caja) {
+    if (strtolower($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'post') {
+        http_response_code(403);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['status' => 'error',
+            'message' => 'Módulo de cierre de caja deshabilitado para esta empresa.']);
+        exit();
+    }
+    header('Location: ' . URL_BASE . 'index.php');
+    exit();
+}
+
+if ($modulo_cierre_caja && in_array($pagina_actual, $paginas_requieren_caja)) {
+    // Incluir funciones de caja
+    require_once dirname(__FILE__) . '/../funciones/funciones_caja.php';
+    
+    $empresa_id = $_SESSION['empresa_id'] ?? null;
+    $sucursal_id = $_SESSION['sucursal_id'] ?? 1;
+    
+    if ($empresa_id && !caja_esta_abierta($pdo, $empresa_id, $sucursal_id)) {
+        // Redirigir a página de apertura de caja
+        $_SESSION['error_caja'] = 'La caja está cerrada. Debe abrirla antes de continuar.';
+        header("Location: " . URL_BASE . "pages/abrir_caja.php");
+        exit();
+    }
+}
+
 // Datos de la sesión para mostrar
 $nombre_usuario = htmlspecialchars($_SESSION['usuario_nombre']); // O $_SESSION['usuario_nombre'] si lo usas así
 $rol = htmlspecialchars($_SESSION['usuario_rol']);
@@ -77,15 +151,23 @@ $rol = htmlspecialchars($_SESSION['usuario_rol']);
 /**
  * Función para validar si el usuario tiene acceso al link
  * El rol 'developer' siempre tiene permiso total.
+ * Ahora distingue entre permisos de páginas y funciones.
  */
 if (!function_exists('tiene_permiso')) {
-    function tiene_permiso($archivo_buscado) {
+    function tiene_permiso($archivo_buscado, $tipo = 'pagina') {
         if (isset($_SESSION['usuario_rol']) && $_SESSION['usuario_rol'] === 'developer') {
             return true;
         }
         
-        if (isset($_SESSION['permisos']) && is_array($_SESSION['permisos'])) {
-            return in_array($archivo_buscado, $_SESSION['permisos']);
+        // Seleccionar el array de permisos según el tipo
+        if ($tipo === 'funcion') {
+            $permisos = $_SESSION['permisos_funciones'] ?? $_SESSION['permisos'] ?? [];
+        } else {
+            $permisos = $_SESSION['permisos_paginas'] ?? $_SESSION['permisos'] ?? [];
+        }
+        
+        if (is_array($permisos)) {
+            return in_array($archivo_buscado, $permisos);
         }
         
         return false;

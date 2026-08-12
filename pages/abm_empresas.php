@@ -68,7 +68,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $direccion       = trim($_POST['direccion']);
         $localidad       = trim($_POST['localidad']);
         $telefono        = trim($_POST['telefono']);
-        $activa          = isset($_POST['activa']) ? 1 : 0;
+                $activa          = isset($_POST['activa']) ? 1 : 0;
+        $modulo_cierre_caja = isset($_POST['modulo_cierre_caja']) ? 1 : 0;
 
         if (empty($nombre_fantasia)) {
             throw new Exception("El nombre de fantasía es obligatorio.");
@@ -102,14 +103,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            $sql = "INSERT INTO empresas 
+                        $sql = "INSERT INTO empresas 
                         (nombre_fantasia, razon_social, cuit, condicion_iva, ingresos_brutos, inicio_actividades, 
-                         direccion, localidad, telefono, activa, created_at) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+                         direccion, localidad, telefono, activa, modulo_cierre_caja, created_at) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
             $stmt = $pdo->prepare($sql);
             $stmt->execute([
                 $nombre_fantasia, $razon_social, $cuit, $condicion_iva, $ingresos_brutos, $inicio_actividades,
-                $direccion, $localidad, $telefono, $activa
+                $direccion, $localidad, $telefono, $activa, $modulo_cierre_caja
             ]);
             $nuevo_id = $pdo->lastInsertId();
             $mensaje = "✅ Empresa \"$nombre_fantasia\" creada correctamente (ID: $nuevo_id).";
@@ -123,15 +124,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            $sql = "UPDATE empresas SET 
+                        $sql = "UPDATE empresas SET 
                         nombre_fantasia = ?, razon_social = ?, cuit = ?, condicion_iva = ?, 
                         ingresos_brutos = ?, inicio_actividades = ?, direccion = ?, 
-                        localidad = ?, telefono = ?, activa = ?
+                        localidad = ?, telefono = ?, activa = ?, modulo_cierre_caja = ?
                     WHERE id = ?";
             $stmt = $pdo->prepare($sql);
             $stmt->execute([
                 $nombre_fantasia, $razon_social, $cuit, $condicion_iva, $ingresos_brutos, $inicio_actividades,
-                $direccion, $localidad, $telefono, $activa, $id
+                $direccion, $localidad, $telefono, $activa, $modulo_cierre_caja, $id
             ]);
             $mensaje = "✅ Empresa \"$nombre_fantasia\" actualizada correctamente.";
             $accion = 'listar';
@@ -901,7 +902,11 @@ $condiciones_iva = [
                         <div class="card-footer">
                             <div class="stats">
                                 <i class="fas fa-store-alt"></i> <?php echo intval($emp['total_sucursales'] ?? 0); ?> sucursales &nbsp;
-                                <i class="fas fa-users"></i> <?php echo intval($emp['total_usuarios'] ?? 0); ?> usuarios
+                                                                <i class="fas fa-users"></i> <?php echo intval($emp['total_usuarios'] ?? 0); ?> usuarios
+                                &nbsp; <i class="fas fa-lock"></i>
+                                <span class="badge-activa <?php echo ((int)($emp['modulo_cierre_caja'] ?? 1)) ? 'si' : 'no'; ?>">
+                                    <?php echo ((int)($emp['modulo_cierre_caja'] ?? 1)) ? 'Cierres: Sí' : 'Cierres: No'; ?>
+                                </span>
                                 <?php if (!empty($emp['created_at'])): ?>
                                     &nbsp; <i class="fas fa-calendar-plus"></i> <?php echo date('d/m/Y', strtotime($emp['created_at'])); ?>
                                 <?php endif; ?>
@@ -1012,10 +1017,17 @@ $condiciones_iva = [
                                    placeholder="+54 11 1234-5678">
                         </div>
 
-                        <div class="form-group full-width checkbox-group">
+                                                <div class="form-group full-width checkbox-group">
                             <input type="checkbox" name="activa" id="activa" value="1"
                                    <?php echo (!isset($emp['activa']) || $emp['activa']) ? 'checked' : ''; ?>>
                             <label for="activa">Empresa activa</label>
+                        </div>
+
+                        <div class="form-group full-width checkbox-group">
+                            <input type="checkbox" name="modulo_cierre_caja" id="modulo_cierre_caja" value="1"
+                                   <?php echo (isset($emp['modulo_cierre_caja']) && (int)$emp['modulo_cierre_caja']) ? 'checked' : ''; ?>>
+                            <label for="modulo_cierre_caja">Módulo "Cierre de Caja" habilitado</label>
+                            <div class="help-text">Si está habilitado, la empresa opera con cierres de caja. Si NO, opera sin cierres.</div>
                         </div>
 
                         <div class="form-group full-width">

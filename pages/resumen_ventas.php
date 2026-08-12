@@ -10,8 +10,8 @@ if (!$empresa_id) {
     die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');
 }
 
-// Rango de fechas por defecto: últimos 30 días
-$fecha_inicio = isset($_GET['fecha_inicio']) ? $_GET['fecha_inicio'] : date('Y-m-d', strtotime('-30 days'));
+// Rango de fechas por defecto: día actual
+$fecha_inicio = isset($_GET['fecha_inicio']) ? $_GET['fecha_inicio'] : date('Y-m-d');
 $fecha_fin = isset($_GET['fecha_fin']) ? $_GET['fecha_fin'] : date('Y-m-d');
 $id_cliente_filtro = isset($_GET['id_cliente']) ? (int)$_GET['id_cliente'] : 0;
 

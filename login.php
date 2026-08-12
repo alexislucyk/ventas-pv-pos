@@ -42,16 +42,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['usuario_rol'] = $user['rol'];
                     $_SESSION['empresa_id'] = $user['empresa_id'];
 
-                    // --- NUEVO LOGIN: CARGAR PERMISOS (ROL + INDIVIDUAL) ---
-                    $stmt_permisos = $pdo->prepare("
+                    // --- NUEVO LOGIN: CARGAR PERMISOS SEPARADOS (PÁGINAS + FUNCIONES) ---
+                    // Permisos de PÁGINAS (para acceso a vistas)
+                    $stmt_paginas = $pdo->prepare("
                         SELECT DISTINCT m.archivo 
                         FROM modulos m 
-                        LEFT JOIN permisos_rol p ON m.id = p.modulo_id AND p.rol = ?
-                        LEFT JOIN permisos_usuario pu ON m.id = pu.modulo_id AND pu.usuario_id = ?
+                        LEFT JOIN permisos_rol p ON m.id = p.modulo_id AND p.rol = ? AND m.tipo = 'pagina'
+                        LEFT JOIN permisos_usuario pu ON m.id = pu.modulo_id AND pu.usuario_id = ? AND m.tipo = 'pagina'
                         WHERE p.id IS NOT NULL OR pu.id IS NOT NULL
                     ");
-                    $stmt_permisos->execute(array($user['rol'], $user['id']));
-                    $_SESSION['permisos'] = $stmt_permisos->fetchAll(PDO::FETCH_COLUMN, 0);
+                    $stmt_paginas->execute(array($user['rol'], $user['id']));
+                    $_SESSION['permisos_paginas'] = $stmt_paginas->fetchAll(PDO::FETCH_COLUMN, 0);
+
+                    // Permisos de FUNCIONES (para validar acciones específicas)
+                    $stmt_funciones = $pdo->prepare("
+                        SELECT DISTINCT m.archivo 
+                        FROM modulos m 
+                        LEFT JOIN permisos_rol p ON m.id = p.modulo_id AND p.rol = ? AND m.tipo = 'funcion'
+                        LEFT JOIN permisos_usuario pu ON m.id = pu.modulo_id AND pu.usuario_id = ? AND m.tipo = 'funcion'
+                        WHERE p.id IS NOT NULL OR pu.id IS NOT NULL
+                    ");
+                    $stmt_funciones->execute(array($user['rol'], $user['id']));
+                    $_SESSION['permisos_funciones'] = $stmt_funciones->fetchAll(PDO::FETCH_COLUMN, 0);
+
+                    // Mantener compatibilidad: permisos generales (páginas + funciones)
+                    $_SESSION['permisos'] = array_unique(array_merge(
+                        $_SESSION['permisos_paginas'] ?? [],
+                        $_SESSION['permisos_funciones'] ?? []
+                    ));
 
                     header('Location: index.php');
                     exit();

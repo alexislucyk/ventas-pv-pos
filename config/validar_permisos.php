@@ -62,10 +62,12 @@ function restringirPagina($rolMinimoRequerido) {
             }
         }
 
-        // Comprobar en los permisos cargados en sesión (permisos_usuario + permisos_rol)
-        if (!empty($ruta_actual) && isset($_SESSION['permisos']) && is_array($_SESSION['permisos'])) {
-            if (in_array($ruta_actual, $_SESSION['permisos'])) {
-                return; // Tiene permiso individual al módulo: permitir acceso
+        // Comprobar en los permisos de PÁGINAS cargados en sesión (permisos_usuario + permisos_rol)
+        if (!empty($ruta_actual)) {
+            // Usar permisos_paginas si existe, sino fallback a permisos (compatibilidad)
+            $permisos_a_verificar = $_SESSION['permisos_paginas'] ?? $_SESSION['permisos'] ?? [];
+            if (is_array($permisos_a_verificar) && in_array($ruta_actual, $permisos_a_verificar)) {
+                return; // Tiene permiso individual a la página: permitir acceso
             }
         }
     }

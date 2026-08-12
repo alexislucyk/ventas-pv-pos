@@ -364,6 +364,7 @@ $app_version      = isset($config_raw['app_version']) ? $config_raw['app_version
                 </div>
             </div>
 
+
             <div style="max-width: 800px;">
                 <button type="submit" name="guardar_config" class="btn-save">
                     <i class="fas fa-save"></i> GUARDAR CAMBIOS

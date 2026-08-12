@@ -57,7 +57,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $id_seleccionado > 0 && isset($_POS
 
 // -- CARGAR DATOS
 $usuarios = $pdo->query("SELECT id, usuario, rol FROM usuarios WHERE estado = 'ACTIVO' AND rol != 'developer' ORDER BY usuario")->fetchAll();
-$modulos = $pdo->query("SELECT * FROM modulos ORDER BY seccion, nombre")->fetchAll();
+
+// Filtro por tipo (pagina | funcion | todos)
+$filtro_tipo = isset($_GET['tipo']) ? $_GET['tipo'] : 'todos';
+if (!in_array($filtro_tipo, ['pagina', 'funcion'])) {
+    $filtro_tipo = 'todos';
+}
+
+$sql_modulos = "SELECT * FROM modulos";
+if ($filtro_tipo !== 'todos') {
+    $sql_modulos .= " WHERE tipo = '" . $filtro_tipo . "'";
+}
+$sql_modulos .= " ORDER BY seccion, nombre";
+$modulos = $pdo->query($sql_modulos)->fetchAll();
 
 $permisos_actuales = array();
 if ($id_seleccionado > 0) {
@@ -325,13 +337,25 @@ if ($id_seleccionado > 0) {
             <?php endif; ?>
 
             <div class="card-admin">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
                     <h3 style="margin-top: 0; color: var(--accent); margin-bottom: 0;">
                         <i class="fas fa-plus-circle"></i> Registrar Nueva Página / Módulo
                     </h3>
-                    <a href="verificar_modulos.php" class="btn-primary" style="text-decoration: none;">
-                        <i class="fas fa-clipboard-check"></i> Verificar Módulos
-                    </a>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span style="color: #888; font-size: 0.85rem;">Filtrar:</span>
+                        <a href="?tipo=todos<?php echo $id_seleccionado ? '&u=' . $id_seleccionado : ''; ?>" class="btn-secondary <?php echo $filtro_tipo === 'todos' ? 'btn-primary' : ''; ?>" style="padding: 6px 12px; font-size: 0.8rem; text-decoration: none;">
+                            Todos
+                        </a>
+                        <a href="?tipo=pagina<?php echo $id_seleccionado ? '&u=' . $id_seleccionado : ''; ?>" class="btn-secondary <?php echo $filtro_tipo === 'pagina' ? 'btn-primary' : ''; ?>" style="padding: 6px 12px; font-size: 0.8rem; text-decoration: none;">
+                            <i class="fas fa-file-alt"></i> Páginas
+                        </a>
+                        <a href="?tipo=funcion<?php echo $id_seleccionado ? '&u=' . $id_seleccionado : ''; ?>" class="btn-secondary <?php echo $filtro_tipo === 'funcion' ? 'btn-primary' : ''; ?>" style="padding: 6px 12px; font-size: 0.8rem; text-decoration: none;">
+                            <i class="fas fa-cogs"></i> Funciones
+                        </a>
+                        <a href="verificar_modulos.php" class="btn-primary" style="text-decoration: none; padding: 6px 12px; font-size: 0.8rem;">
+                            <i class="fas fa-clipboard-check"></i> Verificar Módulos
+                        </a>
+                    </div>
                 </div>
                 <form method="POST" style="display: flex; gap: 10px; align-items: stretch;">
                     <input type="text" name="nuevo_nombre" placeholder="Nombre (Ej: Stock)" required class="input-dark">

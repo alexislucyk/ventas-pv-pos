@@ -513,7 +513,7 @@ body.sidebar-collapsed .topbar {
 
     <a href="<?php echo URL_BASE; ?>index.php" style="text-decoration: none; color: inherit;">
         <div class="empresa-title">
-            <i class="fas fa-bolt"></i>
+            
             <span><?php echo htmlspecialchars($nombre_empresa_sidebar); ?></span>
             <div class="empresa-version">
                 V. <?php echo htmlspecialchars($version_app); ?>
@@ -584,6 +584,7 @@ body.sidebar-collapsed .topbar {
         <?php if (tiene_permiso('pages/facturacion_arca.php')): ?>
             <a href="<?php echo URL_BASE; ?>pages/facturacion_arca.php" data-title="Comprobantes AFIP"><i class="fas fa-file-invoice"></i> <span>Comprobantes AFIP</span></a>
         <?php endif; ?>
+        <?php if (empresa_cierre_caja_habilitado()): ?>
         <?php if (tiene_permiso('pages/caja_dashboard.php')): ?>
             <a href="<?php echo URL_BASE; ?>pages/caja_dashboard.php" data-title="Panel de Caja"><i class="fas fa-chart-pie"></i> <span>Panel de Caja</span></a>
         <?php endif; ?>
@@ -592,6 +593,10 @@ body.sidebar-collapsed .topbar {
         <?php endif; ?>
         <?php if (tiene_permiso('pages/cierre_caja.php')): ?>
             <a href="<?php echo URL_BASE; ?>pages/cierre_caja.php" data-title="Cierre de Caja"><i class="fas fa-lock"></i> <span>Cierre de Caja</span></a>
+        <?php endif; ?>
+        <?php if (tiene_permiso('pages/reporte_cierres.php')): ?>
+            <a href="<?php echo URL_BASE; ?>pages/reporte_cierres.php" data-title="Reporte de Cierres"><i class="fas fa-clipboard-list"></i> <span>Reporte de Cierres</span></a>
+        <?php endif; ?>
         <?php endif; ?>
         </div>
 
@@ -632,6 +637,9 @@ body.sidebar-collapsed .topbar {
         <?php endif; ?>
         <?php if ($_SESSION['usuario_rol'] === 'developer'): ?>
             <a href="<?php echo URL_BASE; ?>pages/abm_permisos_usuarios.php" data-title="Permisos por Usuario"><i class="fas fa-user-shield"></i> <span>Permisos por Usuario</span></a>
+        <?php endif; ?>
+        <?php if ($_SESSION['usuario_rol'] === 'developer' || $_SESSION['usuario_rol'] === 'admin'): ?>
+            <a href="<?php echo URL_BASE; ?>pages/abm_proveedores_autorizados.php" data-title="Proveedores Autorizados"><i class="fas fa-user-check"></i> <span>Proveedores Autorizados</span></a>
         <?php endif; ?>
         <?php if (tiene_permiso('pages/backup.php')): ?>
             <a href="<?php echo URL_BASE; ?>pages/backup.php" data-title="Backup"><i class="fas fa-database"></i> <span>Backup</span></a>

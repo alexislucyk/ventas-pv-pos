@@ -8,6 +8,7 @@ $clientes = [];
 try {
     $stmt_c = $pdo->prepare("SELECT id, CONCAT(apellido, ', ', nombre) as nombre_completo, cuit as num_documento FROM clientes WHERE empresa_id = ? ORDER BY nombre_completo");
     $stmt_c->execute([$empresa_id]);
+    $clientes = $stmt_c->fetchAll(PDO::FETCH_ASSOC);
 } catch(Exception $e) {
     error_log("Error cargando clientes en anulaciones: " . $e->getMessage());
 }
@@ -362,7 +363,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
                     <h2>1b. Buscar Venta por Número</h2>
                     <div style="display: flex; gap: 10px;">
                         <input type="number" id="input_busqueda_directa" class="input-field" placeholder="N° de Venta / Documento" style="margin-bottom:0 !important;">
-                        <button type="button" class="btn btn-primary" onclick="const n = document.getElementById('input_busqueda_directa').value; if(n) verDetalleParaAnular(n); else mostrarMensaje('Error', 'Ingrese un número de venta.', 'error');">BUSCAR</button>
+                        <button type="button" class="btn btn-primary" onclick="const n = document.getElementById('input_busqueda_directa').value; if(n) verDetalleParaAnular(n); else alert('Ingrese un número de venta.');">BUSCAR</button>
                     </div>
                 </div>
             </div>
@@ -517,8 +518,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
 
     function verDetalleParaAnular(nDoc) {
         const modal = document.getElementById('modal_detalle');
-        fetch(`../ajax/obtener_venta_anulacion.php?n_documento=${nDoc}`)
-            .then(res => res.json())
+        const nDocLimpio = String(nDoc).trim();
+        
+        if (!nDocLimpio) {
+            alert('Ingrese un número de venta válido.');
+            return;
+        }
+
+        const url = `../ajax/obtener_venta_anulacion.php?n_documento=${encodeURIComponent(nDocLimpio)}`;
+
+        fetch(url)
+            .then(res => {
+                if (!res.ok) {
+                    throw new Error('Error en la respuesta del servidor: ' + res.status);
+                }
+                return res.json();
+            })
             .then(data => {
                 if (data.error) { 
                     alert(data.error); 
@@ -532,22 +547,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
                     document.getElementById('chk_anular_todo').checked = false;
 
                     let html = '';
-                    data.detalle.forEach(item => {
-                        html += `<tr>
-                            <td>${item.cod_prod}</td>
-                            <td>${item.descripcion}</td>
-                            <td style="text-align: center;">${item.cant}</td>
-                            <td style="text-align: center;">
-                                <input type="number" name="items_devolver[${item.cod_prod}]" 
-                                       class="input-field input-cantidad-dev" 
-                                       value="0" min="0" max="${item.cant}" step="any"
-                                       data-original="${item.cant}">
-                            </td>
-                        </tr>`;
-                    });
+                    if (data.detalle && data.detalle.length > 0) {
+                        data.detalle.forEach(item => {
+                            html += `<tr>
+                                <td>${item.cod_prod}</td>
+                                <td>${item.descripcion}</td>
+                                <td style="text-align: center;">${item.cant}</td>
+                                <td style="text-align: center;">
+                                    <input type="number" name="items_devolver[${item.cod_prod}]" 
+                                           class="input-field input-cantidad-dev" 
+                                           value="0" min="0" max="${item.cant}" step="any"
+                                           data-original="${item.cant}">
+                                </td>
+                            </tr>`;
+                        });
+                    } else {
+                        html = '<tr><td colspan="4" style="text-align: center;">No hay detalles disponibles</td></tr>';
+                    }
                     document.getElementById('tabla_articulos').innerHTML = html;
                     modal.style.display = 'block';
                 }
+            })
+            .catch(err => {
+                console.error('Error al buscar venta:', err);
+                alert('Error al conectar con el servidor. Por favor, intente nuevamente.');
             });
     }
 
@@ -603,7 +626,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
         const tieneAlgo = inputs.some(i => parseFloat(i.value) > 0);
 
         if (!isTotal && !tieneAlgo) {
-            mostrarMensaje("Dato Requerido", "Debe seleccionar al menos un producto para devolver o marcar la anulación total.", "error");
+            alert("Debe seleccionar al menos un producto para devolver o marcar la anulación total.");
             return false;
         }
 
