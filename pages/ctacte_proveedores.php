@@ -37,7 +37,7 @@ try {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cuentas Corrientes Proveedores</title>
-    <link rel="stylesheet" href="../css/style.css"> 
+    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>"> 
     <style>
         /* --- ESTILOS DE DASHBOARD --- */
         .card-stats {
@@ -242,7 +242,7 @@ try {
 
 
 </body>
-<script src="../js/global.js"></script> 
+<script src="<?php echo url('js/global.js'); ?>"></script> 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const selectProveedor = document.getElementById('select_proveedor');
@@ -275,7 +275,7 @@ try {
 
             // Llamada AJAX (Necesitamos crear el archivo 'cargar_ctacte_proveedor_ajax.php')
             const xhr = new XMLHttpRequest();
-            xhr.open('GET', '../ajax/cargar_ctacte_proveedor_ajax.php?id=' + idProveedor, true);
+            xhr.open('GET', '<?php echo URL_BASE; ?>ajax/cargar_ctacte_proveedor_ajax.php?id=' + idProveedor, true);
             xhr.onload = function() {
                 if (this.status === 200) {
                     try {
@@ -496,7 +496,7 @@ try {
             formData.append('imputar_docs', JSON.stringify(imputarDocs));
 
             const xhrPago = new XMLHttpRequest();
-            xhrPago.open('POST', '../ajax/registrar_pago_proveedor_ajax.php', true);
+            xhrPago.open('POST', '<?php echo URL_BASE; ?>ajax/registrar_pago_proveedor_ajax.php', true);
             
             xhrPago.onload = function() {
                 // --- MEJORA 2: Restaurar el botón al finalizar ---
@@ -553,7 +553,7 @@ try {
                         btnElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
                     }
 
-                    fetch('../ajax/marcar_compra_pagada_ajax.php', {
+                    fetch('<?php echo URL_BASE; ?>ajax/marcar_compra_pagada_ajax.php', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -661,7 +661,7 @@ try {
                     btnSubmit.disabled = true;
                     btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
 
-                    fetch('../ajax/reimputar_excedente_proveedor_ajax.php', {
+                    fetch('<?php echo URL_BASE; ?>ajax/reimputar_excedente_proveedor_ajax.php', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({

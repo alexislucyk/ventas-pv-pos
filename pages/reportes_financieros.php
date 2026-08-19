@@ -87,7 +87,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <title>Reportes | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <style>
         .reporte-container { display: flex; flex-wrap: wrap; gap: 20px; }
         .col-main { flex: 2; min-width: 600px; }

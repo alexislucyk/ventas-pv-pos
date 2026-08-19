@@ -1,6 +1,8 @@
 <?php
 // archivo: pages/generar_pdf_devolucion.php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 while (ob_get_level()) { ob_end_clean(); }
 error_reporting(E_ALL & ~E_NOTICE);
 ini_set('display_errors', '0');

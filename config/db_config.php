@@ -9,22 +9,37 @@ date_default_timezone_set('America/Argentina/Buenos_Aires');
 // Forzar separador decimal de punto para evitar truncamiento con comas en cálculos y DB
 setlocale(LC_NUMERIC, 'C');
 
-// 1. Detección automática del entorno según la URL
-// Usamos SCRIPT_NAME que es más estable que REQUEST_URI para detectar carpetas
-$script_path = $_SERVER['SCRIPT_NAME'];
+// 1. Detección automática del entorno y del directorio de la aplicación
+// El directorio raíz puede llamarse de cualquier manera (ventas_dev, pos_dev,
+// ventas_prod, etc.). El entorno se determina por el SUFIJO del directorio:
+//   - termina en "_dev"  → MODO DESARROLLO  (Base de datos: pos_dev)
+//   - cualquier otro     → PRODUCCIÓN        (Base de datos: pos_prod)
+// Carpeta real de la app en el filesystem: este archivo vive en config/, así que
+// la raíz de la app está un nivel arriba. basename() devuelve el NOMBRE de la carpeta.
+$app_root_real = dirname(__DIR__);
+$app_folder    = basename($app_root_real); // ej. 'pos_dev', 'ventas_dev', 'pos_prod', 'pos_prod_v2'
 
-//if (strpos($script_path, '/pos_dev/') !== false) {
-if (preg_match('#/([a-zA-Z0-9_-]+)_dev/#', $script_path)) {
-    // --- AMBIENTE DE DESARROLLO ---
-    $db_name = 'pos_dev';      // Tu DB de pruebas
-    $folder  = '/pos_dev/';    // Tu carpeta de pruebas
+// Determinar entorno según el SUFIJO de la carpeta REAL de instalación:
+// independiente de la URL con la que se acceda (SCRIPT_NAME/REQUEST_URI).
+if (substr($app_folder, -4) === '_dev') {
+    $db_name  = 'pos_dev';        // Base de datos de desarrollo
     $ambiente = "MODO DESARROLLO (PRUEBAS)";
 } else {
-    // --- AMBIENTE DE PRODUCCIÓN ---
-    $db_name = 'pos_prod';     // Tu DB real del negocio
-    $folder  = '/pos_prod/';   // Tu carpeta del mostrador
+    $db_name  = 'pos_prod';       // Base de datos de producción
     $ambiente = "PRODUCCIÓN";
 }
+
+// El folder de URL es el directorio real en el que corre la app (dinámico).
+// Usamos SCRIPT_NAME (más estable que REQUEST_URI) para el segmento de URL;
+// si la app está en la raíz web (sin subcarpeta) el directorio queda vacío.
+$script_path = trim($_SERVER['SCRIPT_NAME'], '/'); // ej. 'ventas_dev/index.php'
+$partes = explode('/', $script_path);
+$dir_app = '';
+if (isset($partes[0]) && strpos($partes[0], '.php') === false) {
+    $dir_app = $partes[0];
+}
+
+$folder = $dir_app !== '' ? '/' . $dir_app . '/' : '/';
 
 // 2. Definición de Constantes para evitar rutas absolutas "quemadas"
 if (!defined('URL_BASE')) {

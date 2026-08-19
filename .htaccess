@@ -1,0 +1,38 @@
+# =====================================================
+# .htaccess - Router Frontal (Dispatcher)
+# Redirects clean URLs to index.php while preserving
+# direct access to real files (ajax, api, css, js, img)
+# =====================================================
+
+RewriteEngine On
+
+# The base folder may vary (pos_dev, pos_prod, ventas_dev, etc.)
+# RewriteBase /ventas_dev/
+
+# -----------------------------------------------------
+# BLOCK DIRECT ACCESS TO INTERNAL CODE
+# Pages under these folders must only be served through
+# the router (clean URLs). Direct access returns 404.
+# -----------------------------------------------------
+RewriteRule ^(app|config|core|migrations|vendor|backups|docs)(/|$) - [R=404,L]
+
+# -----------------------------------------------------
+# PRESERVE DIRECT ACCESS TO REAL FILES AND DIRECTORIES
+# Only rewrite to index.php when the file/folder does
+# not exist. This keeps ajax/*.php, css/*, js/* served
+# directly while clean URLs go through the router.
+# -----------------------------------------------------
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.php [L,QSA]
+
+# -----------------------------------------------------
+# SECURITY: block access to sensitive files
+# -----------------------------------------------------
+<FilesMatch "^\.(env|git|htaccess|htpasswd|log|sql)">
+    Require all denied
+</FilesMatch>
+
+<FilesMatch "\.(bak|backup|swp|swo|tmp|log|sql)$">
+    Require all denied
+</FilesMatch>

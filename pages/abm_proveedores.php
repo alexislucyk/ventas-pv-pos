@@ -127,7 +127,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <title>Proveedores | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="../css/style.css?v=<?php echo time(); ?>">
+    <link rel="stylesheet" href="<?php echo url('css/style.css?v=' . time()); ?>">
     <style>
         :root { --accent: #00bcd4; --success: #2ecc71; --warning: #f1c40f; --danger: #e74c3c; }
         
@@ -309,7 +309,7 @@ try {
         modal.style.display = 'block';
         contenedor.innerHTML = '<p style="text-align:center; padding: 20px;">Buscando productos vinculados...</p>';
 
-        fetch('../ajax/obtener_precios_proveedor.php?proveedor=' + encodeURIComponent(razonSocial))
+        fetch('<?php echo URL_BASE; ?>ajax/obtener_precios_proveedor.php?proveedor=' + encodeURIComponent(razonSocial))
             .then(res => res.text())
             .then(html => {
                 contenedor.innerHTML = html;
@@ -347,7 +347,7 @@ try {
         modal.style.display = 'block';
         contenedor.innerHTML = '<p style="text-align:center; padding: 20px;">Consultando catálogo externo del proveedor...</p>';
 
-        fetch('../ajax/obtener_catalogo_proveedor.php?cod_prov=' + encodeURIComponent(codProv))
+        fetch('<?php echo URL_BASE; ?>ajax/obtener_catalogo_proveedor.php?cod_prov=' + encodeURIComponent(codProv))
             .then(res => res.text())
             .then(html => {
                 contenedor.innerHTML = html;
@@ -405,7 +405,7 @@ try {
             prog.style.display = 'block';
             msg.style.display = 'none';
 
-            fetch('../ajax/importar_catalogo_csv.php', {
+            fetch('<?php echo URL_BASE; ?>ajax/importar_catalogo_csv.php', {
                 method: 'POST',
                 body: new FormData(this)
             })
@@ -485,7 +485,7 @@ try {
         formData.append('proveedor', document.getElementById('cp_proveedor').value);
         formData.append('stock', 0); // Empieza con stock 0 por defecto
 
-        fetch('../ajax/agregar_producto_rapido.php', {
+        fetch('<?php echo URL_BASE; ?>ajax/agregar_producto_rapido.php', {
             method: 'POST',
             body: formData
         })

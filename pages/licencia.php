@@ -17,7 +17,7 @@ if (isset($_SESSION['usuario_rol']) && $_SESSION['usuario_rol'] === 'developer')
 }
 
 if (!$tiene_acceso) {
-    header("Location: index.php?error=acceso_denegado");
+    header("Location: " . URL_BASE . "?error=acceso_denegado");
     exit();
 }
 
@@ -28,7 +28,7 @@ $info = obtenerEstadoLicencia();
 <head>
     <meta charset="UTF-8">
     <title>Gestión de Licencia | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <style>
         .licencia-card { border-left: 5px solid #00bcd4; }
         .status-badge { padding: 5px 10px; border-radius: 4px; font-weight: bold; }
@@ -163,7 +163,7 @@ $info = obtenerEstadoLicencia();
             messageDiv.innerHTML = 'Guardando...';
             messageDiv.style.color = '#00bcd4';
 
-            fetch('../ajax/update_licencia_ip.php', {
+            fetch('<?php echo URL_BASE; ?>ajax/update_licencia_ip.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',

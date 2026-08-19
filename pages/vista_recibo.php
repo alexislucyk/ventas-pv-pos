@@ -69,7 +69,7 @@ $label_total = $es_devolucion ? "TOTAL REINTEGRADO:" : "TOTAL ABONADO:";
 <head>
     <meta charset="UTF-8">
     <title>Recibo N° <?php echo $recibo['n_documento'] ?: $recibo['id']; ?></title>
-    <link rel="stylesheet" href="../css/temptocketprint.css">
+    <link rel="stylesheet" href="<?php echo url('css/temptocketprint.css'); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         body { background: #525659; margin: 0; padding: 0; }

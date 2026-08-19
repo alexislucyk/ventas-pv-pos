@@ -216,7 +216,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <title>Configuración de Empresa</title>
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         body { background-color: #121212; color: #e0e0e0; }
@@ -423,7 +423,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <div style="text-align: right; border-left: 1px solid #333; padding-left: 20px;">
                 <?php if (!empty($empresa['logo_path']) && file_exists('../' . $empresa['logo_path'])): ?>
-                    <img src="../<?php echo htmlspecialchars($empresa['logo_path']); ?>" alt="Logo" style="max-width: 150px; max-height: 150px;">
+                    <img src="<?php echo url($empresa['logo_path']); ?>" alt="Logo" style="max-width: 150px; max-height: 150px;">
                 <?php else: ?>
                     <i class="fas fa-store-alt" style="font-size: 3.5rem; color: #333;"></i>
                 <?php endif; ?>
@@ -482,7 +482,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <label>Logo de la Empresa</label>
                     <div class="logo-preview" id="logoPreview">
                         <?php if (!empty($empresa['logo_path']) && file_exists('../' . $empresa['logo_path'])): ?>
-                            <img src="../<?php echo htmlspecialchars($empresa['logo_path']); ?>" alt="Logo actual">
+                            <img src="<?php echo url($empresa['logo_path']); ?>" alt="Logo actual">
                             <div class="help-text">Logo actual</div>
                         <?php else: ?>
                             <i class="fas fa-image" style="font-size: 3rem; color: #444;"></i>

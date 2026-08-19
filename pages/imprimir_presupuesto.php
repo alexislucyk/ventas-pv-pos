@@ -9,7 +9,7 @@ require '../config/db_config.php';
 <head>
     <meta charset="UTF-8">
     <title>Generar Presupuesto</title>
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <style>
         .search-container { position: relative; }
         .results-list { 
@@ -84,6 +84,6 @@ require '../config/db_config.php';
         </div>
     </div>
 
-    <script src="../js/presupuestos.js"></script>
+    <script src="<?php echo url('js/presupuestos.js'); ?>"></script>
 </body>
 </html>

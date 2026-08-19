@@ -6,7 +6,7 @@ restringirPagina('developer');
 require '../config/db_config.php';
 
 if ($_SESSION['usuario_rol'] !== 'developer') {
-    header("Location: " . URL_BASE . "index.php?error=acceso_denegado");
+    header("Location: " . URL_BASE . "?error=acceso_denegado");
     exit();
 }
 
@@ -88,7 +88,7 @@ if ($id_seleccionado > 0) {
 <head>
     <meta charset="UTF-8">
     <title>Permisos por Usuario | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         :root {
@@ -428,7 +428,7 @@ if ($id_seleccionado > 0) {
             </div>
 
             <br>
-            <a href="<?php echo URL_BASE; ?>index.php" style="color: #aaa; text-decoration: none;">
+            <a href="<?php echo URL_BASE; ?>" style="color: #aaa; text-decoration: none;">
                 <i class="fas fa-arrow-left"></i> Volver al inicio
             </a>
         </div>

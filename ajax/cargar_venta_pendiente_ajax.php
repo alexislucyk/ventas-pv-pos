@@ -1,7 +1,9 @@
 <?php
 // ../ajax/cargar_venta_pendiente_ajax.php
 // 1. Configuración y Seguridad
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 date_default_timezone_set('America/Argentina/Buenos_Aires'); 
 header('Content-Type: application/json');
 

@@ -79,7 +79,7 @@ $proveedores = $stmt_p->fetchAll(PDO::FETCH_ASSOC);
 <head>
     <meta charset="UTF-8">
     <title>Compra Rápida | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <style>
         .container-factura { max-width: 700px; margin: 20px auto; }
         .grid-fechas { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }

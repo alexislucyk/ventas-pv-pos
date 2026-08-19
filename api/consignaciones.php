@@ -51,7 +51,7 @@ try {
     // Validar que el proveedor consultado esté autorizado globalmente
     $stmt_auth = $pdo->prepare(
         "SELECT COUNT(*) FROM proveedores_autorizados 
-         WHERE TRIM(proveedor_nombre) COLLATE utf8mb4_unicode_ci = TRIM(:proveedor) COLLATE utf8mb4_unicode_ci
+         WHERE TRIM(proveedor_nombre) COLLATE utf8mb4_unicode_ci = TRIM(CONVERT(:proveedor USING utf8mb4)) COLLATE utf8mb4_unicode_ci
            AND empresa_id = :empresa_id"
     );
     $stmt_auth->execute([

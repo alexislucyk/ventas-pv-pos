@@ -25,7 +25,7 @@ $presupuestos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <head>
     <meta charset="UTF-8">
     <title>Consultar Presupuestos | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
 </head>
 <body>
     <?php include 'sidebar.php'; ?>
@@ -100,7 +100,7 @@ $presupuestos = $stmt->fetchAll(PDO::FETCH_ASSOC);
     btnPDF.href = "generar_pdf_presupuesto.php?id=" + id;
 
     // Llamada AJAX para obtener los items del presupuesto
-    fetch('../ajax/obtener_detalle_presupuesto.php?id=' + id)
+    fetch('<?php echo URL_BASE; ?>ajax/obtener_detalle_presupuesto.php?id=' + id)
         .then(response => response.text())
         .then(data => {
             titulo.innerText = "Detalle de Presupuesto #" + id;

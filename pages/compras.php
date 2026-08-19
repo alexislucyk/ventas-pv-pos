@@ -232,7 +232,7 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nueva Compra | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="../css/style.css"> 
+    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>"> 
     <style>
         /* Estilos base responsive para la cuadrícula */
         .compra-grid { 
@@ -319,7 +319,7 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
             </div>
             
             <div class="card">
-                <form id="formCompra" method="POST" action="compras.php">
+                <form id="formCompra" method="POST" action="<?php echo url('pages/compras.php'); ?>">
                     <input type="hidden" name="registrar_compra" value="1">
                     <input type="hidden" name="detalle_productos" id="detalle_productos_input">
 
@@ -480,7 +480,7 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
     </div>
 
 </body>
-<script src="../js/global.js"></script> 
+<script src="<?php echo url('js/global.js'); ?>"></script> 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         // Inicialización
@@ -759,7 +759,7 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
             formData.append('rubro', document.getElementById('np_rubro').value);
             formData.append('proveedor', document.getElementById('np_proveedor').value);
 
-            fetch('../ajax/agregar_producto_rapido.php', { method: 'POST', body: formData })
+            fetch('<?php echo URL_BASE; ?>ajax/agregar_producto_rapido.php', { method: 'POST', body: formData })
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
@@ -794,7 +794,7 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
             formData.append('cuit', document.getElementById('nprov_cuit').value.trim());
             formData.append('telefono', document.getElementById('nprov_telefono').value.trim());
 
-            fetch('../ajax/agregar_proveedor_rapido.php', { method: 'POST', body: formData })
+            fetch('<?php echo URL_BASE; ?>ajax/agregar_proveedor_rapido.php', { method: 'POST', body: formData })
             .then(res => res.json())
             .then(data => {
                 if (data.success) {

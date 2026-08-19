@@ -66,7 +66,7 @@ if ($prov_sel) {
 <head>
     <meta charset="UTF-8">
     <title>Reporte de Consignación | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <style>
         .resumen-consignacion { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
         .mini-card { background: #252525; padding: 15px; border-radius: 8px; border-top: 3px solid #00bcd4; text-align: center; }

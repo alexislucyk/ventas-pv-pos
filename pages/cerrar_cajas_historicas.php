@@ -291,7 +291,7 @@ $tiempo_total = round($fin_ejecucion - $inicio_ejecucion, 2);
 <head>
     <meta charset="UTF-8">
     <title>Cerrar Cajas Históricas | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         .info-box {

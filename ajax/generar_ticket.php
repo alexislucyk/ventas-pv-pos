@@ -1,6 +1,8 @@
 <?php
 // ajax/generar_ticket.php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 require_once '../config/db_config.php'; 
 require_once '../../pos/funciones/ticket_generator.php';
 

@@ -22,6 +22,27 @@ $tipos_iva = [
     4  => 'Exento'
 ];
 
+/**
+ * Valida el dígito verificador de un CUIT (módulo 11 AFIP).
+ * @param string $cuit CUIT con 11 dígitos (sin guiones)
+ * @return bool
+ */
+function validar_cuit_digito_verificador($cuit)
+{
+    $cuit = preg_replace('/[^0-9]/', '', $cuit);
+    if (strlen($cuit) !== 11) {
+        return false;
+    }
+    $mult = array(5, 4, 3, 2, 7, 6, 5, 4, 3, 2);
+    $sum = 0;
+    for ($i = 0; $i < 10; $i++) {
+        $sum += intval($cuit[$i]) * $mult[$i];
+    }
+    $resto = $sum % 11;
+    $dv = ($resto === 0) ? 0 : (($resto === 1) ? 4 : (11 - $resto));
+    return intval($cuit[10]) === $dv;
+}
+
 $nuevo_id_sugerido = '';
 if ($accion === 'crear') {
     try {
@@ -33,9 +54,23 @@ if ($accion === 'crear') {
     }
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// ── POST: Eliminar (solo por POST con confirmación, nunca por GET) ──
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion_post']) && $_POST['accion_post'] === 'eliminar') {
     try {
-        $nombre = trim($_POST['nombre']);
+        $id_eliminar = isset($_POST['id_cliente']) ? intval($_POST['id_cliente']) : 0;
+        $stmt = $pdo->prepare('DELETE FROM clientes WHERE id = ? AND empresa_id = ?');
+        $stmt->execute(array($id_eliminar, $empresa_id));
+        $mensaje = "🗑️ Cliente eliminado correctamente.";
+    } catch (Exception $e) {
+        $mensaje = "❌ No se puede eliminar: El cliente tiene registros asociados.";
+    }
+    $accion = 'listar';
+}
+
+// ── POST: Crear / Editar ──
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion_post']) && in_array($_POST['accion_post'], array('crear', 'editar'))) {
+    try {
+        $nombre = trim($_POST['nombre'] ?? '');
         $apellido = trim($_POST['apellido']);
         $dni = trim($_POST['dni']);
         $id_tipo_iva = isset($_POST['id_tipo_iva']) ? intval($_POST['id_tipo_iva']) : 99;
@@ -60,6 +95,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (strlen($cuit_clean) !== 11) {
                 throw new Exception("El CUIT debe tener 11 dígitos (ej: 20-12345678-9).");
             }
+            if (!validar_cuit_digito_verificador($cuit_clean)) {
+                throw new Exception("El dígito verificador del CUIT es inválido. Verificá la numeración.");
+            }
         }
 
         if ($accion_post === 'crear') {
@@ -73,9 +111,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             
-            $sql = "INSERT INTO clientes (id, nombre, apellido, dni, id_tipo_iva, cuit, telefono, direccion, estado, habilita_cta, relacion, empresa_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            $sql = "INSERT INTO clientes (id, nombre, apellido, dni, id_tipo_iva, cuit, telefono, direccion, email, localidad, estado, habilita_cta, relacion, empresa_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = $pdo->prepare($sql);
-            $stmt->execute(array($id_a_insertar, $nombre, $apellido, $dni, $id_tipo_iva, $cuit, $telefono, $direccion, $estado, $habilita_cta, $relacion, $empresa_id));
+            $stmt->execute(array($id_a_insertar, $nombre, $apellido, $dni, $id_tipo_iva, $cuit, $telefono, $direccion, $email, $localidad, $estado, $habilita_cta, $relacion, $empresa_id));
             $mensaje = "✅ Cliente #$id_a_insertar registrado con éxito.";
             $accion = 'listar';
         } elseif ($accion_post === 'editar' && $id_post) {
@@ -87,26 +125,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             
-            $sql = "UPDATE clientes SET nombre=?, apellido=?, dni=?, id_tipo_iva=?, cuit=?, telefono=?, direccion=?, estado=?, habilita_cta=?, relacion=? WHERE id=? AND empresa_id=?";
+            $sql = "UPDATE clientes SET nombre=?, apellido=?, dni=?, id_tipo_iva=?, cuit=?, telefono=?, direccion=?, email=?, localidad=?, estado=?, habilita_cta=?, relacion=? WHERE id=? AND empresa_id=?";
             $stmt = $pdo->prepare($sql);
-            $stmt->execute(array($nombre, $apellido, $dni, $id_tipo_iva, $cuit, $telefono, $direccion, $estado, $habilita_cta, $relacion, $id_post, $empresa_id));
+            $stmt->execute(array($nombre, $apellido, $dni, $id_tipo_iva, $cuit, $telefono, $direccion, $email, $localidad, $estado, $habilita_cta, $relacion, $id_post, $empresa_id));
             $mensaje = "✅ Datos del cliente actualizados.";
             $accion = 'listar';
         }
     } catch (Exception $e) {
         $mensaje = "❌ Error: " . $e->getMessage();
     }
-}
-
-if ($accion === 'eliminar' && $id) {
-    try {
-        $stmt = $pdo->prepare('DELETE FROM clientes WHERE id = ? AND empresa_id = ?');
-        $stmt->execute(array($id, $empresa_id));
-        $mensaje = "🗑️ Cliente eliminado correctamente.";
-    } catch (Exception $e) {
-        $mensaje = "❌ No se puede eliminar: El cliente tiene registros asociados.";
-    }
-    $accion = 'listar';
 }
 
 if ($accion === 'editar' && $id) {
@@ -118,7 +145,8 @@ if ($accion === 'editar' && $id) {
 $clientes = array();
 $clientes_count = 0;
 $pagina = isset($_GET['pagina']) ? max(1, intval($_GET['pagina'])) : 1;
-$por_pagina = 50;
+$por_sel = isset($_GET['por']) ? intval($_GET['por']) : 50;
+$por_pagina = in_array($por_sel, array(25, 50, 100)) ? $por_sel : 50;
 $offset = ($pagina - 1) * $por_pagina;
 
 if ($accion === 'listar') {
@@ -129,6 +157,7 @@ if ($accion === 'listar') {
     $filtro_estado = isset($_GET['estado']) ? $_GET['estado'] : '';
     $filtro_iva = isset($_GET['iva']) ? $_GET['iva'] : '';
     $filtro_cta = isset($_GET['cta_cte']) ? $_GET['cta_cte'] : '';
+    $filtro_letra = isset($_GET['letra']) ? strtoupper(trim($_GET['letra'])) : '';
     
     if ($filtro_buscar) {
         $where[] = "(apellido LIKE ? OR nombre LIKE ? OR cuit LIKE ? OR dni LIKE ? OR id = ?) AND empresa_id = ?";
@@ -149,6 +178,10 @@ if ($accion === 'listar') {
     if ($filtro_cta) {
         $where[] = "habilita_cta = ?";
         $params[] = $filtro_cta;
+    }
+    if ($filtro_letra && preg_match('/^[A-Z]$/', $filtro_letra)) {
+        $where[] = "apellido LIKE ?";
+        $params[] = $filtro_letra . '%';
     }
     
     $where_sql = 'WHERE ' . implode(' AND ', $where);
@@ -187,7 +220,7 @@ if ($accion === 'listar' && $id && isset($_GET['accion']) && $_GET['accion'] ===
 <head>
     <meta charset="UTF-8">
     <title>Clientes | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="../css/style.css?v=<?php echo time(); ?>">
+    <link rel="stylesheet" href="<?php echo url('css/style.css?v=' . time()); ?>">
     <style>
         /* ===== FILTROS COMPACTOS ===== */
         .filtros-bar {
@@ -391,9 +424,9 @@ if ($accion === 'listar' && $id && isset($_GET['accion']) && $_GET['accion'] ===
         }
 
         /* ===== SALDO CC ===== */
-        .saldo-positivo { color: #e74c3c; font-weight: bold; }
-        .saldo-cero { color: #4caf50; }
-        .saldo-negativo { color: #3498db; }
+        .saldo-deudor { color: #e74c3c; font-weight: bold; }   /* deudor: negativo, en rojo */
+        .saldo-acreedor { color: #3498db; font-weight: bold; } /* acreedor: positivo, en azul */
+        .saldo-cero { color: #4caf50; font-weight: bold; }
 
         /* ===== BOTÓN WHATSAPP ===== */
         .btn-whatsapp {
@@ -514,7 +547,7 @@ if ($accion === 'listar' && $id && isset($_GET['accion']) && $_GET['accion'] ===
             <h1>👥 Gestión de Clientes</h1>
             <div style="display: flex; gap: 8px; align-items: center;">
                 <?php if ($accion === 'listar'): ?>
-                    <a href="abm_clientes.php?accion=crear" class="btn btn-success">+ Nuevo Cliente</a>
+                    <a href="<?php echo URL_BASE; ?>clientes?accion=crear" class="btn btn-success">+ Nuevo Cliente</a>
                 <?php endif; ?>
             </div>
         </div>
@@ -527,9 +560,9 @@ if ($accion === 'listar' && $id && isset($_GET['accion']) && $_GET['accion'] ===
 
         <?php if ($accion === 'listar'): ?>
             <!-- ===== FILTROS AVANZADOS ===== -->
-            <form method="GET" class="filtros-bar">
+            <form method="GET" action="<?php echo URL_BASE; ?>clientes" class="filtros-bar">
                 <input type="hidden" name="accion" value="listar">
-                <input type="text" name="buscar" placeholder="🔍 Buscar por nombre, ID, CUIT..." value="<?php echo htmlspecialchars($filtro_buscar ?? ''); ?>">
+                <input type="text" id="filtro-clientes" name="buscar" placeholder="🔍 Buscar por nombre, ID, CUIT..." value="<?php echo htmlspecialchars($filtro_buscar ?? ''); ?>" autocomplete="off">
                 
                 <select name="estado">
                     <option value="">Todos los estados</option>
@@ -550,11 +583,24 @@ if ($accion === 'listar' && $id && isset($_GET['accion']) && $_GET['accion'] ===
                     <option value="No" <?php echo ($filtro_cta ?? '') === 'No' ? 'selected' : ''; ?>>No</option>
                 </select>
 
+                <select name="letra" title="Filtrar por inicial del apellido">
+                    <option value="">A-Z</option>
+                    <?php foreach (range('A', 'Z') as $letra_i): ?>
+                        <option value="<?php echo $letra_i; ?>" <?php echo ($filtro_letra ?? '') === $letra_i ? 'selected' : ''; ?>><?php echo $letra_i; ?></option>
+                    <?php endforeach; ?>
+                </select>
+
+                <select name="por" title="Clientes por página">
+                    <option value="25" <?php echo (int)$por_pagina === 25 ? 'selected' : ''; ?>>25</option>
+                    <option value="50" <?php echo (int)$por_pagina === 50 ? 'selected' : ''; ?>>50</option>
+                    <option value="100" <?php echo (int)$por_pagina === 100 ? 'selected' : ''; ?>>100</option>
+                </select>
+
                 <button type="submit" class="btn-filtro"><i class="fas fa-filter"></i> Filtrar</button>
-                <a href="abm_clientes.php" class="btn-filtro"><i class="fas fa-times"></i></a>
+                <a href="<?php echo URL_BASE; ?>clientes" class="btn-filtro" title="Limpiar filtros"><i class="fas fa-times"></i></a>
 
                 <div style="margin-left: auto; display: flex; gap: 8px; align-items: center;">
-                    <button type="button" class="btn-export" onclick="exportarCSV()"><i class="fas fa-file-csv"></i> CSV</button>
+                    <a href="<?php echo URL_BASE; ?>ajax/exportar_clientes_csv.php<?php echo !empty($_GET) ? '?' . http_build_query($_GET) : ''; ?>" class="btn-export" title="Exportar todos los filtrados a CSV"><i class="fas fa-file-csv"></i> CSV</a>
                     <div class="view-toggle">
                         <button type="button" class="active" id="viewTable" onclick="cambiarVista('table')" title="Vista tabla">
                             <i class="fas fa-table"></i>
@@ -614,21 +660,21 @@ if ($accion === 'listar' && $id && isset($_GET['accion']) && $_GET['accion'] ===
                                 </td>
                                 <td class="text-right">
                                     <?php if ($saldo > 0): ?>
-                                        <span class="saldo-positivo text-bold">$<?php echo number_format($saldo, 2, ',', '.'); ?></span>
+                                        <span class="saldo-deudor">-$<?php echo number_format($saldo, 2, ',', '.'); ?></span>
                                     <?php elseif ($saldo < 0): ?>
-                                        <span class="saldo-negativo">$<?php echo number_format(abs($saldo), 2, ',', '.'); ?> a favor</span>
+                                        <span class="saldo-acreedor">+$<?php echo number_format(abs($saldo), 2, ',', '.'); ?></span>
                                     <?php else: ?>
-                                        <span class="saldo-cero text-bold">$0,00</span>
+                                        <span class="saldo-cero">$0,00</span>
                                     <?php endif; ?>
                                 </td>
                                 <td style="white-space: nowrap;">
-                                    <a href="abm_clientes.php?accion=editar&id=<?php echo $c['id']; ?>" class="btn btn-primary btn-sm">Editar</a>
-                                    <a href="#" onclick="verVentas(<?php echo $c['id']; ?>, '<?php echo htmlspecialchars($c['apellido'] . ', ' . $c['nombre']); ?>'); return false;" class="btn btn-info btn-sm" title="Ver ventas"><i class="fas fa-receipt"></i></a>
-                                    <a href="abm_clientes.php?accion=eliminar&id=<?php echo $c['id']; ?>" 
-                                       class="btn btn-danger btn-sm" 
-                                       onclick="event.preventDefault(); const url=this.href; confirmarAccion('Eliminar Cliente', '¿Estás seguro de eliminar a este cliente? Se perderán sus datos de contacto.', 'ELIMINAR', 'btn-danger', () => window.location.href=url);">
-                                        <i class="fas fa-trash"></i>
-                                    </a>
+                                    <a href="<?php echo URL_BASE; ?>clientes?accion=editar&id=<?php echo (int)$c['id']; ?>" class="btn btn-primary btn-sm">Editar</a>
+                                    <a href="#" onclick="verVentas(<?php echo (int)$c['id']; ?>, <?php echo json_encode($c['apellido'] . ', ' . $c['nombre'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>); return false;" class="btn btn-info btn-sm" title="Ver ventas"><i class="fas fa-receipt"></i></a>
+                                    <form method="POST" class="form-eliminar" style="display:inline;" onsubmit="return confirmarEliminar(this);">
+                                        <input type="hidden" name="accion_post" value="eliminar">
+                                        <input type="hidden" name="id_cliente" value="<?php echo (int)$c['id']; ?>">
+                                        <button type="submit" class="btn btn-danger btn-sm" title="Eliminar cliente"><i class="fas fa-trash"></i></button>
+                                    </form>
                                 </td>
                             </tr>
                             <?php endforeach; ?>
@@ -657,22 +703,29 @@ if ($accion === 'listar' && $id && isset($_GET['accion']) && $_GET['accion'] ===
                             <div class="card-details">
                                 <span><i class="fas fa-id-card"></i> <?php echo htmlspecialchars($c['cuit'] ?: ($c['dni'] ?: '---')); ?></span>
                                 <span><i class="fas fa-tag"></i> <?php echo $tipos_iva[$c['id_tipo_iva']] ?? 'CF'; ?></span>
-                                <span><i class="fas fa-phone"></i> <?php echo htmlspecialchars($c['telefono'] ?: '---'); ?></span>
+                                                                <span><i class="fas fa-phone"></i> <?php echo htmlspecialchars($c['telefono'] ?: '---'); ?></span>
+                                <span><i class="fa fa-envelope"></i> <?php echo htmlspecialchars($c['email'] ?: '---'); ?></span>
+                                <span><i class="fa fa-map-marker-alt"></i> <?php echo htmlspecialchars($c['localidad'] ?: '---'); ?></span>
                                 <span><i class="fas fa-credit-card"></i> <?php echo strtoupper(trim($c['habilita_cta'])) === 'SI' ? 'Cta. Cte.' : 'Contado'; ?></span>
                                 <span style="grid-column: span 2;">
                                     <i class="fas fa-dollar-sign"></i> 
                                     <?php if ($saldo > 0): ?>
-                                        <span class="saldo-positivo">Debe $<?php echo number_format($saldo, 2, ',', '.'); ?></span>
+                                        <span class="saldo-deudor">Debe -$<?php echo number_format($saldo, 2, ',', '.'); ?></span>
                                     <?php elseif ($saldo < 0): ?>
-                                        <span class="saldo-negativo">A favor $<?php echo number_format(abs($saldo), 2, ',', '.'); ?></span>
+                                        <span class="saldo-acreedor">A favor +$<?php echo number_format(abs($saldo), 2, ',', '.'); ?></span>
                                     <?php else: ?>
                                         <span class="saldo-cero">Sin deuda</span>
                                     <?php endif; ?>
                                 </span>
                             </div>
                             <div class="card-actions">
-                                <a href="abm_clientes.php?accion=editar&id=<?php echo $c['id']; ?>" class="btn btn-primary btn-sm"><i class="fas fa-edit"></i> Editar</a>
-                                <a href="#" onclick="verVentas(<?php echo $c['id']; ?>, '<?php echo htmlspecialchars($c['apellido'] . ', ' . $c['nombre']); ?>'); return false;" class="btn btn-info btn-sm"><i class="fas fa-receipt"></i> Ventas</a>
+                                <a href="<?php echo URL_BASE; ?>clientes?accion=editar&id=<?php echo (int)$c['id']; ?>" class="btn btn-primary btn-sm"><i class="fas fa-edit"></i> Editar</a>
+                                <a href="#" onclick="verVentas(<?php echo (int)$c['id']; ?>, <?php echo json_encode($c['apellido'] . ', ' . $c['nombre'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>); return false;" class="btn btn-info btn-sm"><i class="fas fa-receipt"></i> Ventas</a>
+                                <form method="POST" class="form-eliminar" style="display:inline;" onsubmit="return confirmarEliminar(this);">
+                                    <input type="hidden" name="accion_post" value="eliminar">
+                                    <input type="hidden" name="id_cliente" value="<?php echo (int)$c['id']; ?>">
+                                    <button type="submit" class="btn btn-danger btn-sm" title="Eliminar cliente"><i class="fas fa-trash"></i></button>
+                                </form>
                                 <?php if ($tiene_wsp): ?>
                                     <a href="https://wa.me/54<?php echo preg_replace('/[^0-9]/', '', $c['telefono']); ?>" target="_blank" class="btn btn-success btn-sm"><i class="fab fa-whatsapp"></i></a>
                                 <?php endif; ?>
@@ -702,17 +755,21 @@ if ($accion === 'listar' && $id && isset($_GET['accion']) && $_GET['accion'] ===
                     <a href="?<?php echo http_build_query(array_merge($_GET, ['pagina' => $pagina + 1])); ?>"><i class="fas fa-chevron-right"></i></a>
                 <?php endif; ?>
             </div>
-            <div style="text-align: center; color: #666; font-size: 0.8em; margin-top: 8px;">
-                Mostrando <?php echo count($clientes); ?> de <?php echo $clientes_count; ?> clientes
-            </div>
             <?php endif; ?>
+
+            <div class="resultados-resumen" style="display:flex; justify-content:space-between; align-items:center; color:#888; font-size:0.85em; margin-top:8px;">
+                <span>📋 <strong><?php echo $clientes_count; ?></strong> cliente(s)</span>
+                <?php if ($total_paginas > 1): ?>
+                    <span>Página <?php echo $pagina; ?>/<?php echo $total_paginas; ?> · Mostrando <?php echo count($clientes); ?></span>
+                <?php endif; ?>
+            </div>
 
         <?php elseif ($accion === 'crear' || $accion === 'editar'): ?>
             <div class="card" style="max-width: 700px; margin: 0 auto; padding: 15px 20px;">
                 <h2 style="font-size:1.1em; margin:0;"><?php echo ($accion === 'crear') ? 'Registrar Nuevo Cliente' : 'Modificar Cliente'; ?></h2>
                 <hr style="border: 0; border-top: 1px solid #333; margin: 10px 0;">
                 
-                <form method="POST">
+                <form method="POST" action="<?php echo URL_BASE; ?>clientes">
                     <input type="hidden" name="accion_post" value="<?php echo $accion; ?>">
                     <input type="hidden" name="id_cliente" value="<?php echo isset($cliente_editar['id']) ? $cliente_editar['id'] : ''; ?>">
 
@@ -737,6 +794,10 @@ if ($accion === 'listar' && $id && isset($_GET['accion']) && $_GET['accion'] ===
                         <div class="flex-row">
                             <div><label>Teléfono</label><input type="text" name="telefono" value="<?php echo isset($cliente_editar['telefono']) ? htmlspecialchars($cliente_editar['telefono']) : ''; ?>" placeholder="Ej: 11 1234-5678"></div>
                             <div><label>Dirección</label><input type="text" name="direccion" value="<?php echo isset($cliente_editar['direccion']) ? htmlspecialchars($cliente_editar['direccion']) : ''; ?>" placeholder="Calle y número"></div>
+                        </div>
+                        <div class="flex-row">
+                            <div><label>Email</label><input type="email" name="email" value="<?php echo isset($cliente_editar['email']) ? htmlspecialchars($cliente_editar['email']) : ''; ?>" placeholder="cliente@ejemplo.com"></div>
+                            <div><label>Localidad</label><input type="text" name="localidad" value="<?php echo isset($cliente_editar['localidad']) ? htmlspecialchars($cliente_editar['localidad']) : ''; ?>" placeholder="Ciudad / Localidad"></div>
                         </div>
                     </div>
 
@@ -794,7 +855,7 @@ if ($accion === 'listar' && $id && isset($_GET['accion']) && $_GET['accion'] ===
 
                     <div style="margin-top: 30px; display: flex; gap: 10px;">
                         <button type="submit" class="btn btn-primary" style="flex: 2; padding: 14px;"><i class="fas fa-save"></i> Guardar Cliente</button>
-                        <a href="abm_clientes.php" class="btn btn-secondary" style="flex: 1; text-align: center; padding: 14px;">Cancelar</a>
+                        <a href="<?php echo URL_BASE; ?>clientes" class="btn btn-secondary" style="flex: 1; text-align: center; padding: 14px;">Cancelar</a>
                     </div>
                 </form>
             </div>
@@ -815,15 +876,25 @@ if ($accion === 'listar' && $id && isset($_GET['accion']) && $_GET['accion'] ===
     </div>
 
     <script>
-    // ===== FILTRO EN TABLA =====
+    // ===== BÚSQUEDA EN VIVO (debounce) =====
     document.addEventListener('DOMContentLoaded', function() {
         var inputF = document.getElementById('filtro-clientes');
         if (inputF) {
-            inputF.addEventListener('keyup', function() {
-                var v = this.value.toUpperCase();
-                var filas = document.querySelectorAll('#tablaClientes tbody tr');
-                for (var i = 0; i < filas.length; i++) {
-                    filas[i].style.display = (filas[i].innerText.toUpperCase().indexOf(v) > -1) ? "" : "none";
+            var timerBuscar = null;
+            inputF.addEventListener('input', function() {
+                clearTimeout(timerBuscar);
+                var form = inputF.closest('form');
+                if (form) {
+                    timerBuscar = setTimeout(function() {
+                        form.submit();
+                    }, 600);
+                }
+            });
+            inputF.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    clearTimeout(timerBuscar);
+                    inputF.closest('form').submit();
                 }
             });
         }
@@ -877,7 +948,7 @@ if ($accion === 'listar' && $id && isset($_GET['accion']) && $_GET['accion'] ===
         modal.style.justifyContent = 'center';
         
         // Fetch AJAX
-        fetch('../ajax/buscar_ventas_cliente_ajax.php?id_cliente=' + clienteId)
+        fetch('<?php echo URL_BASE; ?>ajax/buscar_ventas_cliente_ajax.php?id_cliente=' + clienteId)
             .then(response => response.json())
             .then(data => {
                 if (data.error) {
@@ -922,12 +993,12 @@ if ($accion === 'listar' && $id && isset($_GET['accion']) && $_GET['accion'] ===
         modal.style.alignItems = 'center';
         modal.style.justifyContent = 'center';
         
-        fetch('../ajax/obtener_detalle_venta.php?n_documento=' + nDocumento)
+        fetch('<?php echo URL_BASE; ?>ajax/obtener_detalle_venta.php?n_documento=' + nDocumento)
             .then(response => response.text())
             .then(html => {
                 // Agregar botón volver después del contenido
                 html += '<div style="margin-top:15px; display:flex; gap:8px;">';
-                html += '<button onclick="verVentas(' + _modalClienteId + ', \'' + _modalClienteNombre + '\');" class="btn btn-secondary" style="flex:1;"><i class="fas fa-arrow-left"></i> Volver a ventas</button>';
+                html += '<button onclick="verVentas(' + _modalClienteId + ', ' + JSON.stringify(_modalClienteNombre) + ');" class="btn btn-secondary" style="flex:1;"><i class="fas fa-arrow-left"></i> Volver a ventas</button>';
                 html += '<button onclick="document.getElementById(\'modalVentasCliente\').style.display=\'none\'" class="btn btn-secondary" style="flex:1;">Cerrar</button>';
                 html += '</div>';
                 body.innerHTML = html;
@@ -937,36 +1008,16 @@ if ($accion === 'listar' && $id && isset($_GET['accion']) && $_GET['accion'] ===
             });
     }
 
-    // ===== EXPORTAR CSV =====
-    function exportarCSV() {
-        var rows = document.querySelectorAll('#tablaClientes tbody tr');
-        if (rows.length === 0) {
-            alert('No hay datos para exportar.');
-            return;
-        }
-        
-        var csv = '\uFEFF'; // BOM para que Excel lo lea bien con tildes
-        csv += 'ID,Apellido,Nombre,CUIT/DNI,IVA,Telefono,Estado,Cta.Cte.\n';
-        
-        rows.forEach(function(row) {
-            var cells = row.querySelectorAll('td');
-            if (cells.length < 6) return;
-            
-            var id = cells[0].innerText.replace('#', '').trim();
-            var nombreCompleto = cells[1].innerText.trim();
-            var cuit = cells[2].innerText.trim();
-            var iva = cells[3].innerText.trim();
-            var tel = cells[4].innerText.trim();
-            var cta = cells[5].innerText.trim();
-            
-            csv += id + ',' + nombreCompleto + ',' + cuit + ',' + iva + ',' + tel + ',' + cta + '\n';
-        });
-        
-        var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        var link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = 'clientes_' + new Date().toISOString().slice(0,10) + '.csv';
-        link.click();
+    // ===== CONFIRMAR ELIMINACIÓN (formulario POST seguro) =====
+    function confirmarEliminar(form) {
+        confirmarAccion(
+            'Eliminar Cliente',
+            '¿Estás seguro de eliminar a este cliente? Se perderán sus datos de contacto.',
+            'ELIMINAR',
+            'btn-danger',
+            function() { form.submit(); }
+        );
+        return false;
     }
 
     // ===== AUTO-FORMATO CUIT =====

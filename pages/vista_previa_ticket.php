@@ -30,7 +30,7 @@ $html = '<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <title>Vista Previa Ticket #' . $n_documento . '</title>
-    <link rel="stylesheet" href="../css/temptocketprint.css">
+    <link rel="stylesheet" href="' . url('css/temptocketprint.css') . '">
     <style>
         @media print {
             @page { 

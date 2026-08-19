@@ -30,7 +30,7 @@ function generar_html_ticket_contenido(PDO $pdo, int|string $n_documento, int $e
 
         $sql_venta = "
             SELECT 
-                v.fecha_venta, v.total_venta, v.descuento_global, v.cond_pago, v.pago_efectivo, v.pago_transf,
+                v.fecha_venta, v.total_venta, v.descuento_global, v.cond_pago, v.pago_efectivo, v.pago_transf, v.observaciones,
                 c.nombre AS nombre_cliente, c.apellido AS apellido_cliente
             FROM ventas v
             LEFT JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = :empresa_id_join
@@ -47,6 +47,8 @@ function generar_html_ticket_contenido(PDO $pdo, int|string $n_documento, int $e
         if (!$venta) {
             return "Error: Venta N° " . $n_documento . " no encontrada.";
         }
+
+        $observaciones = !empty($venta['observaciones']) ? trim($venta['observaciones']) : '';
 
         $sql_detalle = "SELECT descripcion, cant, p_unit, descuento_unitario, total FROM ventas_detalle WHERE n_documento = :n_documento AND empresa_id = :empresa_id";
         $stmt_detalle = $pdo->prepare($sql_detalle);
@@ -198,6 +200,19 @@ function generar_html_ticket_contenido(PDO $pdo, int|string $n_documento, int $e
         $html .= '</div>';
         
         $html .= '<div class="sep"></div>';
+        
+        // Observaciones (solo si la venta tiene datos cargados)
+        if ($observaciones !== '') {
+            $html .= '<table style="width: 100%; margin-top: 4px;">';
+            $html .= '<tr>';
+            $html .= '<td style="text-align: left; vertical-align: top;"><strong>Observaciones:</strong></td>';
+            $html .= '</tr>';
+            $html .= '<tr>';
+            $html .= '<td style="text-align: left; vertical-align: top; padding-bottom: 4px;">' . htmlspecialchars($observaciones) . '</td>';
+            $html .= '</tr>';
+            $html .= '</table>';
+            $html .= '<div class="sep"></div>';
+        }
         
         // Pie
         $html .= '<div class="center">';

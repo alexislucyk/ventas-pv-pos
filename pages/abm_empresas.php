@@ -6,6 +6,7 @@
  */
 include 'infosesion.php';
 require_once '../config/validar_permisos.php';
+restringirPagina('admin');   // Solo admin/developer pueden gestionar empresas y el toggle de Cierre de Caja
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 require '../config/db_config.php';
 
@@ -37,7 +38,7 @@ if ($accion === 'cambiar' && $id) {
         }
 
         $_SESSION['empresa_id'] = $emp['id'];
-        header("Location: abm_empresas.php?msg=" . urlencode("✅ Cambiaste a la empresa: " . $emp['nombre_fantasia']));
+        header("Location: " . url('abm-empresas') . "?msg=" . urlencode("✅ Cambiaste a la empresa: " . $emp['nombre_fantasia']));
         exit;
     } catch (Exception $e) {
         $mensaje = "❌ Error: " . $e->getMessage();
@@ -272,7 +273,7 @@ $condiciones_iva = [
 <head>
     <meta charset="UTF-8">
     <title>Gestión de Empresas | <?php echo htmlspecialchars($nombre_empresa_sistema ?? 'POS'); ?></title>
-    <link rel="stylesheet" href="../css/style.css?v=<?php echo time(); ?>">
+    <link rel="stylesheet" href="<?php echo url('css/style.css?v=' . time()); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         body { background-color: #121212; color: #e0e0e0; }
@@ -821,7 +822,7 @@ $condiciones_iva = [
                         <div class="card-header">
                             <div style="display: flex; align-items: center; gap: 12px;">
                                 <?php if (!empty($emp['logo_path']) && file_exists('../' . $emp['logo_path'])): ?>
-                                    <img src="../<?php echo htmlspecialchars($emp['logo_path']); ?>" alt="Logo" class="logo-mini">
+                                    <img src="<?php echo url($emp['logo_path']); ?>" alt="Logo" class="logo-mini">
                                 <?php else: ?>
                                     <div class="logo-placeholder"><i class="fas fa-store"></i></div>
                                 <?php endif; ?>
@@ -1034,7 +1035,7 @@ $condiciones_iva = [
                             <label>Logo de la Empresa</label>
                             <div class="logo-preview" id="logoPreview">
                                 <?php if ($editando && !empty($emp['logo_path']) && file_exists('../' . $emp['logo_path'])): ?>
-                                    <img src="../<?php echo htmlspecialchars($emp['logo_path']); ?>" alt="Logo actual">
+                                    <img src="<?php echo url($emp['logo_path']); ?>" alt="Logo actual">
                                     <div class="help-text" style="margin-top: 6px;">Logo actual</div>
                                 <?php else: ?>
                                     <i class="fas fa-image" style="font-size: 2.5rem; color: #444;"></i>

@@ -66,7 +66,7 @@ if (isset($_GET['buscar_prod']) && !empty($_GET['cod_prod_historial'])) {
 <head>
     <meta charset="UTF-8">
     <title>Reportes | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="../css/style.css"> 
+    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>"> 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         :root { --accent: #00bcd4; --success: #2ecc71; --warning: #f1c40f; --danger: #e74c3c; }

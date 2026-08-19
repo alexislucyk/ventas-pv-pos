@@ -19,6 +19,11 @@ cache/ultimo_backup.txt
 *.log
 temp/
 
+# Archivos de backup
+index_backup_dashboard.php
+test_router.php
+test_dbconfig_detection.php
+
 # Sistema operativo
 .DS_Store
 Thumbs.db

@@ -83,7 +83,7 @@ $id_cliente = (int)$_GET['id_cliente'];
     <meta charset="UTF-8">
     <title>Detalle Cuenta Corriente | <?php echo htmlspecialchars($nombre_completo); ?> | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="../css/style.css"> 
+    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>"> 
     <style>
         /* Reducción de Escala General */
         .content { 
@@ -377,12 +377,23 @@ $id_cliente = (int)$_GET['id_cliente'];
 
         <!-- Historial de Movimientos -->
         <div class="card">
-            <h3 style="margin-bottom: 15px; color: #00bcd4;">
-                <i class="fas fa-history"></i> Historial Completo de Movimientos
-            </h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                <h3 style="color: #00bcd4; margin: 0;">
+                    <i class="fas fa-history"></i> Historial Completo de Movimientos
+                </h3>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span id="contadorSeleccion" style="color: #bbb; font-size: 0.85rem;">0 seleccionados</span>
+                    <button type="button" class="btn-action btn-pdf-v" onclick="generarPDFSeleccion()" title="Generar PDF con los movimientos seleccionados">
+                        <i class="fas fa-file-pdf"></i> Generar PDF
+                    </button>
+                </div>
+            </div>
             <table>
                 <thead>
                     <tr>
+                        <th style="width: 30px; text-align: center;">
+                            <input type="checkbox" id="seleccionarTodos" title="Seleccionar todos" onclick="toggleTodos(this)">
+                        </th>
                         <th>Fecha</th>
                         <th>Movimiento</th>
                         <th>N° Doc.</th>
@@ -395,7 +406,7 @@ $id_cliente = (int)$_GET['id_cliente'];
                 <tbody id="cuerpoHistorial">
                     <?php
                     if (empty($movimientos)) {
-                        echo "<tr><td colspan='7' style='text-align: center;'>No hay movimientos registrados para este cliente.</td></tr>";
+                        echo "<tr><td colspan='8' style='text-align: center;'>No hay movimientos registrados para este cliente.</td></tr>";
                     } else {
                         $saldo_acumulado = 0;
                         foreach ($movimientos as $mov) {
@@ -448,7 +459,10 @@ $id_cliente = (int)$_GET['id_cliente'];
                             $n_doc_display = ($mov['n_documento'] && $mov['n_documento'] != "0") ? htmlspecialchars($mov['n_documento']) : $id_mov;
                             
                             echo "
-                                <tr>
+                                <tr class='mov-row'>
+                                    <td class='text-center'>
+                                        <input type='checkbox' class='check-mov' value='$id_mov' onchange='actualizarContador()'>
+                                    </td>
                                     <td>" . date('d/m/Y', strtotime($mov['fecha'])) . "</td>
                                     <td>" . $texto_movimiento . "</td>
                                     <td>" . $n_doc_display . "</td>
@@ -518,6 +532,54 @@ $id_cliente = (int)$_GET['id_cliente'];
             }, 5000);
         }
 
+        // --- LÓGICA DE SELECCIÓN DE MOVIMIENTOS Y GENERACIÓN DE PDF ---
+
+        // Marcar/desmarcar todos los movimientos de la tabla
+        window.toggleTodos = function(checkbox) {
+            document.querySelectorAll('.check-mov').forEach(cb => cb.checked = checkbox.checked);
+            actualizarContador();
+        };
+
+        // Actualiza el contador de movimientos seleccionados
+        function actualizarContador() {
+            const seleccionados = document.querySelectorAll('.check-mov:checked');
+            const totalMov = document.querySelectorAll('.check-mov').length;
+            const contador = document.getElementById('contadorSeleccion');
+            const todos = document.getElementById('seleccionarTodos');
+
+            if (contador) {
+                contador.textContent = seleccionados.length + ' seleccionado' + (seleccionados.length === 1 ? '' : 's');
+            }
+            if (todos) {
+                todos.checked = totalMov > 0 && seleccionados.length === totalMov;
+                todos.indeterminate = seleccionados.length > 0 && seleccionados.length < totalMov;
+            }
+        }
+
+        // Generar el PDF con los movimientos seleccionados
+        window.generarPDFSeleccion = function() {
+            const ids = Array.from(document.querySelectorAll('.check-mov:checked')).map(cb => cb.value);
+            if (ids.length === 0) {
+                mostrarToast('Seleccione al menos un movimiento para generar el PDF.', 'error');
+                return;
+            }
+
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = 'generar_pdf_cc_seleccion.php';
+            form.target = '_blank';
+            ids.forEach(id => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'ids[]';
+                input.value = id;
+                form.appendChild(input);
+            });
+            document.body.appendChild(form);
+            form.submit();
+            form.remove();
+        }
+
         // --- LÓGICA DE DETALLE Y PAGO ---
 
         window.abrirDetalleOperacion = function(id, tipo, etiqueta) {
@@ -531,9 +593,9 @@ $id_cliente = (int)$_GET['id_cliente'];
             cuerpo.innerHTML = '<p style="text-align:center; padding:20px;">Cargando...</p>';
 
             let url = '';
-            if (tipo === 'VENTA') url = '../ajax/obtener_detalle_venta.php?n_documento=' + id;
-            else if (tipo === 'DEVOLUCION') url = '../ajax/obtener_detalle_devolucion.php?id=' + id + '&tipo=CUENTA CORRIENTE';
-            else if (tipo === 'PAGO') url = '../ajax/obtener_detalle_pago.php?id=' + id;
+            if (tipo === 'VENTA') url = '<?php echo URL_BASE; ?>ajax/obtener_detalle_venta.php?n_documento=' + id;
+            else if (tipo === 'DEVOLUCION') url = '<?php echo URL_BASE; ?>ajax/obtener_detalle_devolucion.php?id=' + id + '&tipo=CUENTA CORRIENTE';
+            else if (tipo === 'PAGO') url = '<?php echo URL_BASE; ?>ajax/obtener_detalle_pago.php?id=' + id;
 
             fetch(url).then(res => res.text()).then(html => { cuerpo.innerHTML = html; });
         }
@@ -596,7 +658,7 @@ $id_cliente = (int)$_GET['id_cliente'];
             const msg = document.getElementById('wa_destino_msg').value;
 
             try {
-                const response = await fetch('../ajax/enviar_whatsapp_nodered.php', {
+                const response = await fetch('<?php echo URL_BASE; ?>ajax/enviar_whatsapp_nodered.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ telefono: tel, mensaje: msg })
@@ -651,7 +713,7 @@ $id_cliente = (int)$_GET['id_cliente'];
             const formData = new FormData();
             formData.append('id_cliente', idCliente);
             
-            fetch('../ajax/aplicar_interes_ajax.php', {
+            fetch('<?php echo URL_BASE; ?>ajax/aplicar_interes_ajax.php', {
                 method: 'POST',
                 body: formData
             })

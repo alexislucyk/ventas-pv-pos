@@ -1,0 +1,1 @@
+Facturacion ARCA desde http://localhost/ventas_dev/cuentas_corrientes_detalle.php?id_cliente=

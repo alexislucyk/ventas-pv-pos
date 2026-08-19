@@ -1,3 +1,9 @@
+// Base URL para URLs limpias del router
+// Base URL dinámica: usa el primer segmento del path (pos_dev, pos_prod, etc.)
+const APP_BASE = (function () {
+    var seg = (window.location.pathname || '/').split('/').filter(function (s) { return s !== ''; });
+    return window.location.origin + '/' + (seg[0] ? seg[0] + '/' : '');
+})();
 // archivo: js/presupuestos.js
 let items = []; // Array para guardar los productos del presupuesto
 document.addEventListener('DOMContentLoaded', () => {
@@ -15,7 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
     buscarCliente.addEventListener('input', () => {
         const query = buscarCliente.value;
         if (query.length > 2) {
-            fetch(`buscar_cliente_ajax.php?q=${query}`)
+            fetch(`${APP_BASE}pages/buscar_cliente_ajax.php?q=${query}`)
                 .then(res => res.json())
                 .then(data => {
                     listaClientes.innerHTML = '';
@@ -73,7 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
     buscarProducto.addEventListener('input', () => {
         const query = buscarProducto.value;
         if (query.length > 1) {
-            fetch(`buscar_producto_ajax.php?q=${query}`)
+            fetch(`${APP_BASE}pages/buscar_producto_ajax.php?q=${query}`)
                 .then(res => res.json())
                 .then(data => {
                     listaProductos.innerHTML = '';
@@ -100,6 +106,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 codigo: p.cod_prod,
                 descripcion: p.descripcion,
                 precio: parseFloat(p.p_venta),
+                precio_actual: parseFloat(p.p_venta),
+                variado: false,
                 cantidad: 1
             });
         }
@@ -117,12 +125,35 @@ document.addEventListener('DOMContentLoaded', () => {
             const subtotal = item.precio * item.cantidad;
             totalGeneral += subtotal;
 
+            // Determinamos si el precio del presupuesto difiere del precio actual en BD
+            const tieneActual = item.precio_actual !== undefined && item.precio_actual !== null;
+            const precioActualVal = tieneActual ? parseFloat(item.precio_actual) : null;
+            const hayVariacion = tieneActual && Math.abs(precioActualVal - parseFloat(item.precio)) > 0.001;
+
+            let precioActualTd;
+            if (tieneActual) {
+                precioActualTd = hayVariacion
+                    ? `<td style="text-align: right; color:#e67e22; font-weight: bold;" title="Precio actual en BD">
+                         <button onclick="actualizarPrecioProducto(${index})" title="Actualizar este producto al precio actual" style="background:none; border:none; color:#2ecc71; cursor:pointer; font-size:0.9rem; margin-right:6px;">
+                           <i class="fas fa-rotate-right"></i>
+                         </button>⚠ $ ${precioActualVal.toFixed(2)}
+                       </td>`
+                    : `<td style="text-align: right; color:#2ecc71;" title="Precio actual en BD">$ ${precioActualVal.toFixed(2)}</td>`;
+            } else {
+                precioActualTd = `<td style="text-align: right; color:#666;">-</td>`;
+            }
+
+            const warnPrecio = hayVariacion
+                ? `style="color:#e67e22;" title="Variación: presupuesto $${parseFloat(item.precio).toFixed(2)} → actual $${precioActualVal.toFixed(2)}"`
+                : '';
+
             cuerpoPresupuesto.innerHTML += `
                 <tr style="border-bottom: 1px solid #333;">
                     <td style="padding: 10px;">${item.codigo}</td>
                     <td><input type="text" class="form-control-custom" value="${item.descripcion}" onchange="editarItem(${index}, 'desc', this.value)"></td>
                     <td><input type="number" class="form-control-custom" value="${item.cantidad}" onchange="editarItem(${index}, 'cant', this.value)"></td>
-                    <td><input type="number" class="form-control-custom" value="${item.precio}" onchange="editarItem(${index}, 'precio', this.value)"></td>
+                    <td><input type="number" class="form-control-custom" value="${item.precio}" onchange="editarItem(${index}, 'precio', this.value)" ${warnPrecio}></td>
+                    ${precioActualTd}
                     <td style="text-align: right;">$ ${subtotal.toFixed(2)}</td>
                     <td><button onclick="eliminarItem(${index})" style="background:none; border:none; color:#e74c3c; cursor:pointer;">❌</button></td>
                 </tr>
@@ -143,6 +174,20 @@ document.addEventListener('DOMContentLoaded', () => {
     window.eliminarItem = (index) => {
         items.splice(index, 1);
         renderizarTabla();
+    };
+
+    // Actualiza el precio de un producto específico al precio actual de la BD
+    window.actualizarPrecioProducto = (index) => {
+        const item = items[index];
+        if (!item) return;
+        if (item.precio_actual === undefined || item.precio_actual === null) {
+            mostrarMensaje("Error", "❌ No hay precio actual disponible para este producto.", "error");
+            return;
+        }
+        item.precio = parseFloat(item.precio_actual);
+        item.variado = false;
+        renderizarTabla();
+        mostrarMensaje("Éxito", `✅ Precio de "${item.codigo} - ${item.descripcion}" actualizado a $${item.precio.toFixed(2)}.`);
     };
 
 // Asegúrate de que esta función sea accesible globalmente
@@ -170,7 +215,7 @@ window.guardarPresupuesto = async function() {
     };
 
     try {
-        const response = await fetch('guardar_presupuesto_backend.php', {
+        const response = await fetch(APP_BASE + 'pages/guardar_presupuesto_backend.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(datos)
@@ -196,6 +241,114 @@ window.guardarPresupuesto = async function() {
         console.error("Error crítico:", error);
         mostrarMensaje("Error", "❌ Error al conectar con el servidor. Revisa la consola.", "error");
     }
+};
+
+// Copia los productos de un presupuesto ya emitido al presupuesto actual
+window.abrirModalCopiar = function() {
+    document.getElementById('modalCopiarPresupuesto').style.display = 'block';
+};
+
+window.cerrarModalCopiar = function() {
+    document.getElementById('modalCopiarPresupuesto').style.display = 'none';
+};
+
+// Mostrar/ocultar el aviso de variaciones de precio
+window.cerrarAvisoPrecios = function() {
+    document.getElementById('avisoPrecios').style.display = 'none';
+};
+function mostrarAvisoPrecios(html) {
+    document.getElementById('avisoPreciosContenido').innerHTML = html;
+    document.getElementById('avisoPrecios').style.display = 'block';
+}
+function ocultarAvisoPrecios() {
+    document.getElementById('avisoPrecios').style.display = 'none';
+}
+
+// Cerrar el modal al hacer clic fuera del contenido
+function cerrarModalSiClickFuera(event) {
+    const modal = document.getElementById('modalCopiarPresupuesto');
+    if (event.target == modal) { cerrarModalCopiar(); }
+}
+document.addEventListener('click', cerrarModalSiClickFuera);
+
+window.copiarPresupuesto = function() {
+    const select = document.getElementById('selectPresupuesto');
+    const id = select ? select.value : '';
+    const usarPrecioActual = document.getElementById('chkPrecioActual').checked;
+
+    if (!id) {
+        mostrarMensaje("Atención", "⚠️ Selecciona un presupuesto emitido para copiar sus productos.", "error");
+        return;
+    }
+
+    // Si ya hay productos cargados, pedimos confirmación
+    if (items.length > 0) {
+        if (!confirm("⚠️ Esto reemplazará los productos actualmente cargados. ¿Deseas continuar?")) {
+            return;
+        }
+    }
+
+    fetch(`${APP_BASE}ajax/obtener_detalle_presupuesto_json.php?id=${id}`)
+        .then(res => res.json())
+        .then(data => {
+            if (!data.success) {
+                mostrarMensaje("Error", "❌ " + (data.error || "No se pudo copiar el presupuesto."), "error");
+                return;
+            }
+
+            items.length = 0; // Vaciamos el array actual
+            const variaciones = []; // productos cuyo precio cambió en BD
+
+            data.items.forEach(prod => {
+                const precioPres = parseFloat(prod.precio);
+                const precioAct = (prod.precio_actual !== null && prod.precio_actual !== undefined)
+                                  ? parseFloat(prod.precio_actual) : null;
+
+                if (prod.variacion === true) {
+                    variaciones.push({
+                        codigo: prod.codigo,
+                        descripcion: prod.descripcion,
+                        precioPres,
+                        precioAct
+                    });
+                }
+
+                items.push({
+                    codigo: prod.codigo,
+                    descripcion: prod.descripcion,
+                    // Si el usuario marcó la casilla, cargamos el precio actual (BD); si no, el del presupuesto
+                    precio: (usarPrecioActual && precioAct !== null) ? precioAct : precioPres,
+                    precio_actual: precioAct,
+                    variado: prod.variacion === true,
+                    cantidad: parseFloat(prod.cantidad)
+                });
+            });
+
+            renderizarTabla();
+
+            // Mostramos el aviso de variaciones de precio
+            if (variaciones.length > 0) {
+                const lineas = variaciones.slice(0, 8).map(v =>
+                    `<b>${v.codigo}</b> - ${v.descripcion}: <span style="color:#e67e22;">$${v.precioPres.toFixed(2)}</span> → <span style="color:#2ecc71;">$${v.precioAct !== null ? v.precioAct.toFixed(2) : 'N/D'}</span>`
+                ).join('<br>');
+                const resto = variaciones.length > 8 ? `<br><i>... y ${variaciones.length - 8} más.</i>` : '';
+                mostrarAvisoPrecios(lineas + resto);
+            } else {
+                ocultarAvisoPrecios();
+            }
+
+            cerrarModalCopiar();
+            select.value = "";
+            if (variaciones.length > 0) {
+                mostrarMensaje("Aviso", `⚠️ ${variaciones.length} producto(s) cambiaron de precio. Revisa la tabla.`, "success");
+            } else {
+                mostrarMensaje("Éxito", `✅ Se copiaron ${items.length} producto(s) (sin variaciones de precio).`, "success");
+            }
+        })
+        .catch(error => {
+            console.error("Error al copiar presupuesto:", error);
+            mostrarMensaje("Error", "❌ Error al conectar con el servidor.", "error");
+        });
 };
 
 });

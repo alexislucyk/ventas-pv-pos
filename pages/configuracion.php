@@ -4,7 +4,7 @@ require '../config/db_config.php';
 
 // Solo 'developer' o usuarios con permiso específico pueden entrar
 if (!tiene_permiso('pages/configuracion.php')) {
-    header("Location: " . URL_BASE . "index.php?error=acceso_denegado");
+    header("Location: " . URL_BASE . "?error=acceso_denegado");
     exit();
 }
 
@@ -88,7 +88,7 @@ $app_version      = isset($config_raw['app_version']) ? $config_raw['app_version
 <head>
     <meta charset="UTF-8">
     <title>Configuración | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         /* ========== TABS ========== */

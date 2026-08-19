@@ -73,6 +73,6 @@ function restringirPagina($rolMinimoRequerido) {
     }
 
     // 3) Sin rol suficiente y sin permiso de módulo: denegar acceso
-    header("Location: " . URL_BASE . "index.php?error=acceso_denegado");
+    header("Location: " . URL_BASE . "?error=acceso_denegado");
     exit();
 }

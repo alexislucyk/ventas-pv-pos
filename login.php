@@ -1,11 +1,13 @@
 <?php
 // login.php: Página de inicio de sesión para el sistema de gestión
-// 1. Iniciar la sesión al principio
-session_start();
+// 1. Iniciar la sesión al principio (solo si no está activa)
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Si el usuario YA está logueado, lo mandamos al index
 if (isset($_SESSION['usuario_id'])) {
-    header('Location: index.php');
+    header('Location: ' . url('/'));
     exit();
 }
 
@@ -13,6 +15,7 @@ date_default_timezone_set('America/Argentina/Buenos_Aires');
 
 // 2. Incluir la configuración de la base de datos
 require 'config/db_config.php';
+require_once __DIR__ . '/core/helpers.php';
 
 $error = '';
 
@@ -71,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $_SESSION['permisos_funciones'] ?? []
                     ));
 
-                    header('Location: index.php');
+                    header('Location: ' . url('/'));
                     exit();
                 }
             } else {
@@ -89,7 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <title>Login | Sistema de Gestión</title>
-    <link rel="stylesheet" href="css/style_login.css">
+    <link rel="stylesheet" href="<?php echo url('css/style_login.css'); ?>">
 </head>
 <body>
     <div class="login-box">
@@ -101,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </p>
         <?php endif; ?>
 
-        <form method="POST" action="login.php">
+        <form method="POST" action="<?php echo url('login'); ?>">
             <input type="text" name="usuario" placeholder="Usuario" required autocomplete="off">
             <input type="password" name="password" placeholder="Contraseña" required>
             <button type="submit">Iniciar Sesión</button>

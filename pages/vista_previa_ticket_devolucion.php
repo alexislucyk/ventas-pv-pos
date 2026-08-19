@@ -1,5 +1,7 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 require_once '../config/db_config.php';
 
 $id = (int)($_GET['id'] ?? 0);
@@ -48,7 +50,7 @@ $ancho_papel = $stmt_cfg->fetchColumn() ?: '80mm';
 <head>
     <meta charset="UTF-8">
     <title>Ticket Devolución OP#<?php echo $id; ?></title>
-    <link rel="stylesheet" href="../css/temptocketprint.css">
+    <link rel="stylesheet" href="<?php echo url('css/temptocketprint.css'); ?>">
     <style>
         @media print { body { width: <?php echo $ancho_papel; ?> !important; } }
     </style>

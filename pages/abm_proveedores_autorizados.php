@@ -4,12 +4,12 @@
 // Administra la tabla proveedores_autorizados (sin vincular a usuario).
 // Cualquier visitante de la consulta remota verá únicamente estos proveedores.
 
-include '../pages/infosesion.php';
+include __DIR__ . '/infosesion.php';
 require_once '../config/validar_permisos.php';
 
 // Verificar que el usuario tenga permisos de administrador
 if (!tiene_permiso('pages/abm_permisos_usuarios.php')) {
-    header("Location: " . URL_BASE . "index.php?error=acceso_denegado");
+    header("Location: " . URL_BASE . "?error=acceso_denegado");
     exit();
 }
 
@@ -87,7 +87,7 @@ $no_autorizados = array_values(array_diff($todos_proveedores, $proveedores_autor
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Proveedores Autorizados (Consulta Remota)</title>
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body {
@@ -95,7 +95,7 @@ $no_autorizados = array_values(array_diff($todos_proveedores, $proveedores_autor
             color: #fff;
             font-family: Arial, sans-serif;
             margin: 0;
-            padding: 20px;
+            padding: 0;
         }
         .container {
             max-width: 1200px;
@@ -112,6 +112,26 @@ $no_autorizados = array_values(array_diff($todos_proveedores, $proveedores_autor
             margin: 0;
             color: #00bcd4;
             font-size: 1.8rem;
+        }
+        .btn-volver {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            background: #252525;
+            color: #00bcd4;
+            border: 1px solid #444;
+            border-radius: 6px;
+            padding: 8px 16px;
+            text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-volver:hover {
+            background: #00bcd4;
+            color: #000;
+            border-color: #00bcd4;
         }
         .card {
             background: #252525;
@@ -202,9 +222,16 @@ $no_autorizados = array_values(array_diff($todos_proveedores, $proveedores_autor
     </style>
 </head>
 <body>
+    <?php include 'sidebar.php'; ?>
+    <div class="content" style="padding-top: 70px;">
+        <?php include 'topbar.php'; ?>
+
     <div class="container">
         <div class="header">
-            <h1><i class="fas fa-user-shield"></i> Proveedores Autorizados (Consulta Remota)</h1>
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                <h1><i class="fas fa-user-shield"></i> Proveedores Autorizados (Consulta Remota)</h1>
+                <a href="<?php echo route('dashboard'); ?>" class="btn-volver"><i class="fas fa-arrow-left"></i> Volver al Dashboard</a>
+            </div>
             <p style="color: #888; margin: 10px 0 0 0;">Administra la lista global de proveedores visibles en la consulta remota de consignaciones</p>
         </div>
 
@@ -270,5 +297,6 @@ $no_autorizados = array_values(array_diff($todos_proveedores, $proveedores_autor
             </p>
         </div>
     </div>
+    </div><!-- /.content -->
 </body>
 </html>

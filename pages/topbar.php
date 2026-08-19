@@ -494,9 +494,9 @@ if (file_exists($cache_file) && (time() - filemtime($cache_file)) < $cache_tiemp
                 <strong><?php echo $nombre_usuario_top; ?></strong>
                 <span><?php echo $rol_usuario; ?></span>
             </div>
-            <a href="<?php echo URL_BASE; ?>pages/perfil.php"><i class="fas fa-user-cog" style="color: #00bcd4;"></i> Mi Perfil</a>
-            <a href="<?php echo URL_BASE; ?>pages/perfil.php#cambiar-pass"><i class="fas fa-key" style="color: #f1c40f;"></i> Cambiar Contraseña</a>
-            <a href="<?php echo URL_BASE; ?>pages/infosesion.php"><i class="fas fa-info-circle" style="color: #888;"></i> Información de Sesión</a>
+            <a href="<?php echo route_file('pages/perfil.php'); ?>"><i class="fas fa-user-cog" style="color: #00bcd4;"></i> Mi Perfil</a>
+            <a href="<?php echo route_file('pages/perfil.php'); ?>#cambiar-pass"><i class="fas fa-key" style="color: #f1c40f;"></i> Cambiar Contraseña</a>
+            <a href="<?php echo route_file('pages/infosesion.php'); ?>"><i class="fas fa-info-circle" style="color: #888;"></i> Información de Sesión</a>
             <a href="<?php echo URL_BASE; ?>logout.php" class="logout-option"><i class="fas fa-sign-out-alt"></i> Cerrar Sesión</a>
         </div>
     </div>
@@ -594,7 +594,7 @@ async function cambiarSucursalTop(sucursal_id) {
     if (sucursalNombre) sucursalNombre.textContent = 'Cambiando...';
 
     try {
-        const r = await fetch('../ajax/cambiar_sucursal.php', {
+        const r = await fetch('<?php echo URL_BASE; ?>ajax/cambiar_sucursal.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: 'sucursal_id=' + encodeURIComponent(sucursal_id)

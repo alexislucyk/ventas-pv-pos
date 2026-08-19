@@ -25,11 +25,12 @@ if (session_status() === PHP_SESSION_NONE) {
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 setlocale(LC_NUMERIC, 'C');
 
-// Detectar entorno
-$script_path = $_SERVER['SCRIPT_NAME'];
+// Detectar entorno según la CARPETA REAL (filesystem) donde está instalada la app.
+// Este script vive en procesos/, así que la raíz de la app está un nivel arriba.
+$app_folder = basename(dirname(__DIR__)); // ej. 'pos_dev', 'ventas_dev', 'pos_prod'
 $db_name = 'pos_dev'; // Por defecto desarrollo
 
-if (preg_match('#/([a-zA-Z0-9_-]+)_dev/#', $script_path)) {
+if (substr($app_folder, -4) === '_dev') {
     $db_name = 'pos_dev';
     $ambiente = "DESARROLLO";
 } else {

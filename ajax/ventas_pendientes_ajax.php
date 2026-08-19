@@ -2,7 +2,9 @@
 // 1. CORRECCIÓN: Zona Horaria
 date_default_timezone_set('America/Argentina/Buenos_Aires'); 
 // ventas_pendientes_ajax.php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 $empresa_id = $_SESSION['empresa_id'] ?? null;
 if (!$empresa_id) {

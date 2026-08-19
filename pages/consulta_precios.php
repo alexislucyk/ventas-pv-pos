@@ -16,7 +16,7 @@ $proveedores_list->execute([':empresa_id' => $_SESSION['empresa_id'] ?? 0]);
 <head>
     <meta charset="UTF-8">
     <title>Consulta de Precios | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         /* TEMA OSCURO REPORTES (Sincronizado con reportes_inventario.php y ventas.php) */
@@ -330,7 +330,7 @@ $proveedores_list->execute([':empresa_id' => $_SESSION['empresa_id'] ?? 0]);
             return;
         }
 
-        fetch('buscar_producto_ajax.php?q=' + encodeURIComponent(q))
+        fetch('<?php echo URL_BASE; ?>pages/buscar_producto_ajax.php?q=' + encodeURIComponent(q))
             .then(res => res.json())
             .then(data => {
                 tbody.innerHTML = '';

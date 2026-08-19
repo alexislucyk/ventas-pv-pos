@@ -502,7 +502,7 @@ body.sidebar-collapsed .topbar {
 </style>
 
 <div class="sidebar" id="sidebar">
-    <?php if (defined('URL_BASE') && URL_BASE == '/pos_dev/'): ?>
+    <?php if (defined('URL_BASE') && strpos(URL_BASE, 'dev') !== false): ?>
         <div class="badge-dev">⚠ MODO DESARROLLO (PRUEBAS)</div>
     <?php endif; ?>
 
@@ -511,7 +511,7 @@ body.sidebar-collapsed .topbar {
         <i class="fas fa-chevron-left"></i>
     </button>
 
-    <a href="<?php echo URL_BASE; ?>index.php" style="text-decoration: none; color: inherit;">
+    <a href="<?php echo URL_BASE; ?>" style="text-decoration: none; color: inherit;">
         <div class="empresa-title">
             
             <span><?php echo htmlspecialchars($nombre_empresa_sidebar); ?></span>
@@ -534,16 +534,16 @@ body.sidebar-collapsed .topbar {
         <div class="menu-section sec-maestros">
         <h4><i class="fas fa-database"></i> Maestros</h4>
         <?php if (tiene_permiso('pages/abm_productos.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/abm_productos.php" data-title="Productos"><i class="fas fa-box"></i> <span>Productos</span></a>
+            <a href="<?php echo route_file('pages/abm_productos.php'); ?>" data-title="Productos"><i class="fas fa-box"></i> <span>Productos</span></a>
         <?php endif; ?>
         <?php if (tiene_permiso('pages/abm_clientes.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/abm_clientes.php" data-title="Clientes"><i class="fas fa-users"></i> <span>Clientes</span></a>
+            <a href="<?php echo route_file('pages/abm_clientes.php'); ?>" data-title="Clientes"><i class="fas fa-users"></i> <span>Clientes</span></a>
         <?php endif; ?>
         <?php if (tiene_permiso('pages/abm_proveedores.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/abm_proveedores.php" data-title="Proveedores"><i class="fas fa-truck"></i> <span>Proveedores</span></a>
+            <a href="<?php echo route_file('pages/abm_proveedores.php'); ?>" data-title="Proveedores"><i class="fas fa-truck"></i> <span>Proveedores</span></a>
         <?php endif; ?>
         <?php if (tiene_permiso('pages/consulta_precios.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/consulta_precios.php" data-title="Consulta de Precios"><i class="fas fa-tag"></i> <span>Consulta de Precios</span></a>
+            <a href="<?php echo route_file('pages/consulta_precios.php'); ?>" data-title="Consulta de Precios"><i class="fas fa-tag"></i> <span>Consulta de Precios</span></a>
         <?php endif; ?>
         </div>
 
@@ -551,19 +551,22 @@ body.sidebar-collapsed .topbar {
         <div class="menu-section sec-ventas">
         <h4><i class="fas fa-shopping-cart"></i> Ventas</h4>
         <?php if (tiene_permiso('pages/ventas.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/ventas.php" data-title="Nueva Venta"><i class="fas fa-shopping-cart"></i> <span>Nueva Venta</span></a>
+            <a href="<?php echo route_file('pages/ventas.php'); ?>" data-title="Nueva Venta"><i class="fas fa-shopping-cart"></i> <span>Nueva Venta</span></a>
+        <?php endif; ?>
+        <?php if (tiene_permiso('pages/ventarapida.php')): ?>
+            <a href="<?php echo route_file('pages/ventarapida.php'); ?>" data-title="Venta Rápida"><i class="fas fa-bolt"></i> <span>Venta Rápida</span></a>
         <?php endif; ?>
         <?php if (tiene_permiso('pages/presupuestos.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/presupuestos.php" data-title="Presupuestos"><i class="fas fa-file-invoice-dollar"></i> <span>Presupuestos</span></a>
+            <a href="<?php echo route_file('pages/presupuestos.php'); ?>" data-title="Presupuestos"><i class="fas fa-file-invoice-dollar"></i> <span>Presupuestos</span></a>
         <?php endif; ?>
         <?php if (tiene_permiso('pages/anulaciones.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/anulaciones.php" data-title="Anulaciones"><i class="fas fa-undo-alt"></i> <span>Anulaciones</span></a>
+            <a href="<?php echo route_file('pages/anulaciones.php'); ?>" data-title="Anulaciones"><i class="fas fa-undo-alt"></i> <span>Anulaciones</span></a>
         <?php endif; ?>
         <?php if (tiene_permiso('pages/cobro_cuotas.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/cobro_cuotas.php" data-title="Cobro de Cuotas"><i class="fas fa-hand-holding-usd"></i> <span>Cobro de Cuotas</span></a>
+            <a href="<?php echo route_file('pages/cobro_cuotas.php'); ?>" data-title="Cobro de Cuotas"><i class="fas fa-hand-holding-usd"></i> <span>Cobro de Cuotas</span></a>
         <?php endif; ?>
         <?php if (tiene_permiso('pages/pagos_ctacte.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/pagos_ctacte.php" data-title="Pagos Cta. Cte."><i class="fas fa-credit-card"></i> <span>Pagos Cta. Cte.</span></a>
+            <a href="<?php echo route_file('pages/pagos_ctacte.php'); ?>" data-title="Pagos Cta. Cte."><i class="fas fa-credit-card"></i> <span>Pagos Cta. Cte.</span></a>
         <?php endif; ?>
         </div>
 
@@ -571,10 +574,10 @@ body.sidebar-collapsed .topbar {
         <div class="menu-section sec-compras">
         <h4><i class="fas fa-truck-loading"></i> Compras</h4>
         <?php if (tiene_permiso('pages/compras.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/compras.php" data-title="Compras"><i class="fas fa-receipt"></i> <span>Compras</span></a>
+            <a href="<?php echo route_file('pages/compras.php'); ?>" data-title="Compras"><i class="fas fa-receipt"></i> <span>Compras</span></a>
         <?php endif; ?>
         <?php if (tiene_permiso('pages/compras_rapidas.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/compras_rapidas.php" data-title="Compra Rápida"><i class="fas fa-bolt"></i> <span>Compra Rápida</span></a>
+            <a href="<?php echo route_file('pages/compras_rapidas.php'); ?>" data-title="Compra Rápida"><i class="fas fa-bolt"></i> <span>Compra Rápida</span></a>
         <?php endif; ?>
         </div>
 
@@ -582,20 +585,20 @@ body.sidebar-collapsed .topbar {
         <div class="menu-section sec-caja">
         <h4><i class="fas fa-cash-register"></i> Facturación y Caja</h4>
         <?php if (tiene_permiso('pages/facturacion_arca.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/facturacion_arca.php" data-title="Comprobantes AFIP"><i class="fas fa-file-invoice"></i> <span>Comprobantes AFIP</span></a>
+            <a href="<?php echo route_file('pages/facturacion_arca.php'); ?>" data-title="Comprobantes AFIP"><i class="fas fa-file-invoice"></i> <span>Comprobantes AFIP</span></a>
         <?php endif; ?>
         <?php if (empresa_cierre_caja_habilitado()): ?>
         <?php if (tiene_permiso('pages/caja_dashboard.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/caja_dashboard.php" data-title="Panel de Caja"><i class="fas fa-chart-pie"></i> <span>Panel de Caja</span></a>
+            <a href="<?php echo route_file('pages/caja_dashboard.php'); ?>" data-title="Panel de Caja"><i class="fas fa-chart-pie"></i> <span>Panel de Caja</span></a>
         <?php endif; ?>
         <?php if (tiene_permiso('pages/movimiento_manual.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/movimiento_manual.php" data-title="Movimiento Manual"><i class="fas fa-exchange-alt"></i> <span>Movimiento Manual</span></a>
+            <a href="<?php echo route_file('pages/movimiento_manual.php'); ?>" data-title="Movimiento Manual"><i class="fas fa-exchange-alt"></i> <span>Movimiento Manual</span></a>
         <?php endif; ?>
         <?php if (tiene_permiso('pages/cierre_caja.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/cierre_caja.php" data-title="Cierre de Caja"><i class="fas fa-lock"></i> <span>Cierre de Caja</span></a>
+            <a href="<?php echo route_file('pages/cierre_caja.php'); ?>" data-title="Cierre de Caja"><i class="fas fa-lock"></i> <span>Cierre de Caja</span></a>
         <?php endif; ?>
         <?php if (tiene_permiso('pages/reporte_cierres.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/reporte_cierres.php" data-title="Reporte de Cierres"><i class="fas fa-clipboard-list"></i> <span>Reporte de Cierres</span></a>
+            <a href="<?php echo route_file('pages/reporte_cierres.php'); ?>" data-title="Reporte de Cierres"><i class="fas fa-clipboard-list"></i> <span>Reporte de Cierres</span></a>
         <?php endif; ?>
         <?php endif; ?>
         </div>
@@ -604,28 +607,28 @@ body.sidebar-collapsed .topbar {
         <div class="menu-section sec-informes">
         <h4><i class="fas fa-chart-bar"></i> Informes</h4>
         <?php if (tiene_permiso('pages/resumen_ventas.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/resumen_ventas.php" data-title="Resumen de Ventas"><i class="fas fa-list-alt"></i> <span>Resumen de Ventas</span></a>
+            <a href="<?php echo route_file('pages/resumen_ventas.php'); ?>" data-title="Resumen de Ventas"><i class="fas fa-list-alt"></i> <span>Resumen de Ventas</span></a>
         <?php endif; ?>
         <?php if (tiene_permiso('pages/reporte_cuotas.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/reporte_cuotas.php" data-title="Cuentas a Cobrar"><i class="fas fa-hand-holding-usd"></i> <span>Cuentas a Cobrar</span></a>
+            <a href="<?php echo route_file('pages/reporte_cuotas.php'); ?>" data-title="Cuentas a Cobrar"><i class="fas fa-hand-holding-usd"></i> <span>Cuentas a Cobrar</span></a>
         <?php endif; ?>
         <?php if (tiene_permiso('pages/cuentas_corrientes.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/cuentas_corrientes.php" data-title="Cta. Cte. Clientes"><i class="fas fa-user-clock"></i> <span>Cta. Cte. Clientes</span></a>
+            <a href="<?php echo route_file('pages/cuentas_corrientes.php'); ?>" data-title="Cta. Cte. Clientes"><i class="fas fa-user-clock"></i> <span>Cta. Cte. Clientes</span></a>
         <?php endif; ?>
         <?php if (tiene_permiso('pages/configuracion_intereses.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/configuracion_intereses.php" data-title="Config. Intereses"><i class="fas fa-percentage"></i> <span>Config. Intereses</span></a>
+            <a href="<?php echo route_file('pages/configuracion_intereses.php'); ?>" data-title="Config. Intereses"><i class="fas fa-percentage"></i> <span>Config. Intereses</span></a>
         <?php endif; ?>
         <?php if (tiene_permiso('pages/ctacte_proveedores.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/ctacte_proveedores.php" data-title="Cta. Cte. Proveedores"><i class="fas fa-history"></i> <span>Cta. Cte. Proveedores</span></a>
+            <a href="<?php echo route_file('pages/ctacte_proveedores.php'); ?>" data-title="Cta. Cte. Proveedores"><i class="fas fa-history"></i> <span>Cta. Cte. Proveedores</span></a>
         <?php endif; ?>
         <?php if (tiene_permiso('pages/reportes_inventario.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/reportes_inventario.php" data-title="Inventario"><i class="fas fa-warehouse"></i> <span>Inventario</span></a>
+            <a href="<?php echo route_file('pages/reportes_inventario.php'); ?>" data-title="Inventario"><i class="fas fa-warehouse"></i> <span>Inventario</span></a>
         <?php endif; ?>
         <?php if (tiene_permiso('pages/reporte_movimientos_productos.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/reporte_movimientos_productos.php" data-title="Mov. de Productos"><i class="fas fa-exchange-alt"></i> <span>Mov. de Productos</span></a>
+            <a href="<?php echo route_file('pages/reporte_movimientos_productos.php'); ?>" data-title="Mov. de Productos"><i class="fas fa-exchange-alt"></i> <span>Mov. de Productos</span></a>
         <?php endif; ?>
         <?php if (tiene_permiso('pages/reportes_financieros.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/reportes_financieros.php" data-title="Financieros"><i class="fas fa-money-check-alt"></i> <span>Financieros</span></a>
+            <a href="<?php echo route_file('pages/reportes_financieros.php'); ?>" data-title="Financieros"><i class="fas fa-money-check-alt"></i> <span>Financieros</span></a>
         <?php endif; ?>
         </div>
 
@@ -633,26 +636,26 @@ body.sidebar-collapsed .topbar {
         <div class="menu-section sec-admin">
         <?php if (tiene_permiso('pages/usuarios.php') || $_SESSION['usuario_rol'] === 'developer'): ?>
             <h4><i class="fas fa-shield-alt"></i> Administración</h4>
-            <a href="<?php echo URL_BASE; ?>pages/usuarios.php" data-title="Usuarios"><i class="fas fa-users-cog"></i> <span>Usuarios</span></a>
+            <a href="<?php echo route_file('pages/usuarios.php'); ?>" data-title="Usuarios"><i class="fas fa-users-cog"></i> <span>Usuarios</span></a>
         <?php endif; ?>
         <?php if ($_SESSION['usuario_rol'] === 'developer'): ?>
-            <a href="<?php echo URL_BASE; ?>pages/abm_permisos_usuarios.php" data-title="Permisos por Usuario"><i class="fas fa-user-shield"></i> <span>Permisos por Usuario</span></a>
+            <a href="<?php echo route_file('pages/abm_permisos_usuarios.php'); ?>" data-title="Permisos por Usuario"><i class="fas fa-user-shield"></i> <span>Permisos por Usuario</span></a>
         <?php endif; ?>
         <?php if ($_SESSION['usuario_rol'] === 'developer' || $_SESSION['usuario_rol'] === 'admin'): ?>
-            <a href="<?php echo URL_BASE; ?>pages/abm_proveedores_autorizados.php" data-title="Proveedores Autorizados"><i class="fas fa-user-check"></i> <span>Proveedores Autorizados</span></a>
+            <a href="<?php echo route_file('pages/abm_proveedores_autorizados.php'); ?>" data-title="Proveedores Autorizados"><i class="fas fa-user-check"></i> <span>Proveedores Autorizados</span></a>
         <?php endif; ?>
         <?php if (tiene_permiso('pages/backup.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/backup.php" data-title="Backup"><i class="fas fa-database"></i> <span>Backup</span></a>
+            <a href="<?php echo route_file('pages/backup.php'); ?>" data-title="Backup"><i class="fas fa-database"></i> <span>Backup</span></a>
         <?php endif; ?>
         </div>
     </div>
 
     <div class="sidebar-footer">
         <?php if (tiene_permiso('pages/abm_empresa.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/abm_empresa.php" data-title="Datos de Empresa"><i class="fas fa-store"></i> <span>Datos de Empresa</span></a>
+            <a href="<?php echo route_file('pages/abm_empresa.php'); ?>" data-title="Datos de Empresa"><i class="fas fa-store"></i> <span>Datos de Empresa</span></a>
         <?php endif; ?>
         <?php if (tiene_permiso('pages/configuracion.php')): ?>
-            <a href="<?php echo URL_BASE; ?>pages/configuracion.php" data-title="Configuración"><i class="fas fa-cog"></i> <span>Configuración</span></a>
+            <a href="<?php echo route_file('pages/configuracion.php'); ?>" data-title="Configuración"><i class="fas fa-cog"></i> <span>Configuración</span></a>
         <?php endif; ?>
         <a href="<?php echo URL_BASE; ?>logout.php" class="logout" data-title="Cerrar Sesión"><i class="fas fa-sign-out-alt"></i> <span>Cerrar Sesión</span></a>
     </div>

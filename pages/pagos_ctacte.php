@@ -33,7 +33,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <title>Pagos Cta. Cte. | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         .form-pagos { max-width: 600px; margin: 20px auto; }
@@ -75,7 +75,7 @@ try {
         <?php echo $mensaje; // Mostrar mensaje de éxito/error ?>
 
         <div class="card form-pagos">
-            <form id="formRegistroPagoCC" action="../procesos/registrar_pago_cc.php" method="POST">
+            <form id="formRegistroPagoCC" action="<?php echo url('procesos/registrar_pago_cc.php'); ?>" method="POST">
                 <label>Buscar Cliente</label>
                 <div style="position: relative; margin-bottom: 20px;">
                     <input type="text" id="buscar_cliente_pago" class="input-field" placeholder="Escriba nombre o CUIT..." autocomplete="off">
@@ -220,7 +220,7 @@ try {
                 btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin"></i> PROCESANDO...';
 
                 const formData = new FormData(form);
-                fetch('../procesos/registrar_pago_cc.php', {
+                fetch('<?php echo URL_BASE; ?>procesos/registrar_pago_cc.php', {
                     method: 'POST',
                     body: formData,
                     headers: { 'X-Requested-With': 'XMLHttpRequest' }

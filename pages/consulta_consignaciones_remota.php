@@ -1,6 +1,26 @@
 <?php
 // Página de consulta de consignaciones remota
 // Acceso exclusivo por VPN Radmin - No requiere login del sistema
+// Si hay sesión activa del sistema, se integra sidebar/topbar para navegación.
+$sesion_activa = (session_status() === PHP_SESSION_ACTIVE) && isset($_SESSION['usuario_id']) && isset($_SESSION['empresa_id']);
+if ($sesion_activa) {
+    include __DIR__ . '/infosesion.php';
+}
+
+// URL segura para el botón Volver (soporta acceso directo sin router)
+$url_dashboard = (function_exists('route')) ? route('dashboard') : (defined('URL_BASE') ? URL_BASE . 'index.php' : 'index.php');
+
+// Base de la API: funciona con acceso por clean URL (/ventas_dev/consulta-consignaciones)
+// y con acceso directo al archivo por IP/VPN (pages/consulta_consignaciones_remota.php)
+if (function_exists('url')) {
+    $api_base = rtrim(url('api'), '/');
+} elseif (defined('URL_BASE')) {
+    $api_base = rtrim(URL_BASE, '/') . '/api';
+} else {
+    $api_base = '../api';
+}
+// Protocolo detectado para construir URLs absolutas cuando se usa la IP del servidor
+$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -8,7 +28,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Consulta de Consignaciones Remota</title>
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="<?php echo (function_exists('url') ? url('css/style.css') : '../css/style.css'); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body {
@@ -16,7 +36,7 @@
             color: #fff;
             font-family: Arial, sans-serif;
             margin: 0;
-            padding: 20px;
+            padding: <?php echo $sesion_activa ? '0' : '20px'; ?>;
         }
         .container {
             max-width: 1400px;
@@ -33,6 +53,26 @@
             margin: 0;
             color: #00bcd4;
             font-size: 1.8rem;
+        }
+        .btn-volver {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            background: #252525;
+            color: #00bcd4;
+            border: 1px solid #444;
+            border-radius: 6px;
+            padding: 8px 16px;
+            text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-volver:hover {
+            background: #00bcd4;
+            color: #000;
+            border-color: #00bcd4;
         }
         .header p {
             margin: 10px 0 0 0;
@@ -338,10 +378,18 @@
     </style>
 </head>
 <body>
+    <?php if ($sesion_activa): ?>
+        <?php include 'sidebar.php'; ?>
+        <div class="content" style="padding-top: 70px;">
+        <?php include 'topbar.php'; ?>
+    <?php endif; ?>
+
     <div class="container">
         <div class="header">
-            <h1><i class="fas fa-handshake"></i> Consulta de Consignaciones Remota</h1>
-            
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                <h1><i class="fas fa-handshake"></i> Consulta de Consignaciones Remota</h1>
+                <a href="<?php echo $url_dashboard; ?>" class="btn-volver"><i class="fas fa-arrow-left"></i> Volver al Dashboard</a>
+            </div>
         </div>
 
         <div class="config-box">
@@ -387,6 +435,10 @@
         </div>
     </div>
 
+    <?php if ($sesion_activa): ?>
+        </div><!-- /.content -->
+    <?php endif; ?>
+
     <!-- Modal System -->
     <div id="modalOverlay" class="modal-overlay">
         <div class="modal-content">
@@ -402,13 +454,34 @@
     </div>
 
     <script>
-        // La página y la API están en el mismo servidor, por lo que usamos
-        // rutas relativas (../api/...). Esto funciona igual tanto si se accede
-        // por localhost/127.0.0.1 como por la IP de VPN Radmin (ej: 26.223.130.54).
+        // Construir la URL base para las consultas a la API.
+        // Si se ingresó una IP del servidor, las consultas se dirigen a esa IP.
+        // Si no, se usan rutas relativas (comportamiento original).
+        function getApiBaseUrl() {
+            const serverIP = localStorage.getItem('server_ip') || document.getElementById('server_ip').value.trim();
+            const phpApiBase = '<?php echo $api_base; ?>';
+            const protocol = '<?php echo $protocol; ?>';
+
+            if (!serverIP) {
+                return phpApiBase;
+            }
+
+            let apiPath;
+            if (phpApiBase.startsWith('http://') || phpApiBase.startsWith('https://')) {
+                apiPath = new URL(phpApiBase).pathname;
+            } else if (phpApiBase.startsWith('/')) {
+                apiPath = phpApiBase;
+            } else {
+                // Ruta relativa (ej. ../api) - resolver respecto a la ubicación actual
+                apiPath = new URL(phpApiBase, window.location.href).pathname;
+            }
+
+            return protocol + serverIP + apiPath;
+        }
 
         let proveedores = [];
+        // Inicializar IP guardada y cargar proveedores
 
-        // Inicializar IP guardada (solo informativa) y cargar proveedores
         document.addEventListener('DOMContentLoaded', function() {
             const serverIP = localStorage.getItem('server_ip') || '';
             if (serverIP) {
@@ -423,8 +496,7 @@
             cargarProveedores();
         });
 
-        // El campo de IP es solo informativo. La conexión usa rutas relativas,
-        // por lo que no es necesario volver a conectar.
+        // La IP guardada se usa como host para las consultas a la API.
         function guardarIP() {
             const ip = document.getElementById('server_ip').value.trim();
             if (ip) {
@@ -443,8 +515,8 @@
             console.log('Servidor actual:', window.location.hostname);
 
             try {
-                // Ruta relativa desde pages/ hacia api/ (mismo servidor)
-                let url = `../api/proveedores.php?token=consignaciones_remote_2024_vpn`;
+                // Usar IP del servidor si está configurada, o ruta relativa por defecto
+                let url = getApiBaseUrl() + '/proveedores.php?token=consignaciones_remote_2024_vpn';
                 
                 console.log('Consultando URL:', url);
                 
@@ -506,8 +578,8 @@
             resultadosDiv.innerHTML = '<div class="loading">⏳ Cargando datos...</div>';
 
             try {
-                // Ruta relativa desde pages/ hacia api/ (mismo servidor)
-                let url = `../api/consignaciones.php?token=consignaciones_remote_2024_vpn&proveedor=${encodeURIComponent(proveedor)}&desde=${desde}&hasta=${hasta}`;
+                // Usar IP del servidor si está configurada, o ruta relativa por defecto
+                let url = getApiBaseUrl() + '/consignaciones.php?token=consignaciones_remote_2024_vpn&proveedor=' + encodeURIComponent(proveedor) + '&desde=' + desde + '&hasta=' + hasta;
                 
                 const response = await fetch(url, {
                     method: 'GET',

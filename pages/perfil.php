@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cambiar_clave'])) {
 <head>
     <meta charset="UTF-8">
     <title>Mi Perfil | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <style>
         .profile-card { max-width: 500px; margin: 50px auto; padding: 30px; }
         .profile-header { text-align: center; margin-bottom: 25px; }

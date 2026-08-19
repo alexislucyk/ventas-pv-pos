@@ -43,6 +43,25 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
         $proveedores_list = [];
     }
 
+    // Presupuestos emitidos para copiar sus productos a la venta
+    $presupuestos_disponibles = [];
+    try {
+        $empresa_id_pres = $_SESSION['empresa_id'] ?? ($empresa_id ?? null);
+        if ($empresa_id_pres) {
+            $pres_query = "SELECT p.id, p.total_presupuesto, p.fecha_presupuesto,
+                                  CONCAT(c.apellido, ' ', c.nombre) AS cliente_nombre
+                           FROM presupuestos p
+                           LEFT JOIN clientes c ON p.id_cliente = c.id AND c.empresa_id = ?
+                           WHERE p.empresa_id = ?
+                           ORDER BY p.id DESC LIMIT 50";
+            $st = $pdo->prepare($pres_query);
+            $st->execute([$empresa_id_pres, $empresa_id_pres]);
+            $presupuestos_disponibles = $st->fetchAll(PDO::FETCH_ASSOC);
+        }
+    } catch (Exception $e) {
+        $presupuestos_disponibles = [];
+    }
+
     // 2. LÓGICA DE PROCESAMIENTO
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['venta_action'])) {
         $accion = $_POST['venta_action'];
@@ -52,6 +71,7 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
         $id_venta_existente = (isset($_POST['id_venta_existente'])) ? (int)$_POST['id_venta_existente'] : 0;
         $id_cliente = (isset($_POST['id_cliente_hidden'])) ? (int)$_POST['id_cliente_hidden'] : 0;
         $cond_pago = (isset($_POST['cond_pago'])) ? trim($_POST['cond_pago']) : 'CONTADO';
+        $observaciones = (isset($_POST['observaciones'])) ? trim($_POST['observaciones']) : '';
         
         // Validar que el cliente tenga habilitada la cuenta corriente si aplica
         if ($es_finalizar && $cond_pago === 'CUENTA CORRIENTE' && $id_cliente > 0) {
@@ -61,7 +81,7 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
             
             if ($habilita_cta === 'NO') {
                 $mensaje = "❌ Error: Este cliente no tiene habilitada la cuenta corriente.";
-                header("Location: ventas.php");
+                header("Location: " . url('ventas'));
                 exit();
             }
         }
@@ -183,8 +203,8 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                 $id_venta_actual = 0;
                 // --- A) Insertar o Actualizar Cabecera de Venta ---
                 if ($id_venta_existente > 0) {
-                    $sql_v = "UPDATE ventas SET id_cliente=?, cond_pago=?, total_venta=?, descuento_global=?, tipo_descuento_global=?, pago_efectivo=?, pago_transf=?, estado=?, usuario=? WHERE id=?";
-                    $pdo->prepare($sql_v)->execute([$id_cliente, $cond_pago, $total_recalculado, $monto_desc_global, $desc_global_tipo, $pago_efectivo, $pago_transf, $estado_venta, $usuario_activo, $id_venta_existente]);
+                    $sql_v = "UPDATE ventas SET id_cliente=?, cond_pago=?, total_venta=?, descuento_global=?, tipo_descuento_global=?, pago_efectivo=?, pago_transf=?, estado=?, usuario=?, observaciones=? WHERE id=?";
+                    $pdo->prepare($sql_v)->execute([$id_cliente, $cond_pago, $total_recalculado, $monto_desc_global, $desc_global_tipo, $pago_efectivo, $pago_transf, $estado_venta, $usuario_activo, $observaciones, $id_venta_existente]);
                     
                     $stmt_doc = $pdo->prepare("SELECT n_documento FROM ventas WHERE id=?");
                     $stmt_doc->execute([$id_venta_existente]);
@@ -200,8 +220,8 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                     $fecha_venta = date('Y-m-d H:i:s');
                     $empresa_id = $_SESSION['empresa_id'] ?? 1;
                     $sucursal_id = $_SESSION['sucursal_id'] ?? 1;
-                    $sql_v = "INSERT INTO ventas (empresa_id, sucursal_id, id_cliente, cond_pago, n_documento, total_venta, descuento_global, tipo_descuento_global, pago_efectivo, pago_transf, fecha_venta, estado, usuario) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)";
-                    $pdo->prepare($sql_v)->execute([$empresa_id, $sucursal_id, $id_cliente, $cond_pago, $n_documento, $total_recalculado, $monto_desc_global, $desc_global_tipo, $pago_efectivo, $pago_transf, $fecha_venta, $estado_venta, $usuario_activo]);
+                    $sql_v = "INSERT INTO ventas (empresa_id, sucursal_id, id_cliente, cond_pago, n_documento, total_venta, descuento_global, tipo_descuento_global, pago_efectivo, pago_transf, fecha_venta, estado, usuario, observaciones) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+                    $pdo->prepare($sql_v)->execute([$empresa_id, $sucursal_id, $id_cliente, $cond_pago, $n_documento, $total_recalculado, $monto_desc_global, $desc_global_tipo, $pago_efectivo, $pago_transf, $fecha_venta, $estado_venta, $usuario_activo, $observaciones]);
                     $id_venta_actual = $pdo->lastInsertId();
                 }
 
@@ -315,7 +335,7 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                     $_SESSION['status_msj_warning'] = "⚠️ Venta cerrada con stock insuficiente en: " . implode(", ", $productos_sin_stock);
                 }
 
-                header("Location: ventas.php");
+                header("Location: " . url('ventas'));
                 exit();
 
             } catch (Exception $e) {
@@ -349,7 +369,7 @@ unset($_SESSION['ticket_a_imprimir_doc']);
 <head>
     <meta charset="UTF-8">
     <title>Ventas | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         /* TEMA OSCURO REPORTES */
@@ -393,7 +413,7 @@ unset($_SESSION['ticket_a_imprimir_doc']);
         }
 
         /* INPUTS ESTILO DARK */
-        .input-field, input[type="text"], input[type="number"], select {
+        .input-field, input[type="text"], input[type="number"], select, textarea {
             background-color: #2a2a2a !important;
             border: 1px solid #444 !important;
             color: #fff !important;
@@ -529,7 +549,10 @@ unset($_SESSION['ticket_a_imprimir_doc']);
                 <div class="contenedor-busqueda" style="position:relative;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <label><i class="fas fa-search"></i> Buscar Producto</label>
-                        <button type="button" class="btn btn-success" onclick="abrirModalNuevoProducto()" title="Agregar nuevo producto" style="padding: 2px 8px; margin-bottom: 5px; font-size: 0.8rem; background: #27ae60;">+ Nuevo</button>
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                            <button type="button" class="btn" onclick="abrirModalCopiarPresupuesto()" title="Copiar productos de un presupuesto emitido" style="padding: 2px 8px; margin-bottom: 5px; font-size: 0.8rem; background: #6c3483; color: #fff; border: 1px solid #8e44ad; white-space: nowrap;">Copiar Presupuesto</button>
+                            <button type="button" class="btn btn-success" onclick="abrirModalNuevoProducto()" title="Agregar nuevo producto" style="padding: 2px 8px; margin-bottom: 5px; font-size: 0.8rem; background: #27ae60;">+ Nuevo</button>
+                        </div>
                     </div>
                     <input type="text" id="buscar_producto" class="input-field" autocomplete="off" placeholder="Escribe nombre o código...">
                     <div id="resultadosBusqueda"></div> 
@@ -552,6 +575,13 @@ unset($_SESSION['ticket_a_imprimir_doc']);
                         <tbody></tbody>
                     </table>
                 </div>
+
+                <div style="margin-top: 20px;">
+                    <label for="observaciones"><i class="fas fa-sticky-note"></i> Observaciones</label>
+                    <textarea name="observaciones" id="observaciones" class="input-field" rows="3"
+                              placeholder="Notas opcionales sobre la venta (aparecerán en el ticket)..."
+                              style="width: 100%; resize: vertical; font-family: inherit;"></textarea>
+                </div>
             </div>
 
             <div class="card">
@@ -560,6 +590,7 @@ unset($_SESSION['ticket_a_imprimir_doc']);
                     <input type="hidden" name="venta_action" id="venta_action_input" value="Finalizar">
                     <input type="hidden" name="id_venta_existente" id="id_venta_existente" value="">
                     <input type="hidden" name="id_cliente_hidden" id="id_cliente_hidden" value="0">
+                    <input type="hidden" name="observaciones" id="observaciones_hidden" value="">
 
                     <div class="contenedor-busqueda-cliente" style="position:relative;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -726,6 +757,37 @@ unset($_SESSION['ticket_a_imprimir_doc']);
         </div>
     </div>
 
+    <!-- Modal Copiar Presupuesto -->
+    <div id="modalCopiarPresupuestoVenta" class="modal" style="display:none; position:fixed; z-index:10000; left:0; top:0; width:100%; height:100%; background: rgba(0,0,0,0.9);">
+        <div class="modal-content" style="background: #1a1a1a; margin: 10% auto; padding: 25px; width: 500px; border-radius: 12px; border: 1px solid #333;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px;">
+                <h2 style="margin:0; color:#b07cc6;"><i class="fas fa-copy"></i> Copiar de Presupuesto Emitido</h2>
+                <span onclick="cerrarModalCopiarPresupuesto()" style="cursor:pointer; font-size: 28px; color: #ff4444;">&times;</span>
+            </div>
+
+            <label>Selecciona un presupuesto:</label>
+            <select id="selectPresupuestoVenta" class="input-field" style="width:100%; padding:10px;">
+                <option value="">-- Seleccionar presupuesto --</option>
+                <?php foreach ($presupuestos_disponibles as $pres): ?>
+                <option value="<?php echo $pres['id']; ?>">
+                    #<?php echo $pres['id']; ?> - 
+                    <?php echo htmlspecialchars($pres['cliente_nombre'] ?: 'Sin cliente'); ?> - 
+                    $<?php echo number_format($pres['total_presupuesto'], 2, ',', '.'); ?>
+                </option>
+                <?php endforeach; ?>
+            </select>
+
+            <small style="color:#888;">Los productos se cargan con el precio del presupuesto. Si un precio cambió, haz clic en la flechita junto al precio para actualizarlo al valor actual.</small>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 25px; border-top: 1px solid #333; padding-top: 15px;">
+                <button type="button" onclick="cerrarModalCopiarPresupuesto()" class="btn btn-secondary" style="background:#444; color:#fff; padding:10px 20px; border:none; border-radius:5px; font-weight:bold; cursor:pointer;">Cancelar</button>
+                <button type="button" onclick="copiarPresupuestoVenta()" class="btn btn-success" style="background:#27ae60; color:#fff; padding:10px 20px; border:none; border-radius:5px; font-weight:bold; cursor:pointer;">
+                    <i class="fas fa-copy"></i> Copiar Productos
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal Nuevo Cliente -->
     <div id="modalNuevoCliente" class="modal" style="display:none; position:fixed; z-index:10000; left:0; top:0; width:100%; height:100%; background: rgba(0,0,0,0.9);">
         <div class="modal-content" style="background: #1a1a1a; margin: 10% auto; padding: 25px; width: 400px; border-radius: 12px; border: 1px solid #333;">
@@ -794,7 +856,7 @@ unset($_SESSION['ticket_a_imprimir_doc']);
         </div>
     </div>
 
-    <script src="../js/ventas.js"></script>
+    <script src="<?php echo url('js/ventas.js'); ?>"></script>
     <script>
         var clientesData = <?php echo json_encode($clientes); ?>;
 
@@ -864,7 +926,7 @@ unset($_SESSION['ticket_a_imprimir_doc']);
             formData.append('cuit', cuit);
             formData.append('telefono', telefono);
 
-            fetch('../ajax/agregar_cliente_rapido.php', {
+            fetch('<?php echo URL_BASE; ?>ajax/agregar_cliente_rapido.php', {
                 method: 'POST',
                 body: formData
             })
@@ -930,7 +992,7 @@ unset($_SESSION['ticket_a_imprimir_doc']);
             formData.append('rubro', rubro);
             formData.append('proveedor', proveedor);
 
-            fetch('../ajax/agregar_producto_rapido.php', {
+            fetch('<?php echo URL_BASE; ?>ajax/agregar_producto_rapido.php', {
                 method: 'POST',
                 body: formData
             })
@@ -947,6 +1009,79 @@ unset($_SESSION['ticket_a_imprimir_doc']);
                 }
             })
             .catch(err => console.error("Error en alta rápida:", err));
+        };
+
+        // --- LÓGICA MODAL COPIAR PRESUPUESTO ---
+        window.abrirModalCopiarPresupuesto = function() {
+            document.getElementById('modalCopiarPresupuestoVenta').style.display = 'block';
+        };
+
+        window.cerrarModalCopiarPresupuesto = function() {
+            document.getElementById('modalCopiarPresupuestoVenta').style.display = 'none';
+        };
+
+        // Cerrar modal al hacer clic fuera del contenido
+        document.addEventListener('click', function(event) {
+            const modal = document.getElementById('modalCopiarPresupuestoVenta');
+            if (event.target == modal) {
+                cerrarModalCopiarPresupuesto();
+            }
+        });
+
+        window.copiarPresupuestoVenta = function() {
+            const select = document.getElementById('selectPresupuestoVenta');
+            const id = select ? select.value : '';
+
+            if (!id) {
+                mostrarToast("⚠️ Selecciona un presupuesto emitido para copiar sus productos.", "error");
+                return;
+            }
+
+            if (carrito.length > 0) {
+                if (!confirm("⚠️ Esto reemplazará los productos actualmente en el carrito. ¿Deseas continuar?")) {
+                    return;
+                }
+            }
+
+            fetch('<?php echo URL_BASE; ?>ajax/obtener_detalle_presupuesto_json.php?id=' + id)
+                .then(res => res.json())
+                .then(data => {
+                    if (!data.success) {
+                        mostrarToast("❌ " + (data.error || "No se pudo copiar el presupuesto."), "error");
+                        return;
+                    }
+
+                    carrito.length = 0;
+                    data.items.forEach(prod => {
+                        const precioPres = parseFloat(prod.precio);
+                        const precioAct = (prod.precio_actual !== null && prod.precio_actual !== undefined)
+                                          ? parseFloat(prod.precio_actual) : null;
+                        // Siempre se carga el precio del presupuesto. Las flechas permiten corregirlo luego.
+                        const pUnit = precioPres;
+                        const cant = parseFloat(prod.cantidad);
+                        carrito.push({
+                            cod_prod: prod.codigo,
+                            descripcion: prod.descripcion,
+                            p_unit: pUnit,
+                            p_costo: 0,
+                            cant: cant,
+                            desc: 0,
+                            total: pUnit * cant,
+                            precio_presupuesto: precioPres,
+                            precio_actual: precioAct,
+                            precio_corregido: false
+                        });
+                    });
+
+                    renderizarCarrito();
+                    cerrarModalCopiarPresupuesto();
+                    select.value = "";
+                    mostrarToast("✅ Se copiaron " + carrito.length + " producto(s) al carrito (con el precio del presupuesto).");
+                })
+                .catch(err => {
+                    console.error("Error al copiar presupuesto:", err);
+                    mostrarToast("❌ Error al conectar con el servidor.", "error");
+                });
         };
 
         // Función para calcular precio de venta sugerido (60% de ganancia)

@@ -17,7 +17,7 @@ if (!$empresa_id) {
 // Verificar que la caja esté abierta
 if (!caja_esta_abierta($pdo, $empresa_id, $sucursal_id)) {
     $_SESSION['error_caja'] = 'La caja está cerrada. Debe abrirla antes de cerrar.';
-    header("Location: abrir_caja.php");
+    header("Location: " . url('abrir-caja'));
     exit();
 }
 
@@ -104,7 +104,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <title>Cierre de Caja | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         :root { --accent: #00bcd4; --success: #2ecc71; --warning: #f1c40f; --danger: #e74c3c; }
@@ -506,7 +506,7 @@ try {
             </div>
         </div>
         
-        <form action="procesar_cierre.php" method="POST">
+        <form action="<?php echo url('pages/procesar_cierre.php'); ?>" method="POST">
             <!-- Campos ocultos para el rango de fechas -->
             <input type="hidden" name="fecha_desde" value="<?php echo $fecha_desde; ?>">
             <input type="hidden" name="fecha_hasta" value="<?php echo $fecha_hasta; ?>">

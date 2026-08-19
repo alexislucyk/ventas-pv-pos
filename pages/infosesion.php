@@ -42,7 +42,7 @@ set_exception_handler(function (Throwable $e) {
                     <strong>Ubicación:</strong> <?php echo htmlspecialchars($e->getFile()); ?>:<?php echo $e->getLine(); ?>
                 </div>
             <?php endif; ?>
-            <a href="<?php echo defined('URL_BASE') ? URL_BASE : '/'; ?>index.php" class="btn-back">Volver al Inicio</a>
+            <a href="<?php echo defined('URL_BASE') ? URL_BASE : '/'; ?>" class="btn-back">Volver al Inicio</a>
         </div>
     </body>
     </html>
@@ -53,15 +53,16 @@ set_exception_handler(function (Throwable $e) {
 // 1. Incluimos el config para tener acceso a URL_BASE si no está cargado
 // Usamos dirname(__FILE__) para que encuentre el config sin importar desde dónde se llame
 require_once dirname(__FILE__) . '/../config/db_config.php';
+require_once dirname(__FILE__) . '/../core/helpers.php';
 
 // 2. GUARDIA DE SEGURIDAD: Si no hay sesión, redirigir al login
 if (!isset($_SESSION['usuario_id'])) {
-    header('Location: ' . URL_BASE . 'login.php');
+    header('Location: ' . (function_exists('route') ? route('login') : URL_BASE . 'login.php'));
     exit();
 }
 
 if (empty($_SESSION['empresa_id'])) {
-    header('Location: ' . URL_BASE . 'login.php');
+    header('Location: ' . (function_exists('route') ? route('login') : URL_BASE . 'login.php'));
     exit();
 }
 
@@ -125,7 +126,7 @@ if (in_array($pagina_actual, $paginas_modulo_cierre_caja) && !$modulo_cierre_caj
             'message' => 'Módulo de cierre de caja deshabilitado para esta empresa.']);
         exit();
     }
-    header('Location: ' . URL_BASE . 'index.php');
+    header('Location: ' . URL_BASE);
     exit();
 }
 
@@ -139,7 +140,7 @@ if ($modulo_cierre_caja && in_array($pagina_actual, $paginas_requieren_caja)) {
     if ($empresa_id && !caja_esta_abierta($pdo, $empresa_id, $sucursal_id)) {
         // Redirigir a página de apertura de caja
         $_SESSION['error_caja'] = 'La caja está cerrada. Debe abrirla antes de continuar.';
-        header("Location: " . URL_BASE . "pages/abrir_caja.php");
+        header("Location: " . (function_exists('route') ? route('caja.abrir') : URL_BASE . 'pages/abrir_caja.php'));
         exit();
     }
 }

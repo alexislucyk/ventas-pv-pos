@@ -52,7 +52,7 @@ try {
     <meta charset="UTF-8">
     <title>Cuentas Corrientes | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="../css/style.css"> 
+    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>"> 
     <style>
         /* --- ESTILOS DE DASHBOARD --- */
         .card-stats {
@@ -249,7 +249,7 @@ try {
                                     $ <?php echo number_format($c['saldo_actual'], 2, ',', '.'); ?>
                                 </td>
                                 <td style="text-align: center;">
-                                    <a href="cuentas_corrientes_detalle.php?id_cliente=<?php echo $c['id_cliente']; ?>" class="btn-view" style="text-decoration: none; display: inline-block;" aria-label="Ver detalle de <?php echo htmlspecialchars($c['nombre_completo'], ENT_QUOTES); ?>">
+                                    <a href="<?php echo route_file('pages/cuentas_corrientes_detalle.php'); ?>?id_cliente=<?php echo $c['id_cliente']; ?>" class="btn-view" style="text-decoration: none; display: inline-block;" aria-label="Ver detalle de <?php echo htmlspecialchars($c['nombre_completo'], ENT_QUOTES); ?>">
                                         <i class="fas fa-eye" aria-hidden="true"></i> Ver Detalle
                                     </a>
                                     
@@ -433,7 +433,7 @@ try {
 
         console.log('Cargando movimientos para cliente ID:', id);
         
-        fetch('../ajax/obtener_movimientos_cc.php?id_cliente=' + id)
+        fetch('<?php echo URL_BASE; ?>ajax/obtener_movimientos_cc.php?id_cliente=' + id)
             .then(res => {
                 console.log('Respuesta recibida, status:', res.status);
                 if (!res.ok) {
@@ -462,9 +462,9 @@ try {
         cuerpo.innerHTML = '<p style="text-align:center; padding:20px;">Cargando...</p>';
 
         let url = '';
-        if (tipo === 'VENTA') url = '../ajax/obtener_detalle_venta.php?n_documento=' + id;
-        else if (tipo === 'DEVOLUCION') url = '../ajax/obtener_detalle_devolucion.php?id=' + id + '&tipo=CUENTA CORRIENTE';
-        else if (tipo === 'PAGO') url = '../ajax/obtener_detalle_pago.php?id=' + id;
+        if (tipo === 'VENTA') url = '<?php echo URL_BASE; ?>ajax/obtener_detalle_venta.php?n_documento=' + id;
+        else if (tipo === 'DEVOLUCION') url = '<?php echo URL_BASE; ?>ajax/obtener_detalle_devolucion.php?id=' + id + '&tipo=CUENTA CORRIENTE';
+        else if (tipo === 'PAGO') url = '<?php echo URL_BASE; ?>ajax/obtener_detalle_pago.php?id=' + id;
 
         fetch(url).then(res => res.text()).then(html => { cuerpo.innerHTML = html; });
     }
@@ -550,7 +550,7 @@ try {
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
 
         const formData = new FormData(this);
-        fetch('../procesos/registrar_pago_cc.php', { 
+        fetch('<?php echo URL_BASE; ?>procesos/registrar_pago_cc.php', { 
             method: 'POST', 
             body: formData,
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
@@ -590,7 +590,7 @@ try {
         const msg = document.getElementById('wa_destino_msg').value;
 
         try {
-            const response = await fetch('../ajax/enviar_whatsapp_nodered.php', {
+            const response = await fetch('<?php echo URL_BASE; ?>ajax/enviar_whatsapp_nodered.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ telefono: tel, mensaje: msg })
@@ -664,7 +664,7 @@ try {
             }
             
             searchTimeout = setTimeout(() => {
-                fetch('buscar_cliente_ajax.php?q=' + encodeURIComponent(q) + '&_=' + Date.now(), { cache: 'no-store' })
+                fetch('<?php echo URL_BASE; ?>pages/buscar_cliente_ajax.php?q=' + encodeURIComponent(q) + '&_=' + Date.now(), { cache: 'no-store' })
                     .then(res => res.json())
                     .then(data => {
                         resCC.innerHTML = '';
@@ -684,7 +684,7 @@ try {
                                 const div = document.createElement('div');
                                 div.style.padding = '12px'; div.style.cursor = 'pointer'; div.style.borderBottom = '1px solid #333'; div.style.color = '#fff';
                                 div.innerHTML = `<strong>${c.nombre_completo}</strong> <small style="color:#888;">(Doc: ${c.num_documento || 'S/D'})</small>`;
-                                div.onclick = () => { window.location.href = 'cuentas_corrientes_detalle.php?id_cliente=' + c.id_cliente; };
+                                div.onclick = () => { window.location.href = '<?php echo route_file('pages/cuentas_corrientes_detalle.php'); ?>?id_cliente=' + c.id_cliente; };
                                 resCC.appendChild(div);
                             });
                         } else {
@@ -734,7 +734,7 @@ try {
             const formData = new FormData();
             formData.append('id_cliente', idCliente);
             
-            fetch('../ajax/aplicar_interes_ajax.php', {
+            fetch('<?php echo URL_BASE; ?>ajax/aplicar_interes_ajax.php', {
                 method: 'POST',
                 body: formData
             })

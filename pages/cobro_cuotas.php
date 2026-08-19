@@ -9,7 +9,7 @@ if (!$empresa_id) {
 }
 
 if (!tiene_permiso('pages/cobro_cuotas.php')) {
-    header("Location: " . URL_BASE . "index.php?error=acceso_denegado");
+    header("Location: " . URL_BASE . "?error=acceso_denegado");
     exit();
 }
 
@@ -40,7 +40,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <title>Cobro de Cuotas | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         .cuota-pendiente { border-left: 5px solid #f1c40f; }
@@ -214,7 +214,7 @@ try {
             const container = document.getElementById('lista_cuotas_container');
             container.innerHTML = '<p><i class="fas fa-spinner fa-spin"></i> Cargando créditos...</p>';
             
-            fetch(`../ajax/obtener_cuotas_pago.php?id_cliente=${idCliente}&desde=${desde}&hasta=${hasta}`)
+            fetch(`<?php echo URL_BASE; ?>ajax/obtener_cuotas_pago.php?id_cliente=${idCliente}&desde=${desde}&hasta=${hasta}`)
                 .then(res => res.text())
                 .then(html => container.innerHTML = html);
         }
@@ -232,7 +232,7 @@ try {
                 return;
             }
             // Usamos obtener_venta_detalle_ajax.php que está en la misma carpeta 'pages' y ya soporta n_documento
-            fetch(`obtener_venta_detalle_ajax.php?n_documento=${nDoc}`)
+            fetch(`<?php echo URL_BASE; ?>pages/obtener_venta_detalle_ajax.php?n_documento=${nDoc}`)
                 .then(res => {
                     if (!res.ok) {
                         throw new Error('Error en la respuesta del servidor');
@@ -283,7 +283,7 @@ try {
             const container = document.getElementById('contenedor_detalle_cuotas');
             container.innerHTML = '<p style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Obteniendo detalle de cuotas...</p>';
             
-            fetch(`../ajax/obtener_detalle_cuotas_venta.php?id_venta=${idVenta}`)
+            fetch(`<?php echo URL_BASE; ?>ajax/obtener_detalle_cuotas_venta.php?id_venta=${idVenta}`)
                 .then(res => res.text())
                 .then(html => {
                     container.innerHTML = html;
@@ -366,7 +366,7 @@ try {
                 metodo: document.getElementById('metodo_pago_cuota').value
             };
 
-            fetch('../ajax/procesar_pago_cuota.php', {
+            fetch('<?php echo URL_BASE; ?>ajax/procesar_pago_cuota.php', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(data)
@@ -408,7 +408,7 @@ try {
                 'SÍ, ANULAR PAGO', 
                 'btn-danger', 
                 () => {
-                    fetch('../ajax/anular_pago_cuota.php', {
+                    fetch('<?php echo URL_BASE; ?>ajax/anular_pago_cuota.php', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({ id_pago: idPago })

@@ -170,8 +170,8 @@ try {
 <head>
     <meta charset="UTF-8">
     <title>Resumen de Ventas | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="../css/style.css?v=<?php echo time(); ?>"> 
-    <link rel="stylesheet" href="../css/ticket_print.css">
+    <link rel="stylesheet" href="<?php echo url('css/style.css?v=' . time()); ?>"> 
+    <link rel="stylesheet" href="<?php echo url('css/ticket_print.css'); ?>">
     <style>
         .btn-action { margin-right: 5px; padding: 5px 10px; cursor: pointer; border-radius: 4px; border: none; }
         .text-right { text-align: right; }
@@ -391,7 +391,7 @@ try {
         detalleBody.innerHTML = '<div style="text-align:center; padding:20px;"><p>Cargando información del sistema...</p></div>';
         detalleModal.style.display = 'block';
 
-        fetch('../ajax/obtener_detalle_venta.php?n_documento=' + nDocumento)
+        fetch('<?php echo URL_BASE; ?>ajax/obtener_detalle_venta.php?n_documento=' + nDocumento)
             .then(response => {
                 if (!response.ok) throw new Error('No se encontró el archivo de detalle.');
                 return response.text();
@@ -423,7 +423,7 @@ try {
         detalleBody.innerHTML = '<div style="text-align:center; padding:20px;"><p>Cargando información del sistema...</p></div>';
         detalleModal.style.display = 'block';
 
-        fetch('../ajax/obtener_detalle_devolucion.php?id=' + id + '&tipo=' + tipo)
+        fetch('<?php echo URL_BASE; ?>ajax/obtener_detalle_devolucion.php?id=' + id + '&tipo=' + tipo)
             .then(res => res.text())
             .then(html => { detalleBody.innerHTML = html; })
             .catch(err => {
@@ -449,7 +449,7 @@ try {
             'GENERAR FACTURA', 
             'btn-primary', 
             () => {
-                fetch('procesar_factura_arca.php', {
+                fetch('<?php echo URL_BASE; ?>pages/procesar_factura_arca.php', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/x-www-form-urlencoded'},
                     body: 'id_venta=' + idVenta

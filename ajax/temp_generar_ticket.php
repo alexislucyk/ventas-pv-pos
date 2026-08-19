@@ -1,6 +1,8 @@
 <?php
 // ajax/generar_ticket.php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 header('Content-Type: text/html; charset=UTF-8');
 

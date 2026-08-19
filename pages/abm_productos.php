@@ -183,7 +183,7 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
 <head>
     <meta charset="UTF-8">
     <title>Productos | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="../css/style.css?v=<?php echo time(); ?>">
+    <link rel="stylesheet" href="<?php echo url('css/style.css?v=' . time()); ?>">
 <style>
      :root { --accent: #00bcd4; --success: #2ecc71; --warning: #f1c40f; --danger: #e74c3c; }
      
@@ -484,7 +484,7 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
         const formData = new FormData();
         formData.append('nombre', nombre);
 
-        fetch('../ajax/agregar_rubro_ajax.php', {
+        fetch('<?php echo URL_BASE; ?>ajax/agregar_rubro_ajax.php', {
             method: 'POST',
             body: formData
         })
@@ -535,7 +535,7 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
         formData.append('cuit', cuit);
         formData.append('telefono', tel);
 
-        fetch('../ajax/agregar_proveedor_rapido.php', {
+        fetch('<?php echo URL_BASE; ?>ajax/agregar_proveedor_rapido.php', {
             method: 'POST',
             body: formData
         })
@@ -694,7 +694,7 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
                  <span style="cursor: pointer; font-size: 24px; color: #888;" onclick="cerrarModalMultiples()">&times;</span>
              </div>
 
-             <form id="formMultiples" method="POST" action="abm_productos.php">
+             <form id="formMultiples" method="POST" action="<?php echo url('pages/abm_productos.php'); ?>">
                  <input type="hidden" name="accion_post" value="carga_multiple">
 
                  <!-- Fila 1 -->
@@ -928,7 +928,7 @@ function cerrarModalMultiples() {
              return;
          }
 
-         fetch('../ajax/cargar_multiples_productos.php', {
+         fetch('<?php echo URL_BASE; ?>ajax/cargar_multiples_productos.php', {
              method: 'POST',
              headers: {'Content-Type': 'application/json'},
              body: JSON.stringify({proveedor, rubro, moneda, productos})

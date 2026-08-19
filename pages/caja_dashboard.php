@@ -17,7 +17,7 @@ $caja_abierta = $estado && $estado['estado'] === 'ABIERTA';
 
 // Si la caja está cerrada, redirigir
 if (!$caja_abierta) {
-    header("Location: abrir_caja.php");
+    header("Location: " . url('abrir-caja'));
     exit();
 }
 
@@ -86,7 +86,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <title>Caja del Día | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <style>
         .dashboard-grid {
             display: grid;
@@ -171,7 +171,7 @@ try {
                    title="Cerrar todas las cajas abiertas anteriores al 05/08/2026 (MODIFICA BD)">
                      <i class="fas fa-exclamation-triangle"></i> Cerrar Cajas Históricas
                 </a>
-                <a href="../diagnostico_cierre.php" 
+                <a href="<?php echo url('diagnostico_cierre.php'); ?>" 
                    class="btn btn-warning" 
                    style="padding: 6px 12px; font-size: 0.85rem; text-decoration: none; display: inline-flex; align-items: center; gap: 5px;"
                    title="Diagnóstico de cierres de caja - SOLO LECTURA">

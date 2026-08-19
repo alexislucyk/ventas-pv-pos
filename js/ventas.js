@@ -1,3 +1,9 @@
+// Base URL para URLs limpias del router
+// Base URL dinámica: usa el primer segmento del path (pos_dev, pos_prod, etc.)
+const APP_BASE = (function () {
+    var seg = (window.location.pathname || '/').split('/').filter(function (s) { return s !== ''; });
+    return window.location.origin + '/' + (seg[0] ? seg[0] + '/' : '');
+})();
 // js/ventas.js
 console.log("Ventas.js cargado correctamente");
 
@@ -15,7 +21,7 @@ let inputBuscarProd, resultadosProd, inputBuscarCli, resultadosCli;
         if (typeof window.dolar_operativo === 'number' && window.dolar_operativo > 0) return;
 
         // Intentar leer cache/dolar_cache.json (contiene {compra, venta})
-        fetch('../cache/dolar_cache.json', { cache: 'no-store' })
+        fetch(APP_BASE + 'cache/dolar_cache.json', { cache: 'no-store' })
             .then(r => r.json())
             .then(d => {
                 if (d && typeof d.venta === 'number' && d.venta > 0) {
@@ -92,7 +98,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            fetch('../pages/buscar_producto_ajax.php?q=' + encodeURIComponent(q))
+            fetch(APP_BASE + 'pages/buscar_producto_ajax.php?q=' + encodeURIComponent(q))
                 .then(res => res.json())
                 .then(data => {
                     resultadosProd.innerHTML = '';
@@ -242,6 +248,18 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Sincronizar el textarea de observaciones (debajo del carrito) con el campo hidden del formulario
+    const obsTextarea = document.getElementById('observaciones');
+    const obsHidden = document.getElementById('observaciones_hidden');
+    if (obsTextarea && obsHidden) {
+        const sincronizarObservaciones = function() {
+            obsHidden.value = obsTextarea.value;
+        };
+        obsTextarea.addEventListener('input', sincronizarObservaciones);
+        obsTextarea.addEventListener('change', sincronizarObservaciones);
+        sincronizarObservaciones();
+    }
+
     // Validar cuenta corriente cuando cambia la condición de pago
     const condPagoSelect = document.getElementById('cond_pago');
     if (condPagoSelect) {
@@ -316,7 +334,7 @@ document.addEventListener('DOMContentLoaded', function() {
             modal.style.display = 'block';
             lista.innerHTML = '<p>Cargando ventas...</p>';
 
-            fetch('../ajax/ventas_pendientes_ajax.php')
+            fetch(APP_BASE + 'ajax/ventas_pendientes_ajax.php')
                 .then(response => response.text())
                 .then(html => { lista.innerHTML = html; })
                 .catch(error => { lista.innerHTML = 'Error al cargar los datos.'; });
@@ -331,10 +349,22 @@ function renderizarCarrito() {
 
     carrito.forEach((item, index) => {
         const tr = document.createElement('tr');
+
+        // Flecha indicadora de variación de precio (solo para items copiados y aún no corregidos)
+        let arrowHTML = '';
+        if (typeof item.precio_presupuesto === 'number' && typeof item.precio_actual === 'number' && !item.precio_corregido) {
+            if (item.precio_actual > item.precio_presupuesto) {
+                arrowHTML = `<span style="cursor:pointer; margin-right:6px;" onclick="actualizarPrecioCarrito(${index})" title="Subió el precio: presupuesto $${item.precio_presupuesto.toFixed(2)} → actual $${item.precio_actual.toFixed(2)}. Clic para actualizar."><i class="fas fa-arrow-up" style="color:#3498db;"></i></span>`;
+            } else if (item.precio_actual < item.precio_presupuesto) {
+                arrowHTML = `<span style="cursor:pointer; margin-right:6px;" onclick="actualizarPrecioCarrito(${index})" title="Bajó el precio: presupuesto $${item.precio_presupuesto.toFixed(2)} → actual $${item.precio_actual.toFixed(2)}. Clic para actualizar."><i class="fas fa-arrow-down" style="color:#e67e22;"></i></span>`;
+            }
+        }
+        let precioHTML = arrowHTML + `$${item.p_unit.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
         tr.innerHTML = `
             <td>${item.cod_prod}</td>
             <td>${item.descripcion}</td>
-            <td>$${item.p_unit.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            <td>${precioHTML}</td>
 
             <td><input type="number" value="${item.cant}" min="1" step="any" style="width: 60px !important; padding: 6px !important; margin: 0 !important; text-align: center;" onchange="cambiarCant(${index}, this.value)"></td>
             <td>$${item.total.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
@@ -372,6 +402,25 @@ window.cambiarDesc = function(index, valor) {
 window.eliminarItem = function(index) {
     carrito.splice(index, 1);
     renderizarCarrito();
+}
+
+// Corrige el precio de un producto (copiado de presupuesto) al precio actual de la BD.
+// Se dispara al hacer clic en la flecha azul (subió) o naranja (bajó).
+window.actualizarPrecioCarrito = function(index) {
+    const item = carrito[index];
+    if (!item) return;
+    if (item.precio_actual === null || item.precio_actual === undefined) {
+        alert("No hay precio actual disponible para este producto.");
+        return;
+    }
+    item.p_unit = parseFloat(item.precio_actual);
+    item.precio_corregido = true;
+    // Recalcular total respetando el descuento aplicado
+    let subtotal = item.cant * item.p_unit;
+    let descuentoMonto = subtotal * ((item.desc || 0) / 100);
+    item.total = subtotal - descuentoMonto;
+    renderizarCarrito();
+    mostrarToast("✅ Precio de \"" + item.descripcion + "\" actualizado a $" + item.p_unit.toFixed(2) + ".");
 }
 
 function actualizarTotal() {
@@ -450,7 +499,7 @@ function calcularVuelto() {
 
 // --- GESTIÓN DE PENDIENTES ---
 window.reanudarVenta = function(nDocumento) {
-    fetch(`../ajax/obtener_detalle_venta.php?n_documento=${nDocumento}&formato=json`)
+    fetch(`${APP_BASE}ajax/obtener_detalle_venta.php?n_documento=${nDocumento}&formato=json`)
         .then(res => res.json())
         .then(data => {
             if (!data.productos || data.productos.length === 0) {
@@ -486,6 +535,14 @@ window.reanudarVenta = function(nDocumento) {
                     nombreDisplay.innerText = nombre;
                 }
             }
+
+            // Restaurar observaciones guardadas en la venta pendiente
+            const obsValor = data.cabecera.observaciones || '';
+            const obsTextareaRea = document.getElementById('observaciones');
+            const obsHiddenRea = document.getElementById('observaciones_hidden');
+            if (obsTextareaRea) obsTextareaRea.value = obsValor;
+            if (obsHiddenRea) obsHiddenRea.value = obsValor;
+
             renderizarCarrito();
             cerrarModalPendientes();
         })

@@ -1,6 +1,8 @@
 <?php
 // ajax/obtener_detalle_venta.php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 require_once __DIR__ . '/../config/db_config.php'; 
 
@@ -86,6 +88,14 @@ try {
             <p><strong>Efectivo:</strong> $' . number_format((float)($venta['pago_efectivo'] ?? 0), 2, ',', '.') . '</p>
             <p><strong>Transferencia:</strong> $' . number_format((float)($venta['pago_transf'] ?? 0), 2, ',', '.') . '</p>
         </div>';
+
+    // Mostrar observaciones si la venta tiene alguna
+    if (!empty($venta['observaciones'])) {
+        $html .= '<div style="margin-top: 12px; padding: 8px 10px; background: #2a2a2a; border-radius: 6px; border-left: 3px solid #00bcd4;">'
+               . '<strong style="color: #00bcd4;">Observaciones:</strong> '
+               . htmlspecialchars(trim($venta['observaciones']))
+               . '</div>';
+    }
     
     echo $html;
 

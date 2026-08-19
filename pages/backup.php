@@ -4,7 +4,7 @@ require '../config/db_config.php';
 
 // Solo 'developer' o usuarios con permiso específico pueden entrar
 if (!tiene_permiso('pages/backup.php')) {
-    header("Location: " . URL_BASE . "index.php?error=acceso_denegado");
+    header("Location: " . URL_BASE . "?error=acceso_denegado");
     exit();
 }
 
@@ -192,7 +192,7 @@ $ultimo_backup = file_exists($ultimo_backup_file) ? date('Y-m-d H:i:s', (int)fil
 <head>
     <meta charset="UTF-8">
     <title>Backup de Base de Datos | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         .backup-container {
@@ -660,7 +660,7 @@ $ultimo_backup = file_exists($ultimo_backup_file) ? date('Y-m-d H:i:s', (int)fil
         
         console.log('Cargando directorio:', ruta);
         
-        const url = '../ajax/explorador_archivos_backup.php?dir=' + encodeURIComponent(ruta);
+        const url = '<?php echo URL_BASE; ?>ajax/explorador_archivos_backup.php?dir=' + encodeURIComponent(ruta);
         console.log('Intentando cargar:', url);
         
         fetch(url)
@@ -793,7 +793,7 @@ $ultimo_backup = file_exists($ultimo_backup_file) ? date('Y-m-d H:i:s', (int)fil
             return;
         }
         
-        const url = '../ajax/explorador_archivos_backup.php?dir=' + encodeURIComponent(directorioActual) + '&crear_directorio=1&nombre=' + encodeURIComponent(nombre);
+        const url = '<?php echo URL_BASE; ?>ajax/explorador_archivos_backup.php?dir=' + encodeURIComponent(directorioActual) + '&crear_directorio=1&nombre=' + encodeURIComponent(nombre);
         
         fetch(url)
             .then(response => response.json())

@@ -21,7 +21,7 @@ $ancho_papel = $stmt_cfg->fetchColumn() ?: '80mm';
 <head>
     <meta charset="UTF-8">
     <title>Ticket de Pago #<?php echo $id_pago; ?></title>
-    <link rel="stylesheet" href="../css/temptocketprint.css">
+    <link rel="stylesheet" href="<?php echo url('css/temptocketprint.css'); ?>">
     <style>
         @media print {
             @page { 
@@ -47,7 +47,7 @@ $ancho_papel = $stmt_cfg->fetchColumn() ?: '80mm';
 </head>
 <body onload="window.print()">
     <div id="ticket-vista-previa">
-        <?php include '../ajax/generar_ticket_cuota.php'; ?>
+        <?php include __DIR__ . '/../ajax/generar_ticket_cuota.php'; ?>
     </div>
     <div class="no-print" style="text-align: center; margin-top: 20px;">
         <button onclick="window.print()" style="padding: 10px 20px; cursor:pointer;">Reintentar Impresión</button>

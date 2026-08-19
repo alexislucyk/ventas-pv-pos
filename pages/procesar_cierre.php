@@ -143,7 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $msj_tipo = ($diferencia == 0) ? "✅ Caja cerrada correctamente." : "⚠️ Caja cerrada con diferencia de $ " . number_format($diferencia, 2, ',', '.');
         $_SESSION['status_msj'] = $msj_tipo;
         
-        header("Location: caja_dashboard.php");
+        header("Location: " . url('caja-dashboard'));
         exit();
         
     } catch (Exception $e) {
@@ -152,6 +152,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         die("❌ Error crítico: " . $e->getMessage());
     }
 } else {
-    header("Location: cierre_caja.php");
+    header("Location: " . url('cierre-caja'));
     exit();
 }

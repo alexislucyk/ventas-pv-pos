@@ -20,7 +20,7 @@ $caja_abierta = $estado && $estado['estado'] === 'ABIERTA';
 
 // Si la caja ya está abierta, redirigir al dashboard
 if ($caja_abierta) {
-    header("Location: caja_dashboard.php");
+    header("Location: " . url('caja-dashboard'));
     exit();
 }
 
@@ -46,7 +46,7 @@ $fondo_ayer = $fondo_ayer ? (float)$fondo_ayer : 0;
 <head>
     <meta charset="UTF-8">
     <title>Abrir Caja | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <style>
         .apertura-container {
             max-width: 600px;
@@ -96,7 +96,7 @@ $fondo_ayer = $fondo_ayer ? (float)$fondo_ayer : 0;
             
             <div class="card">
                 <h3>Datos de Apertura</h3>
-                <form action="../ajax/abrir_caja.php" method="POST">
+                <form action="<?php echo url('ajax/abrir_caja.php'); ?>" method="POST">
                     <div class="form-group">
                         <label>Saldo Inicial en Efectivo ($)</label>
                         <input type="number" 

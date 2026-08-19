@@ -264,7 +264,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
 <head>
     <meta charset="UTF-8">
     <title>Anulaciones | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <style>
         .status-anulada { color: red; font-weight: bold; }
         .card-danger { border-top: 5px solid #f44336; }
@@ -487,7 +487,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
         list.innerHTML = '<p>Cargando historial de ventas...</p>';
         card.style.display = 'block';
 
-        fetch(`../ajax/buscar_ventas_cliente_ajax.php?id_cliente=${idCliente}`)
+        fetch(`<?php echo URL_BASE; ?>ajax/buscar_ventas_cliente_ajax.php?id_cliente=${idCliente}`)
             .then(res => res.json())
             .then(data => {
                 if (data.length === 0) {
@@ -525,7 +525,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
             return;
         }
 
-        const url = `../ajax/obtener_venta_anulacion.php?n_documento=${encodeURIComponent(nDocLimpio)}`;
+        const url = `<?php echo URL_BASE; ?>ajax/obtener_venta_anulacion.php?n_documento=${encodeURIComponent(nDocLimpio)}`;
 
         fetch(url)
             .then(res => {
