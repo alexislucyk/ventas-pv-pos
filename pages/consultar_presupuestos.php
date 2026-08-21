@@ -33,7 +33,7 @@ $presupuestos = $stmt->fetchAll(PDO::FETCH_ASSOC);
         <?php include 'topbar.php'; ?>
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <h1>🔍 Historial de Presupuestos</h1>
-            <a href="presupuestos.php" class="btn-secondary" style="text-decoration: none; padding: 10px 20px; background: #34495e; color: white; border-radius: 5px; font-weight: bold; border: 1px solid #444;">
+            <a href="<?php echo route('presupuestos'); ?>" class="btn-secondary" style="text-decoration: none; padding: 10px 20px; background: #34495e; color: white; border-radius: 5px; font-weight: bold; border: 1px solid #444;">
                 + Nuevo Presupuesto
             </a>
         </div>

@@ -5,7 +5,7 @@ require '../config/db_config.php';
 
 // Verificar que el usuario sea developer
 if (!isset($_SESSION['usuario_rol']) || $_SESSION['usuario_rol'] !== 'developer') {
-    header('Location: ' . URL_BASE . 'pages/caja_dashboard.php');
+    header('Location: ' . route('caja.dashboard'));
     exit();
 }
 
@@ -378,7 +378,7 @@ $tiempo_total = round($fin_ejecucion - $inicio_ejecucion, 2);
         
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
             <h1><i class="fas fa-exclamation-triangle"></i> Cerrar Cajas Históricas</h1>
-            <a href="caja_dashboard.php" class="btn btn-secondary">
+            <a href="<?php echo route_file('pages/caja_dashboard.php'); ?>" class="btn btn-secondary">
                 <i class="fas fa-arrow-left"></i> Volver al Dashboard
             </a>
         </div>
@@ -419,7 +419,7 @@ $tiempo_total = round($fin_ejecucion - $inicio_ejecucion, 2);
                     <i class="fas fa-check"></i> Sí, Ejecutar Cierre Masivo
                 </button>
             </form>
-            <a href="caja_dashboard.php" class="btn btn-secondary" style="padding: 12px 25px; font-size: 1rem; margin-left: 10px;">
+            <a href="<?php echo route_file('pages/caja_dashboard.php'); ?>" class="btn btn-secondary" style="padding: 12px 25px; font-size: 1rem; margin-left: 10px;">
                 <i class="fas fa-times"></i> Cancelar
             </a>
         </div>

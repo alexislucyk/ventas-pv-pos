@@ -162,7 +162,7 @@ try {
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h1>🚚 Gestión de Proveedores</h1>
             <?php if ($accion === 'listar'): ?>
-                <a href="abm_proveedores.php?accion=crear" class="btn btn-success">+ Nuevo Proveedor</a>
+                <a href="<?php echo URL_BASE; ?>proveedores?accion=crear" class="btn btn-success">+ Nuevo Proveedor</a>
             <?php endif; ?>
         </div>
 
@@ -205,8 +205,8 @@ try {
                                 <?php endif; ?>
                             </td>
                             <td style="white-space: nowrap;">
-                                <a href="abm_proveedores.php?accion=editar&cod_prov=<?php echo $p['cod_prov']; ?>" class="btn btn-primary btn-sm">Editar</a>
-                                <a href="abm_proveedores.php?accion=eliminar&cod_prov=<?php echo $p['cod_prov']; ?>" 
+                                <a href="<?php echo URL_BASE; ?>proveedores?accion=editar&cod_prov=<?php echo $p['cod_prov']; ?>" class="btn btn-primary btn-sm">Editar</a>
+                                <a href="<?php echo URL_BASE; ?>proveedores?accion=eliminar&cod_prov=<?php echo $p['cod_prov']; ?>" 
                                    class="btn btn-danger btn-sm" 
                                    onclick="event.preventDefault(); const url=this.href; confirmarAccion('Eliminar Proveedor', '¿Estás seguro de eliminar este proveedor y sus listas de precios?', 'ELIMINAR', 'btn-danger', () => window.location.href=url);">
                                    Borrar
@@ -254,7 +254,7 @@ try {
 
                     <div style="margin-top: 30px; display: flex; gap: 10px;">
                         <button type="submit" class="btn btn-primary" style="flex: 2;">💾 Guardar</button>
-                        <a href="abm_proveedores.php" class="btn btn-secondary" style="flex: 1; text-align: center;">Cancelar</a>
+                        <a href="<?php echo URL_BASE; ?>proveedores" class="btn btn-secondary" style="flex: 1; text-align: center;">Cancelar</a>
                     </div>
                 </form>
             </div>

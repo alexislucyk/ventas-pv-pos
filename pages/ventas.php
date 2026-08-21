@@ -482,6 +482,7 @@ unset($_SESSION['ticket_a_imprimir_doc']);
         }
         .resultado-item { padding: 12px; cursor: pointer; border-bottom: 1px solid #333; }
         .resultado-item:hover { background-color: #00bcd4; color: #000; }
+        .resultado-item.resaltado { background-color: #3a3a3a; color: #fff; box-shadow: inset 3px 0 0 #00bcd4; }
 
         /* ALERTAS */
         .alert-info {
@@ -537,6 +538,7 @@ unset($_SESSION['ticket_a_imprimir_doc']);
     <div class="content" style="padding-top: 70px;">
         <?php include 'topbar.php'; ?>
         <h1>Nueva Venta</h1>
+        
 
         <?php if ($mensaje): ?>
             <div class="alert <?php echo str_contains($mensaje, '❌') ? 'alert-error' : 'alert-success'; ?>">

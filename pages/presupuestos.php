@@ -156,7 +156,7 @@ if ($empresa_id_pres) {
         <?php include 'topbar.php'; ?>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h1 class="main-title" style="margin: 0;">📑 Crear Nuevo Presupuesto</h1>
-            <a href="consultar_presupuestos.php" class="btn btn-primary" style="text-decoration: none; padding: 10px 20px; border-radius: 5px; font-weight: bold;">
+            <a href="<?php echo route('presupuestos.consulta'); ?>" class="btn btn-primary" style="text-decoration: none; padding: 10px 20px; border-radius: 5px; font-weight: bold;">
                 <i class="fas fa-search-dollar"></i> Consultar Presupuestos Emitidos
             </a>
         </div>

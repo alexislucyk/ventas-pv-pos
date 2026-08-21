@@ -708,12 +708,13 @@ document.addEventListener('DOMContentLoaded', function() {
         localStorage.setItem('sidebar_collapsed', sidebar.classList.contains('collapsed'));
         
         // Si se expande, restaurar búsqueda
-        if (!sidebar.classList.contains('collapsed') && searchInput.value) {
+        if (!sidebar.classList.contains('collapsed') && searchInput && searchInput.value) {
             setTimeout(() => searchInput.focus(), 350);
         }
     });
 
     // ========== BÚSQUEDA EN EL MENÚ ==========
+    if (searchInput) {
     searchInput.addEventListener('input', function() {
         const query = this.value.toLowerCase().trim();
         
@@ -756,6 +757,7 @@ document.addEventListener('DOMContentLoaded', function() {
             emptyMsg.style.display = 'none';
         }
     });
+    }
 
     // ========== DETECCIÓN DE PÁGINA ACTIVA ==========
     const currentPath = window.location.pathname;
@@ -780,6 +782,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // ========== CERRAR BÚSQUEDA CON ESC ==========
+    if (searchInput) {
     searchInput.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
             this.value = '';
@@ -787,12 +790,13 @@ document.addEventListener('DOMContentLoaded', function() {
             this.blur();
         }
     });
+    }
 
     // ========== ACCESO RÁPIDO: CTRL+K para buscar ==========
     document.addEventListener('keydown', function(e) {
         if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
             e.preventDefault();
-            if (!sidebar.classList.contains('collapsed')) {
+            if (!sidebar.classList.contains('collapsed') && searchInput) {
                 searchInput.focus();
             }
         }

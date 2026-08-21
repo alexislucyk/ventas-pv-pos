@@ -54,7 +54,62 @@ try {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>"> 
     <style>
-        /* --- ESTILOS DE DASHBOARD --- */
+        :root { --accent: #00bcd4; --success: #2ecc71; --warning: #f1c40f; --danger: #e74c3c; }
+
+        /* ===== FILTROS COMPACTOS (igual que /clientes) ===== */
+        .filtros-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: stretch;
+            margin-bottom: 20px;
+            padding: 10px 14px;
+            background: #1a1a1a;
+            border-radius: 8px;
+            border: 1px solid #2a2a2a;
+        }
+        .filtros-bar input,
+        .filtros-bar .btn-filtro {
+            border: 1px solid #3a3a3a;
+            background: #222;
+            color: #ccc;
+            border-radius: 4px;
+            font-size: 0.78em;
+            outline: none;
+            transition: border-color 0.2s, background 0.2s;
+            height: 30px;
+            box-sizing: border-box;
+        }
+        .filtros-bar input:focus { border-color: #00bcd4; }
+        .filtros-bar input[type="text"] {
+            flex: 1.3;
+            min-width: 180px;
+            max-width: 300px;
+            padding: 0 10px;
+        }
+        .filtros-bar .btn-filtro {
+            padding: 0 10px;
+            background: #2a2a2a;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            text-decoration: none;
+            line-height: 30px;
+        }
+        .filtros-bar .btn-filtro:hover {
+            background: #333;
+            color: #fff;
+            border-color: #555;
+        }
+        .filtros-bar .btn-filtro.active {
+            background: #00bcd4;
+            color: #fff;
+            border-color: #00bcd4;
+        }
+
+        /* ===== TARJETAS DE ESTADÍSTICAS ===== */
         .card-stats {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -62,50 +117,144 @@ try {
             margin-bottom: 30px;
         }
         .stat-card {
-            background: #2c2c2c;
-            padding: 15px;
-            border-radius: 8px;
-            border-left: 4px solid #00bcd4;
+            background: #1e1e1e;
+            padding: 18px 20px;
+            border-radius: 12px;
+            border: 1px solid #333;
+            border-left: 5px solid #00bcd4;
             color: #fff;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         }
-        .stat-card h3 { margin: 0; font-size: 0.7rem; color: #bbb; text-transform: uppercase; letter-spacing: 1px; }
-        .stat-card .value { font-size: 1.4rem; font-weight: bold; margin-top: 5px; }
-        
-        .saldo-deudor { color: #ff5e5e; font-weight: bold; }
+        .stat-card h3 { margin: 0; font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+        .stat-card .value { font-size: 1.5rem; font-weight: bold; margin-top: 8px; }
+
+        .saldo-deudor { color: #e74c3c; font-weight: bold; }
         .saldo-favor { color: #2ecc71; font-weight: bold; }
-        
-        /* Estilos para tabla de historial */
-        #cuerpoHistorial tr { border-bottom: 1px solid #444; }
-        #cuerpoHistorial td { padding: 8px 10px; }
-        .saldo-cero { color: #bbb; }
-        .saldo-negativo { color: #ff5e5e; font-weight: bold; }
+        .saldo-cero { color: #4caf50; font-weight: bold; }
+        .saldo-negativo { color: #e74c3c; font-weight: bold; }
         .saldo-positivo { color: #2ecc71; font-weight: bold; }
-        
-        /* Reducción de Escala General */
-        .content { 
-            padding: 20px 30px; 
-            min-height: 100vh;
+
+        /* ===== TABLAS (igual que /clientes) ===== */
+        table { border-collapse: separate; border-spacing: 0 6px; width: 100%; margin-top: 10px; }
+        table thead th {
+            color: var(--accent);
+            text-transform: uppercase;
+            font-size: 0.75em;
+            letter-spacing: 1px;
+            padding: 10px 8px;
+            text-align: left;
+            white-space: nowrap;
+            font-weight: bold;
         }
-        
-        /* Asegurar que la tabla principal sea visible */
-        #tablaSaldos {
-            width: 100%;
-            position: relative;
-            z-index: 1;
+        table tbody tr { background: #252525; transition: 0.3s; }
+        table tbody tr:hover { background: #2a2a2a; }
+        table tbody td {
+            padding: 10px 8px;
+            border-top: 1px solid #333;
+            border-bottom: 1px solid #333;
+            color: #ccc;
+            font-size: 0.9em;
         }
-        
-        .content h1 { font-size: 1.6rem; margin-bottom: 20px; padding-bottom: 8px; }
-        .card { padding: 12px 15px; margin-bottom: 15px; }
+        table tbody td:first-child { border-left: 1px solid #333; border-radius: 8px 0 0 8px; }
+        table tbody td:last-child { border-right: 1px solid #333; border-radius: 0 8px 8px 0; }
+        .text-right { text-align: right; }
+        .text-bold { font-weight: bold; color: #fff; }
+
+        /* ===== CARD CONTENEDOR (igual que /clientes) ===== */
+        .card { background: #1e1e1e; border-radius: 12px; border: 1px solid #333; padding: 20px; margin-bottom: 15px; }
         .card h2, .card h3 { font-size: 1.1rem; }
-        .input-field { padding: 8px !important; font-size: 0.9rem; margin-bottom: 10px !important; }
-        label { font-size: 0.85rem; margin-bottom: 4px; }
+        .content { padding: 20px 30px; min-height: 100vh; }
+        .content h1 { font-size: 1.6rem; margin-bottom: 20px; padding-bottom: 8px; }
+
+        /* ===== FORMULARIOS / INPUTS ===== */
+        .input-field {
+            padding: 8px 10px;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            border: 1px solid #444;
+            background: #222;
+            color: #fff;
+            box-sizing: border-box;
+            width: 100%;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .input-field:focus { border-color: #00bcd4; }
+        label { font-size: 0.85rem; margin-bottom: 4px; display: block; }
+
         .btn, .btn-primary, .btn-secondary, .btn-success, .btn-view, .btn-whatsapp-nodered { padding: 6px 12px; font-size: 0.85rem; }
+        .btn-view {
+            background: #3498db;
+            color: white;
+            border-radius: 6px;
+            text-decoration: none;
+            cursor: pointer;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: background 0.2s;
+        }
+        .btn-view:hover { background: #2980b9; }
+        .btn-whatsapp-nodered {
+            background: #25d366;
+            color: white;
+            border-radius: 6px;
+            text-decoration: none;
+            margin-left: 5px;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: background 0.2s;
+        }
+        .btn-whatsapp-nodered:hover { background: #1eb85a; }
+        .btn-aplicar-interes {
+            background: #f39c12;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            margin-left: 5px;
+            transition: background 0.2s;
+        }
+        .btn-aplicar-interes:hover { background: #d68910; }
 
-        .btn-view { background: #3498db; color: white; border-radius: 4px; text-decoration: none; cursor: pointer; border:none; }
-        .btn-whatsapp-nodered { background: #25d366; color: white; border-radius: 4px; text-decoration: none; margin-left: 5px; border: none; cursor: pointer; }
+        .btn-badge-filtro {
+            background: #2a2a2a;
+            color: #ccc;
+            border: 1px solid #3a3a3a;
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-badge-filtro:hover { background: #333; color: #fff; }
+        .btn-badge-filtro.active { background: #00bcd4; color: #fff; border-color: #00bcd4; }
 
-        /* Toast Notifications */
+        /* ===== RESULTADOS BÚSQUEDA (dropdown) ===== */
+        #resultadosBusquedaCC {
+            display: none;
+            position: absolute;
+            z-index: 1000;
+            width: 100%;
+            background: #1e1e1e;
+            border: 1px solid #444;
+            max-height: 250px;
+            overflow-y: auto;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+            border-radius: 0 0 8px 8px;
+        }
+        #resultadosBusquedaCC div:hover { background: #2a2a2a; }
+
+        /* ===== TOAST NOTIFICATIONS ===== */
         .toast-notificacion {
             position: fixed;
             bottom: 20px;
@@ -130,32 +279,24 @@ try {
             to { transform: translateX(100%); opacity: 0; }
         }
 
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; background: #1f1f1f; color: #eee; font-size: 0.82rem; }
-        th { background: #333; color: #fff; padding: 6px 10px !important; text-align: left; }
-        td { padding: 6px 10px !important; border-bottom: 1px solid #444; }
-        table .text-right { font-size: 0.85rem !important; }
-        tr:hover { background: #292929; }
-
-        /* --- FIX DEFINITIVO MODALES --- */
-        /* Forzamos el centrado absoluto sobre el viewport ignorando márgenes y flujos del sistema */
+        /* ===== FIX DEFINITIVO MODALES ===== */
         .modal, .modal-custom {
             position: fixed !important;
-            z-index: 2147483640 !important; /* Bajamos ligeramente para dejar espacio al toast */
+            z-index: 2147483640 !important;
             left: 0 !important;
             top: 0 !important;
             width: 100% !important;
             height: 100% !important;
             background-color: rgba(0, 0, 0, 0.98) !important;
-            display: none; /* El JS usará flex para mostrarlo */
+            display: none;
             align-items: center !important;
             justify-content: center !important;
             margin: 0 !important;
             padding: 0 !important;
         }
-
         .modal-content, .modal-content-custom {
             background-color: #1e1e1e !important;
-            margin: 0 !important; /* Eliminamos el margen que lo empuja hacia abajo */
+            margin: 0 !important;
             padding: 15px 20px !important;
             border: 1px solid #444 !important;
             border-radius: 12px !important;
@@ -167,14 +308,22 @@ try {
             max-height: 90vh;
             overflow-y: auto;
         }
+        .modal-content table { border-spacing: 0 3px; }
+        .modal-content table tbody td {
+            border-top: 1px solid #333;
+            border-bottom: 1px solid #333;
+            color: #ccc;
+        }
+        .modal-content table tbody td:first-child { border-left: 1px solid #333; border-radius: 8px 0 0 8px; }
+        .modal-content table tbody td:last-child { border-right: 1px solid #333; border-radius: 0 8px 8px 0; }
 
-        .btn-action { padding: 6px 12px; border-radius: 4px; border: none; cursor: pointer; font-weight: bold; font-size: 0.8rem; color: white; display: inline-flex; align-items: center; gap: 5px; }
+        .btn-action { padding: 6px 12px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; font-size: 0.8rem; color: white; display: inline-flex; align-items: center; gap: 5px; }
         .btn-detalle-v { background-color: #3498db; }
         .btn-ticket-v { background-color: #2ecc71; }
         .btn-pdf-v { background-color: #00bcd4; }
 
         /* Ocultamos específicamente los botones de impresión en el historial para mantener la lupa visible */
-        #cuerpoHistorial .btn-ticket-v, 
+        #cuerpoHistorial .btn-ticket-v,
         #cuerpoHistorial .btn-pdf-v,
         #cuerpoHistorial .btn-success,
         #cuerpoHistorial .fa-print,
@@ -186,84 +335,80 @@ try {
     <?php include 'sidebar.php'; ?>
     <div class="content" style="padding-top: 70px;">
         <?php include 'topbar.php'; ?>
-        <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
             <h1>📊 Cuentas Corrientes</h1>
-            <a href="pagos_ctacte.php" class="btn-primary" style="padding: 8px 18px; text-decoration: none; border-radius: 5px;">
+            <a href="<?php echo route_file('pages/pagos_ctacte.php'); ?>" class="btn btn-success" style="padding: 10px 18px; text-decoration: none; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;">
                 ➕ Registrar Pago / Cobro
             </a>
         </div>
 
-        <div class="card" style="margin-bottom: 25px;">
-            <label for="buscar_cliente_cc" style="color: #00bcd4; font-weight: bold; margin-bottom: 10px; display: block;">
-                <i class="fas fa-search"></i> Buscar cliente para ver historial completo:
-            </label>
-            <div style="position: relative;">
-                <input type="text" id="buscar_cliente_cc" class="input-field" placeholder="Escriba nombre, apellido o CUIT..." autocomplete="off">
-                <div id="resultadosBusquedaCC" style="display: none; position: absolute; z-index: 1000; width: 100%; background: #2a2a2a; border: 1px solid #444; max-height: 250px; overflow-y: auto; box-shadow: 0 4px 8px rgba(0,0,0,0.5); border-radius: 0 0 8px 8px;"></div>
-            </div>
+        <form class="filtros-bar" onsubmit="return false;">
+            <input type="text" id="buscar_cliente_cc" placeholder="🔍 Buscar cliente para ver historial completo (nombre, apellido o CUIT)..." autocomplete="off">
+            <button type="button" class="btn-filtro active" onclick="filtrarTabla('todos', this)"><i class="fas fa-users"></i> Todos</button>
+            <button type="button" class="btn-filtro" onclick="filtrarTabla('deudores', this)"><i class="fas fa-arrow-down"></i> Deudores</button>
+            <button type="button" class="btn-filtro" onclick="filtrarTabla('favor', this)"><i class="fas fa-arrow-up"></i> Saldo a Favor</button>
+        </form>
+        <div style="position: relative; margin-top: -10px; margin-bottom: 20px;">
+            <div id="resultadosBusquedaCC"></div>
         </div>
 
         <div class="card-stats">
             <div class="stat-card" style="border-left-color: #e74c3c;">
                 <h3><i class="fas fa-arrow-down"></i> Deuda Total (Clientes)</h3>
-                <div class="value">$ <?php echo number_format($deuda_total, 2, ',', '.'); ?></div>
+                <div class="value" style="color: #e74c3c;">$ <?php echo number_format($deuda_total, 2, ',', '.'); ?></div>
             </div>
             <div class="stat-card" style="border-left-color: #2ecc71;">
                 <h3><i class="fas fa-arrow-up"></i> Saldo a Favor Total</h3>
-                <div class="value">$ <?php echo number_format($saldo_favor_total, 2, ',', '.'); ?></div>
+                <div class="value" style="color: #2ecc71;">$ <?php echo number_format($saldo_favor_total, 2, ',', '.'); ?></div>
             </div>
-            <div class="stat-card">
-                <h3><i class="fas fa-users"></i> Clientes Activos</h3>
+            <div class="stat-card" style="border-left-color: #00bcd4;">
+                <h3><i class="fas fa-users"></i> Clientes con Saldo</h3>
                 <div class="value"><?php echo count($clientes_cc); ?></div>
             </div>
         </div>
 
-        <!-- Filtros de Visualización -->
-        <div style="margin-bottom: 15px; display: flex; gap: 10px;">
-            <button class="btn btn-secondary" onclick="filtrarTabla('todos', this)" style="opacity: 1;">Todos</button>
-            <button class="btn btn-secondary" onclick="filtrarTabla('deudores', this)" style="opacity: 0.6;">Solo Deudores</button>
-            <button class="btn btn-secondary" onclick="filtrarTabla('favor', this)" style="opacity: 0.6;">Solo Saldo a Favor</button>
-        </div>
-
         <div class="card">
+            <div style="overflow-x: auto;">
             <table id="tablaSaldos">
                 <thead>
                     <tr>
                         <th>Cliente</th>
                         <th>CUIT / Documento</th>
                         <th>Teléfono</th>
-                        <th style="text-align: right;">Saldo Actual</th>
+                        <th class="text-right">Saldo Actual</th>
                         <th style="text-align: center;">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($clientes_cc)): ?>
-                        <tr><td colspan="5" style="text-align: center;">No hay clientes con saldos pendientes.</td></tr>
+                        <tr><td colspan="5" style="text-align: center; padding: 30px; color: #666;">No hay clientes con saldos pendientes.</td></tr>
                     <?php else: ?>
                         <?php foreach ($clientes_cc as $c): ?>
                             <tr class="fila-cliente" data-saldo="<?php echo $c['saldo_actual']; ?>">
                                 <td><strong><?php echo htmlspecialchars($c['nombre_completo']); ?></strong></td>
                                 <td><?php echo htmlspecialchars($c['cuit']); ?></td>
                                 <td><?php echo htmlspecialchars($c['telefono']); ?></td>
-                                <td style="text-align: right;" class="<?php echo $c['saldo_actual'] > 0 ? 'saldo-deudor' : 'saldo-favor'; ?>">
-                                    $ <?php echo number_format($c['saldo_actual'], 2, ',', '.'); ?>
+                                <td class="text-right <?php echo $c['saldo_actual'] > 0 ? 'saldo-deudor' : 'saldo-favor'; ?>">
+                                    <?php if ($c['saldo_actual'] > 0): ?>
+                                        -$ <?php echo number_format($c['saldo_actual'], 2, ',', '.'); ?>
+                                    <?php else: ?>
+                                        +$ <?php echo number_format(abs($c['saldo_actual']), 2, ',', '.'); ?>
+                                    <?php endif; ?>
                                 </td>
                                 <td style="text-align: center;">
-                                    <a href="<?php echo route_file('pages/cuentas_corrientes_detalle.php'); ?>?id_cliente=<?php echo $c['id_cliente']; ?>" class="btn-view" style="text-decoration: none; display: inline-block;" aria-label="Ver detalle de <?php echo htmlspecialchars($c['nombre_completo'], ENT_QUOTES); ?>">
+                                    <a href="<?php echo route_file('pages/cuentas_corrientes_detalle.php'); ?>?id_cliente=<?php echo $c['id_cliente']; ?>" class="btn-view" aria-label="Ver detalle de <?php echo htmlspecialchars($c['nombre_completo'], ENT_QUOTES); ?>">
                                         <i class="fas fa-eye" aria-hidden="true"></i> Ver Detalle
                                     </a>
-                                    
+
                                     <!-- Botón de Intereses por Mora -->
-                                    <button class="btn-aplicar-interes" 
+                                    <button class="btn-aplicar-interes"
                                             data-id-cliente="<?php echo $c['id_cliente']; ?>"
                                             data-nombre-cliente="<?php echo htmlspecialchars($c['nombre_completo'], ENT_QUOTES); ?>"
                                             title="Aplicar intereses por mora"
-                                            style="background: #f39c12; color: white; border: none; padding: 6px 12px; 
-                                                   border-radius: 4px; cursor: pointer; margin-left: 5px;"
                                             aria-label="Aplicar intereses a <?php echo htmlspecialchars($c['nombre_completo'], ENT_QUOTES); ?>">
                                         <i class="fas fa-percentage"></i> Intereses
                                     </button>
-                                    
+
                                     <?php if (tiene_permiso('whatsapp_enviar')): ?>
                                         <button class="btn-whatsapp-nodered" title="Enviar saldo vía Node-RED" aria-label="Enviar WhatsApp a <?php echo htmlspecialchars($c['nombre_completo'], ENT_QUOTES); ?>"
                                                 onclick="enviarWhatsAppNodeRed('<?php echo htmlspecialchars($c['telefono'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($c['nombre_completo'], ENT_QUOTES); ?>', <?php echo $c['saldo_actual']; ?>)">
@@ -276,6 +421,7 @@ try {
                     <?php endif; ?>
                 </tbody>
             </table>
+            </div>
         </div>
     </div>
 
@@ -620,8 +766,8 @@ try {
     function cerrarModalRegistrarPagoCliente() { document.getElementById('modalRegistrarPagoCliente').style.display = 'none'; }
 
     function filtrarTabla(tipo, btn) {
-        document.querySelectorAll('.btn-secondary').forEach(b => b.style.opacity = '0.6');
-        btn.style.opacity = '1';
+        document.querySelectorAll('.btn-filtro').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
         const filas = document.querySelectorAll('.fila-cliente');
         filas.forEach(f => {
             const saldo = parseFloat(f.dataset.saldo);

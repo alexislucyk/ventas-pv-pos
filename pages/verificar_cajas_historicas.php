@@ -5,7 +5,7 @@ require '../config/db_config.php';
 
 // Verificar que el usuario sea developer
 if (!isset($_SESSION['usuario_rol']) || $_SESSION['usuario_rol'] !== 'developer') {
-    header('Location: ' . URL_BASE . 'pages/caja_dashboard.php');
+    header('Location: ' . route('caja.dashboard'));
     exit();
 }
 
@@ -174,7 +174,7 @@ try {
         
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
             <h1><i class="fas fa-search"></i> Verificar Cajas Históricas</h1>
-            <a href="caja_dashboard.php" class="btn btn-secondary">
+            <a href="<?php echo route_file('pages/caja_dashboard.php'); ?>" class="btn btn-secondary">
                 <i class="fas fa-arrow-left"></i> Volver al Dashboard
             </a>
         </div>

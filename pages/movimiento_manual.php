@@ -102,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <textarea name="detalle" class="input-field" rows="3" placeholder="Ej: Pago de flete, retiro de efectivo, etc." required></textarea>
 
                 <button type="submit" class="btn btn-primary btn-block">Guardar Movimiento</button>
-                <a href="caja_dashboard.php" class="btn btn-secondary btn-block" style="text-align:center; margin-top:10px; display:block;">Volver al Dashboard</a>
+                <a href="<?php echo route_file('pages/caja_dashboard.php'); ?>" class="btn btn-secondary btn-block" style="text-align:center; margin-top:10px; display:block;">Volver al Dashboard</a>
             </form>
         </div>
     </div>

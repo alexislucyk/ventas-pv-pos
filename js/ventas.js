@@ -11,6 +11,8 @@ let carrito = [];
 
 // Selectores (se inicializarán cuando el DOM esté listo)
 let inputBuscarProd, resultadosProd, inputBuscarCli, resultadosCli;
+let productosSugeridos = [];
+let resultadoIdx = -1;
 
 // --- 0. COTIZACIÓN DÓLAR OPERATIVO (para mostrar productos en USD en pesos) ---
 (function initDolarOperativo() {
@@ -95,6 +97,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const q = this.value.trim();
             if (q.length < 2) {
                 resultadosProd.innerHTML = '';
+                productosSugeridos = [];
+                resultadoIdx = -1;
                 return;
             }
 
@@ -102,12 +106,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(res => res.json())
                 .then(data => {
                     resultadosProd.innerHTML = '';
+                    productosSugeridos = [];
                     data.forEach(prod => {
+                        productosSugeridos.push(prod);
+                        const listIdx = productosSugeridos.length - 1;
                         const div = document.createElement('div');
                         div.className = 'resultado-item';
+                        div.dataset.idx = listIdx;
                         div.style.cursor = 'pointer';
                         div.style.padding = '8px';
-                        div.style.borderBottom = '1px solid #eee';
+                        div.style.borderBottom = '1px solid #333';
 
                         const stockColor = prod.stock <= 0 ? 'red' : 'green';
                         const stockTexto = prod.stock <= 0 ? 'SIN STOCK' : prod.stock;
@@ -134,16 +142,60 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
                         `;
 
+                        div.addEventListener('mouseenter', () => {
+                            resultadoIdx = listIdx;
+                            resaltarResultadosVentas();
+                        });
                         div.onclick = () => {
                             agregarAlCarrito(prod);
                             inputBuscarProd.value = '';
                             resultadosProd.innerHTML = '';
+                            productosSugeridos = [];
+                            resultadoIdx = -1;
                         };
                         resultadosProd.appendChild(div);
                     });
+                    if (productosSugeridos.length > 0) {
+                        resultadoIdx = 0;
+                        resaltarResultadosVentas();
+                    }
                 })
                 .catch(err => console.error("Error en Fetch Productos:", err));
         });
+
+        inputBuscarProd.addEventListener('keydown', function(e) {
+            const items = resultadosProd.querySelectorAll('.resultado-item');
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (items.length === 0) return;
+                resultadoIdx = (resultadoIdx + 1) % items.length;
+                resaltarResultadosVentas();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (items.length === 0) return;
+                resultadoIdx = (resultadoIdx - 1 + items.length) % items.length;
+                resaltarResultadosVentas();
+            } else if (e.key === 'Enter') {
+                if (productosSugeridos.length > 0 && resultadoIdx >= 0 && resultadoIdx < productosSugeridos.length) {
+                    e.preventDefault();
+                    agregarAlCarrito(productosSugeridos[resultadoIdx]);
+                    inputBuscarProd.value = '';
+                    resultadosProd.innerHTML = '';
+                    productosSugeridos = [];
+                    resultadoIdx = -1;
+                }
+            }
+        });
+    }
+
+    // --- 1b. HIGHLIGHT DE RESULTADOS (teclado) ---
+    function resaltarResultadosVentas() {
+        const items = resultadosProd.querySelectorAll('.resultado-item');
+        items.forEach((it, i) => {
+            it.classList.toggle('resaltado', i === resultadoIdx);
+        });
+        const actual = items[resultadoIdx];
+        if (actual) actual.scrollIntoView({ block: 'nearest' });
     }
 
     // --- 2. BUSCADOR DE CLIENTES ---

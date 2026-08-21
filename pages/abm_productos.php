@@ -235,7 +235,7 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
 <div style="display: flex; gap: 10px;">
                      <button type="button" class="btn" onclick="abrirModalMasivo()" style="background-color: #6f42c1; color: white;"><i class="fas fa-bolt"></i> Aumento Masivo</button>
                      <button type="button" class="btn" onclick="abrirModalMultiples()" style="background-color: #ff9800; color: white;"><i class="fas fa-layer-group"></i> Carga Múltiple</button>
-                     <a href="abm_productos.php?accion=crear" class="btn btn-success">+ Nuevo Producto</a>
+                     <a href="<?php echo URL_BASE; ?>productos?accion=crear" class="btn btn-success">+ Nuevo Producto</a>
                  </div>
             <?php endif; ?>
         </div>
@@ -275,8 +275,8 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
                                 <td class="text-right"><?php echo number_format($p['stock'], 2, ',', '.'); ?></td>
                                 <td class="text-right text-bold text-success"><?php echo $p['moneda'] == 'dolar' ? 'U$S' : '$'; ?><?php echo number_format($p['p_venta'], 2, ',', '.'); ?></td>
                                 <td>
-                                    <a href="abm_productos.php?accion=editar&id=<?php echo $p['id']; ?>" class="btn btn-primary btn-sm">Editar</a>
-                                    <a href="abm_productos.php?accion=eliminar&id=<?php echo $p['id']; ?>" 
+                                    <a href="<?php echo URL_BASE; ?>productos?accion=editar&id=<?php echo $p['id']; ?>" class="btn btn-primary btn-sm">Editar</a>
+                                    <a href="<?php echo URL_BASE; ?>productos?accion=eliminar&id=<?php echo $p['id']; ?>" 
                                        class="btn btn-danger btn-sm" 
                                        onclick="event.preventDefault(); const url=this.href; confirmarAccion('Eliminar Producto', '¿Deseas quitar este producto del inventario?', 'ELIMINAR', 'btn-danger', () => window.location.href=url);">
                                        Borrar
@@ -369,7 +369,7 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
 
                     <div style="margin-top: 30px; display: flex; gap: 10px;">
                         <button type="submit" class="btn btn-primary" style="flex: 2;">💾 Guardar Cambios</button>
-                        <a href="abm_productos.php" class="btn btn-secondary" style="flex: 1; text-align: center;">Cancelar</a>
+                        <a href="<?php echo URL_BASE; ?>productos" class="btn btn-secondary" style="flex: 1; text-align: center;">Cancelar</a>
                     </div>
                 </form>
             </div>
@@ -694,7 +694,7 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
                  <span style="cursor: pointer; font-size: 24px; color: #888;" onclick="cerrarModalMultiples()">&times;</span>
              </div>
 
-             <form id="formMultiples" method="POST" action="<?php echo url('pages/abm_productos.php'); ?>">
+             <form id="formMultiples" method="POST" action="<?php echo URL_BASE; ?>productos">
                  <input type="hidden" name="accion_post" value="carga_multiple">
 
                  <!-- Fila 1 -->

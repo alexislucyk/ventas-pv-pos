@@ -1,5 +1,5 @@
 <?php
-// pages/ventarapida.php — Venta Rápida Supermarket PRO
+// pages/ventarapida.php - Caja Registradora / Venta Rápida (tipo supermercado)
 include 'infosesion.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 require_once dirname(__FILE__) . '/../config/db_config.php';
@@ -8,17 +8,21 @@ $empresa_id = $_SESSION['empresa_id'] ?? 1;
 $sucursal_id = $_SESSION['sucursal_id'] ?? 1;
 $usuario_activo = $_SESSION['usuario_nombre'] ?? 'Sistema';
 $mensaje = '';
+$mensaje_warning = '';
 
-if (!isset($pdo) || !($pdo instanceof PDO)) {
-    $mensaje = "❌ ERROR CRÍTICO: La conexión a la base de datos no está disponible.";
-} else {
-    // 1. Obtener clientes (para Cuenta Corriente, opcional)
+$clientes = [];
+
+if (isset($pdo) && ($pdo instanceof PDO)) {
     try {
         $sql_clientes = "SELECT c.id AS id_cliente,
                                 CONCAT(c.apellido, ', ', c.nombre) AS nombre_completo,
                                 c.cuit AS num_documento,
-                                c.habilita_cta
+                                CASE WHEN UPPER(TRIM(COALESCE(c.habilita_cta,''))) = 'SI' THEN 'SI' ELSE 'NO' END AS habilita_cta,
+                                COALESCE(cc.saldo, 0) AS saldo
                          FROM clientes c
+                         LEFT JOIN (SELECT id_cliente, empresa_id, SUM(debe - haber) AS saldo
+                                    FROM ctacte GROUP BY id_cliente, empresa_id) cc
+                                ON cc.id_cliente = c.id AND cc.empresa_id = c.empresa_id
                          WHERE c.empresa_id = ?
                          ORDER BY c.apellido, c.nombre ASC";
         $stmt_clientes = $pdo->prepare($sql_clientes);
@@ -28,7 +32,7 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
         $clientes = [];
     }
 
-    // 2. PROCESAMIENTO DE VENTA
+    // ---- PROCESAMIENTO DE VENTA ----
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['venta_action'])) {
         $accion = $_POST['venta_action'];
         $es_finalizar = ($accion === 'Finalizar');
@@ -41,11 +45,30 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
         $pago_efectivo = (isset($_POST['pago_efectivo'])) ? max(0.0, (float)str_replace(',', '.', $_POST['pago_efectivo'])) : 0.0;
         $pago_transf  = (isset($_POST['pago_transf'])) ? max(0.0, (float)str_replace(',', '.', $_POST['pago_transf'])) : 0.0;
 
+        if ($es_finalizar && $cond_pago === 'CUENTA CORRIENTE') {
+            if ($id_cliente <= 0) {
+                $mensaje = "❌ Error: Para ventas en cuenta corriente debe seleccionar un cliente.";
+            } else {
+                try {
+                    $stmt_h = $pdo->prepare("SELECT CASE WHEN UPPER(TRIM(COALESCE(habilita_cta,''))) = 'SI' THEN 'SI' ELSE 'NO' END FROM clientes WHERE id = ? AND empresa_id = ?");
+                    $stmt_h->execute([$id_cliente, $empresa_id]);
+                    $habilita = $stmt_h->fetchColumn() ?: 'NO';
+                    if ($habilita !== 'SI') {
+                        $mensaje = "❌ Error: Este cliente no tiene habilitada la cuenta corriente.";
+                    }
+                } catch (Exception $e) {
+                    $mensaje = "❌ Error al validar la cuenta corriente del cliente.";
+                }
+            }
+        }
+
         $detalle_productos = json_decode($_POST['detalle_productos'], true);
 
-        if (empty($detalle_productos)) {
+        if ($mensaje === '' && empty($detalle_productos)) {
             $mensaje = "❌ Error: No se puede registrar una venta sin productos.";
-        } else {
+        }
+
+        if ($mensaje === '') {
             try {
                 $pdo->beginTransaction();
                 $productos_sin_stock = [];
@@ -53,14 +76,15 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
 
                 foreach ($detalle_productos as &$item) {
                     $sql_v = "SELECT p.p_venta, p.p_compra, p.descripcion, p.moneda,
-                                     COALESCE(s.stock_actual, 0) as stock_actual
+                                     COALESCE(s.stock_actual, 0) AS stock_actual
                               FROM productos p
                               LEFT JOIN stocks s ON p.cod_prod COLLATE utf8mb4_unicode_ci = s.cod_prod COLLATE utf8mb4_unicode_ci
                                             AND s.empresa_id = ?
                                             AND s.sucursal_id = ?
-                              WHERE p.cod_prod COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci";
+                              WHERE p.cod_prod COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci
+                                AND p.empresa_id = ?";
                     $stmt_v = $pdo->prepare($sql_v);
-                    $stmt_v->execute([$empresa_id, $sucursal_id, $item['cod_prod']]);
+                    $stmt_v->execute([$empresa_id, $sucursal_id, $item['cod_prod'], $empresa_id]);
                     $prod_db = $stmt_v->fetch(PDO::FETCH_ASSOC);
 
                     if (!$prod_db) {
@@ -69,8 +93,8 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
 
                     $moneda_prod = $prod_db['moneda'] ?? 'pesos';
                     if ($moneda_prod === 'dolar') {
-                        $cache_path = dirname(__FILE__) . '/../cache/dolar_cache.json';
                         $dolar_operativo = null;
+                        $cache_path = dirname(__FILE__) . '/../cache/dolar_cache.json';
                         if (file_exists($cache_path)) {
                             $cache = json_decode(file_get_contents($cache_path), true);
                             if (is_array($cache) && isset($cache['venta'])) {
@@ -101,12 +125,10 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
 
                 $total_recalculado = max(0, $total_bruto);
 
-                // Obtener N° Documento correlativo
                 $stmt_n = $pdo->query("SELECT MAX(n_documento) AS ultimo FROM ventas FOR UPDATE");
                 $res_n = $stmt_n->fetch();
                 $n_documento = ($res_n['ultimo'] !== null) ? $res_n['ultimo'] + 1 : 1;
 
-                // Insertar cabecera de venta
                 $fecha_venta = date('Y-m-d H:i:s');
                 $sql_v = "INSERT INTO ventas (empresa_id, sucursal_id, id_cliente, cond_pago, n_documento,
                                     total_venta, pago_efectivo, pago_transf, fecha_venta, estado, usuario, observaciones)
@@ -118,7 +140,6 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                 ]);
                 $id_venta_actual = $pdo->lastInsertId();
 
-                // Insertar detalle y ajustar stock
                 $sql_d = "INSERT INTO ventas_detalle (empresa_id, sucursal_id, cod_prod, descripcion, cant,
                                    p_unit, descuento_unitario, p_costo_venta, total, n_documento, fecha)
                            VALUES (?,?,?,?,?,?,?,?,?,?,?)";
@@ -138,28 +159,32 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                     }
                 }
 
-                // Cuenta corriente (si aplica)
                 if ($es_finalizar && $cond_pago === 'CUENTA CORRIENTE' && $id_cliente > 0) {
                     $saldo_deuda = $total_recalculado - ($pago_efectivo + $pago_transf);
                     if ($saldo_deuda > 0) {
-                        $sql_cc = "INSERT INTO ctacte (empresa_id, id_cliente, movimiento, n_documento, debe, haber, fecha)
-                                   VALUES (?, ?, 'FACTURA', ?, ?, 0, NOW())";
-                        $pdo->prepare($sql_cc)->execute([$empresa_id, $id_cliente, $n_documento, $saldo_deuda]);
+                        $sql_cc = "INSERT INTO ctacte (empresa_id, id_cliente, movimiento, n_documento, debe, haber, fecha, usuario)
+                                   VALUES (?, ?, 'FACTURA', ?, ?, 0, NOW(), ?)";
+                        $pdo->prepare($sql_cc)->execute([$empresa_id, $id_cliente, $n_documento, $saldo_deuda, $usuario_activo]);
                     }
                 }
 
-                // Registrar movimiento de caja (solo para CONTADO/FINANCIADO)
-                if ($es_finalizar && $cond_pago !== 'CUENTA CORRIENTE') {
-                    $monto_ingreso = $pago_efectivo + $pago_transf;
+                if ($es_finalizar) {
+                    $monto_ingreso = ($cond_pago === 'CONTADO') ? $total_recalculado : ($pago_efectivo + $pago_transf);
                     if ($monto_ingreso > 0) {
                         $metodo_pago_mov = ($pago_efectivo > 0 && $pago_transf > 0) ? 'MIXTO'
                             : ($pago_efectivo > 0 ? 'EFECTIVO' : 'TRANSFERENCIA');
-                        $detalle_mov = "VENTA CONTADO N° $n_documento";
-                        $sql_mov = "INSERT INTO movimientos (empresa_id, sucursal_id, tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado, monto_efectivo, monto_transferencia)
-                                    VALUES (?, ?, 'INGRESO', ?, ?, ?, NOW(), ?, 0, ?, ?)";
+                        $monto_efectivo_mov = ($metodo_pago_mov === 'MIXTO') ? $pago_efectivo
+                            : (($metodo_pago_mov === 'EFECTIVO') ? $monto_ingreso : 0);
+                        $monto_transferencia_mov = ($metodo_pago_mov === 'MIXTO') ? $pago_transf
+                            : (($metodo_pago_mov === 'TRANSFERENCIA') ? $monto_ingreso : 0);
+                        $detalle_mov = ($cond_pago === 'CUENTA CORRIENTE')
+                            ? "ENTREGA/PAGO - VENTA N° $n_documento (CTA. CTE.)"
+                            : "VENTA CONTADO N° $n_documento";
+                        $sql_mov = "INSERT INTO movimientos (empresa_id, sucursal_id, tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado, es_fondo_inicial, monto_efectivo, monto_transferencia)
+                                    VALUES (?, ?, 'INGRESO', ?, ?, ?, NOW(), ?, 0, 0, ?, ?)";
                         $pdo->prepare($sql_mov)->execute([
                             $empresa_id, $sucursal_id, $monto_ingreso, $metodo_pago_mov, $detalle_mov,
-                            $usuario_activo, $pago_efectivo, $pago_transf
+                            $usuario_activo, $monto_efectivo_mov, $monto_transferencia_mov
                         ]);
                     }
                 }
@@ -172,12 +197,12 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                     $_SESSION['status_msj_warning'] = "⚠️ Venta cerrada con stock insuficiente en: " . implode(", ", $productos_sin_stock);
                 }
 
-                if ($es_finalizar) {
-                    header("Location: " . route_file('pages/ventarapida.php'));
-                    exit;
-                }
+                header("Location: " . route_file('pages/ventarapida.php'));
+                exit;
             } catch (Exception $e) {
-                $pdo->rollBack();
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
                 $mensaje = "❌ Error: " . $e->getMessage();
             }
         }
@@ -188,585 +213,656 @@ $ticket_doc_a_imprimir = isset($_SESSION['ticket_a_imprimir_doc']) ? $_SESSION['
 $cliente_tel = '';
 $cliente_nom = '';
 if ($ticket_doc_a_imprimir) {
-    $stmt_c = $pdo->prepare("SELECT c.telefono, CONCAT(c.apellido, ' ', c.nombre) as nombre
-                             FROM ventas v JOIN clientes c ON v.id_cliente = c.id
-                             WHERE v.n_documento = ?");
-    $stmt_c->execute([$ticket_doc_a_imprimir]);
-    $res_c = $stmt_c->fetch();
-    if ($res_c) {
-        $cliente_tel = $res_c['telefono'];
-        $cliente_nom = $res_c['nombre'];
+    try {
+        $stmt_c = $pdo->prepare("SELECT c.telefono, CONCAT(c.apellido, ' ', c.nombre) AS nombre
+                                 FROM ventas v JOIN clientes c ON v.id_cliente = c.id
+                                 WHERE v.n_documento = ?");
+        $stmt_c->execute([$ticket_doc_a_imprimir]);
+        $res_c = $stmt_c->fetch();
+        if ($res_c) {
+            $cliente_tel = $res_c['telefono'];
+            $cliente_nom = $res_c['nombre'];
+        }
+    } catch (Exception $e) {
     }
 }
 unset($_SESSION['ticket_a_imprimir_doc']);
 
-if (isset($_SESSION['status_msj'])) { $mensaje = $_SESSION['status_msj']; unset($_SESSION['status_msj']); }
-$mensaje_warning = '';
-if (isset($_SESSION['status_msj_warning'])) { $mensaje_warning = $_SESSION['status_msj_warning']; unset($_SESSION['status_msj_warning']); }
+if (isset($_SESSION['status_msj'])) {
+    $mensaje = $_SESSION['status_msj'];
+    unset($_SESSION['status_msj']);
+}
+if (isset($_SESSION['status_msj_warning'])) {
+    $mensaje_warning = $_SESSION['status_msj_warning'];
+    unset($_SESSION['status_msj_warning']);
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Venta Rápida | <?php echo $nombre_empresa_sistema; ?></title>
+    <title>Caja Registradora | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        /* ========== VARIABLES Y Tema ========== */
         :root {
-            --color-primario: #00bcd4;
-            --color-secundario: #009688;
-            --color-fondo: #1a1a2e;
-            --color-card: #16213e;
-            --color-accent: #ffe66d;
-            --color-borde: #3a4b5c;
-            --color-texto: #e0e7f0;
-            --color-success: #00d897;
-            --color-warning: #f5a623;
-            --color-error: #d32f2f;
+            --bg: #121212;
+            --panel: #1e1e1e;
+            --panel-alt: #181818;
+            --border: #333;
+            --input-bg: #2a2a2a;
+            --accent: #00bcd4;
+            --accent-soft: rgba(0, 188, 212, 0.12);
+            --success: #4caf50;
+            --success-soft: rgba(76, 175, 80, 0.14);
+            --warn: #f1c40f;
+            --danger: #e74c3c;
+            --danger-soft: rgba(231, 76, 60, 0.14);
+            --text: #e0e0e0;
+            --muted: #aaa;
+            --muted-2: #666;
         }
 
+        * { box-sizing: border-box; }
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: var(--color-fondo);
-            color: var(--color-texto);
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', 'Roboto', Helvetica, Arial, sans-serif;
             margin: 0;
-            padding: 0;
+            overflow-x: hidden;
         }
 
         .content {
-            padding: 30px 40px;
-            max-width: 1200px;
-            margin: 0 auto;
+            padding-top: 66px;
         }
 
-        h1 {
-            color: var(--color-primario);
-            font-size: 1.8rem;
+        /* ===== CABECERA POS ===== */
+        .pos-wrap {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 96px);
+            min-height: 0;
+        }
+
+        .pos-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            padding: 12px 22px;
+            flex-shrink: 0;
+            border-bottom: 1px solid var(--border);
+            background: linear-gradient(180deg, #171717, #141414);
+        }
+
+        .pos-head h1 {
+            margin: 0;
+            color: var(--accent);
+            font-size: 1.25rem;
             font-weight: 700;
-            border-bottom: 3px solid var(--color-primario);
-            padding-bottom: 10px;
-            margin-bottom: 25px;
             display: flex;
             align-items: center;
             gap: 10px;
         }
 
-        h1::before {
-            content: "\f201";
-            font-family: "Font Awesome 5 Free";
-            font-weight: 900;
-            font-size: 1.3rem;
+        .pos-head h1 i { background: var(--accent-soft); padding: 8px; border-radius: 10px; color: var(--accent); }
+
+        .pos-sub {
+            margin: 3px 0 0 0;
+            color: var(--muted-2);
+            font-size: 0.78rem;
         }
 
-        /* ========== GRID PRINCIPAL ========== */
-        .pos-layout {
+        .pos-clock {
+            text-align: right;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        #relojHora { font-size: 1.5rem; font-weight: 700; color: var(--text); line-height: 1; }
+        #relojFecha { font-size: 0.75rem; color: var(--muted-2); }
+
+        /* ===== GRID PRINCIPAL ===== */
+        .pos-grid {
+            flex: 1;
+            min-height: 0;
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-            align-items: start;
+            grid-template-columns: minmax(0, 1fr) 400px;
+            gap: 16px;
+            padding: 16px 22px;
         }
 
-        @media (max-width: 900px) {
-            .pos-layout {
-                grid-template-columns: 1fr;
-                gap: 20px;
-            }
+        .pos-left { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+        .pos-right { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+
+        @media (max-width: 1150px) {
+            body { overflow: auto; }
+            .pos-wrap { height: auto; }
+            .pos-grid { grid-template-columns: 1fr; }
+            .pos-totals { min-height: 320px; }
         }
 
-        /* ========== TARJETAS ========== */
         .card {
-            background: var(--color-card);
-            border: 1px solid var(--color-borde);
+            background: var(--panel);
+            border: 1px solid var(--border);
             border-radius: 12px;
-            padding: 24px;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
         }
 
-        .card-fullwidth {
-            width: 100%;
-        }
+        /* ===== BÚSQUEDA ===== */
+        .search-card { position: relative; flex-shrink: 0; padding: 12px 14px; }
 
-        /* ========== INPUTS ESTILO POS ========== */
-        .input-field, input[type="text"], input[type="number"], select, textarea {
-            width: 100%;
-            padding: 12px 16px;
-            background: var(--color-fondo);
-            border: 2px solid var(--color-borde);
-            border-radius: 8px;
-            color: var(--color-texto);
-            font-size: 1rem;
+        .search-box {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #0e0e0e;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 4px 8px 4px 14px;
             transition: border-color 0.2s, box-shadow 0.2s;
         }
 
-        .input-field:focus, input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:focus {
+        .search-box:focus-within {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px var(--accent-soft);
+        }
+
+        .search-box .search-icon { color: var(--accent); font-size: 1.2rem; }
+
+        .search-box input {
+            flex: 1;
+            background: transparent;
+            border: none;
             outline: none;
-            border-color: var(--color-primario);
-            box-shadow: 0 0 0 4px rgba(0, 188, 214, 0.15);
-        }
-
-        .input-field::placeholder, input[type="text"]::placeholder, input[type="number"]::placeholder {
-            color: #667085;
-        }
-
-        /* ========== INPUT UNIFICADO (Scanner + Búsqueda) ========== */
-        .unified-search {
-            width: 100%;
-            padding: 16px 20px;
-            font-size: 1.5rem;
+            color: var(--text);
+            font-size: 1.25rem;
             font-weight: 600;
-            text-align: center;
-            background: var(--color-fondo);
-            border: 3px solid var(--color-borde);
-            border-radius: 10px;
-            color: var(--color-texto);
-            font-family: 'Courier New', Courier, monospace;
+            height: 46px;
+            padding: 0;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 0.5px;
             text-transform: uppercase;
-            transition: all 0.2s;
         }
 
-        .unified-search:focus {
-            border-color: var(--color-primario);
-            background: var(--color-fondo);
-            box-shadow: 0 0 0 6px rgba(0, 188, 214, 0.1);
+        .search-box input::placeholder {
+            color: #444;
+            font-family: 'Segoe UI', sans-serif;
+            font-weight: 400;
+            text-transform: none;
+            letter-spacing: 0;
         }
 
-        .unified-search::placeholder {
-            color: #667085;
-            font-weight: normal;
-            font-size: 1.3rem;
+        .search-box input.error { color: var(--danger); }
+
+        .btn-limpiar {
+            background: none;
+            border: none;
+            color: var(--muted-2);
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 8px 10px;
+            border-radius: 8px;
         }
 
-        /* Estado de error */
-        .unified-search.error {
-            border-color: var(--color-error);
-            box-shadow: 0 0 0 6px rgba(211, 47, 47, 0.1);
+        .btn-limpiar:hover { color: var(--danger); background: var(--danger-soft); }
+
+        .search-scanner-hint {
+            margin-top: 8px;
+            color: var(--muted-2);
+            font-size: 0.72rem;
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
         }
 
-        /* Resultados debajo */
-        .unified-search-card, .cliente-section {
-            position: relative;
-        }
+        .search-scanner-hint i { color: var(--accent); }
 
+        /* ===== RESULTADOS BÚSQUEDA (dropdown) ===== */
         .search-results {
             position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: var(--color-fondo);
-            border: 2px solid var(--color-primario);
-            border-radius: 0 0 10px 10px;
-            max-height: 300px;
+            top: calc(100% + 4px);
+            left: 14px;
+            right: 14px;
+            background: #191919;
+            border: 1px solid var(--accent);
+            border-radius: 0 0 12px 12px;
+            max-height: 320px;
             overflow-y: auto;
-            z-index: 100;
-            margin-top: 8px;
-            font-size: 0.9rem;
+            z-index: 500;
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
         }
 
         .search-result-item {
-            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            padding: 11px 14px;
             cursor: pointer;
-            border-bottom: 1px solid var(--color-borde);
-            transition: background 0.15s;
+            border-bottom: 1px solid #2a2a2a;
+            transition: background 0.12s;
         }
 
-        .search-result-item:hover {
-            background: rgba(0, 188, 214, 0.1);
-            color: var(--color-primario);
+        .search-result-item:last-child { border-bottom: none; }
+        .search-result-item:hover { background: var(--accent-soft); }
+        .search-result-item.resaltado { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+
+        .search-result-item .sr-name { font-weight: 600; font-size: 0.9rem; line-height: 1.2; }
+        .search-result-item .sr-meta { color: var(--muted-2); font-size: 0.72rem; margin-top: 2px; }
+        .search-result-item .sr-precio { color: var(--accent); font-weight: 700; font-size: 0.95rem; white-space: nowrap; }
+        .search-result-item .sr-stock { font-size: 0.7rem; padding: 2px 8px; border-radius: 999px; background: var(--success-soft); color: var(--success); white-space: nowrap; }
+        .search-result-item .sr-stock.agotado { background: var(--danger-soft); color: var(--danger); }
+
+        .search-results .sr-empty { padding: 18px; text-align: center; color: var(--muted-2); font-size: 0.85rem; }
+
+        /* Ocultar flechas de los inputs numéricos */
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
         }
 
-        .search-result-item .prod-code {
-            font-weight: bold;
-            color: var(--color-primario);
-            font-size: 0.85rem;
+        input[type="number"] {
+            -moz-appearance: textfield;
+            appearance: textfield;
         }
 
-        .search-result-item .prod-desc {
-            color: var(--color-texto);
-            font-size: 0.95rem;
+        /* ===== CARRITO ===== */
+        .pos-cart { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+
+        .cart-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
         }
 
-        .search-result-item .prod-stock {
-            color: var(--color-warning);
-            font-size: 0.8rem;
-            margin-left: 10px;
-        }
+        .cart-head h3 { margin: 0; color: var(--accent); font-size: 0.95rem; display: flex; align-items: center; gap: 8px; }
 
-        /* ========== ESCANNER VISUAL ========== */
-        .scanner-hint {
-            margin-top: 10px;
-            text-align: center;
-            color: #667085;
+        .badge {
+            background: var(--accent);
+            color: #000;
+            border-radius: 999px;
+            padding: 1px 9px;
             font-size: 0.75rem;
+            font-weight: 800;
         }
 
-        .scanner-hint span {
-            color: var(--color-primario);
-            font-weight: bold;
-        }
+        .cart-scroll { flex: 1; min-height: 0; overflow-y: auto; }
 
-        /* ========== CARRITO ========== */
-        .cart-summary {
-            min-height: 200px;
-        }
+        .cart-scroll::-webkit-scrollbar { width: 8px; }
+        .cart-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 8px; }
 
-        .cart-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-
-        .cart-table thead th {
-            background: var(--color-fondo);
-            color: var(--color-primario);
-            text-transform: uppercase;
-            font-size: 0.65rem;
-            padding: 12px 8px;
-            border-bottom: 2px solid var(--color-borde);
-            text-align: left;
-        }
-
-        .cart-table tbody td {
-            padding: 12px 8px;
-            border-bottom: 1px solid var(--color-borde);
-            vertical-align: middle;
-            font-size: 0.85rem;
-        }
-
-        .cart-table .prod-code {
-            color: var(--color-primario);
-            font-weight: bold;
-        }
-
-        .cart-table .prod-desc {
-            color: var(--color-texto);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 200px;
-        }
-
-        .cart-table .prod-precio {
-            color: var(--color-primario);
-            text-align: right;
-            font-weight: bold;
-        }
-
-        .cart-table .prod-cant {
+        .cart-empty {
             text-align: center;
+            padding: 46px 20px;
+            color: var(--muted-2);
         }
 
-        .cart-table .prod-total {
-            color: var(--color-accent);
-            text-align: right;
-            font-weight: bold;
+        .cart-empty i { font-size: 2.4rem; opacity: 0.25; display: block; margin-bottom: 10px; }
+
+        .cart-item {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(56px, 90px) auto auto;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border-bottom: 1px solid #282828;
+            transition: background 0.12s;
         }
 
-        .cart-table .action-btn {
+        .cart-item:hover { background: #191919; }
+
+        .ci-info { min-width: 0; line-height: 1.2; }
+
+        .ci-nombre { font-size: 0.78rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .ci-cod { font-size: 0.62rem; color: var(--muted-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .ci-remove {
             background: none;
             border: none;
-            color: var(--color-texto);
+            color: #666;
+            font-size: 1rem;
             cursor: pointer;
+            padding: 2px 4px;
+            line-height: 1;
+        }
+
+        .ci-remove:hover { color: var(--danger); }
+
+        .ci-qty { min-width: 0; }
+
+        .ci-qty input {
+            width: 100% !important;
+            height: 26px;
+            padding: 0 !important;
+            margin-bottom: 0 !important;
+            text-align: center;
+            background: var(--panel-alt) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 6px !important;
+            color: var(--text) !important;
             font-size: 0.8rem;
-        }
-
-        .cart-table .action-btn:hover {
-            color: var(--color-primario);
-        }
-
-        .empty-cart {
-            text-align: center;
-            padding: 60px 20px;
-            color: #667085;
-        }
-
-        .empty-cart i {
-            font-size: 3rem;
-            margin-bottom: 15px;
-            opacity: 0.2;
-        }
-
-        /* Cantidad editable en carrito */
-        .cant-input {
-            width: 50px;
-            padding: 6px 8px;
-            text-align: center;
-        }
-
-        /* Botón eliminar del carrito */
-        .remove-item {
-            width: 28px;
-            height: 28px;
-            background: var(--color-error);
-            color: #fff;
-            border: none;
-            border-radius: 6px;
-            font-size: 0.7rem;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-        }
-
-        /* ========== TOTAL ========== */
-        .total-box {
-            background: linear-gradient(135deg, var(--color-card), var(--color-fondo));
-            border: 1px solid var(--color-borde);
-            border-radius: 12px;
-            padding: 24px;
-            text-align: center;
-            margin: 20px 0;
-        }
-
-        .total-amount {
-            font-size: 2.2rem;
-            color: var(--color-primario);
             font-weight: 700;
+            outline: none;
         }
 
-        .total-label {
-            color: #667085;
+        .ci-qty input:focus { border-color: var(--accent); }
+
+        .ci-total { color: var(--warn); font-weight: 700; font-size: 0.85rem; white-space: nowrap; }
+
+        .ci-total.sin-stock { color: var(--danger); }
+
+        /* ===== TOTALES / RESUMEN ===== */
+        .pos-totals {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            padding: 18px 20px;
+        }
+
+        .totals-head {
+            color: var(--accent);
+            font-weight: 700;
             font-size: 0.85rem;
             text-transform: uppercase;
-            margin-bottom: 8px;
+            letter-spacing: 1px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
         }
 
-        /* ========== PAGO ========== */
-        .payment-section {
-            margin-top: 25px;
-        }
-
-        .payment-methods {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 20px;
-        }
-
-        .payment-method {
+        .totals-body {
             flex: 1;
-            padding: 12px;
-            background: var(--color-fondo);
-            border: 2px solid var(--color-borde);
-            border-radius: 10px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
         }
 
-        .payment-method.active {
-            border-color: var(--color-primario);
-            background: rgba(0, 188, 214, 0.1);
-        }
-
-        .payment-method i {
-            font-size: 1.5rem;
-            margin-bottom: 8px;
-            display: block;
-        }
-
-        .payment-method .method-name {
-            color: var(--color-texto);
+        .totals-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 2px;
+            color: var(--muted);
             font-size: 0.85rem;
-            margin-top: 4px;
         }
 
-        .payment-input-group {
-            margin-top: 20px;
-            display: none;
-        }
+        .totals-row strong { color: var(--text); }
 
-        .payment-input-group.active {
-            display: block;
-        }
-
-        .payment-input {
-            width: 100%;
-            padding: 12px;
-            font-size: 1.2rem;
-            text-align: right;
-            background: var(--color-fondo);
-            border: 2px solid var(--color-borde);
-            border-radius: 8px;
-            color: var(--color-texto);
-        }
-
-        .payment-input:focus {
-            outline: none;
-            border-color: var(--color-primario);
-        }
-
-        .vuelto {
-            background: linear-gradient(135deg, var(--color-warning), #f5a623);
-            color: #000;
-            padding: 15px;
-            border-radius: 10px;
+        .total-grande {
             text-align: center;
-            margin-top: 20px;
-            font-size: 1.3rem;
-            font-weight: bold;
+            padding: 22px 2px;
+            margin: 20px 0;
+            border-top: 1px dashed var(--border);
+            border-bottom: 1px dashed var(--border);
         }
 
-        /* ========== PAGINA CLIENTE ========== */
-        .cliente-section {
-            margin-bottom: 25px;
-        }
+        .total-grande span { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 2px; display: block; margin-bottom: 8px; }
+        .total-grande strong { font-size: 2.3rem; color: var(--success); font-weight: 800; word-break: break-word; }
 
-        .cliente-input {
+        .totals-actions { display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
+
+        .btn-cobrar {
             width: 100%;
-            padding: 12px;
-            background: var(--color-fondo);
-            border: 2px solid var(--color-borde);
-            border-radius: 8px;
-            color: var(--color-texto);
-            font-size: 1rem;
+            height: 62px;
+            font-size: 1.35rem;
+            font-weight: 800;
+            border-radius: 14px;
+            letter-spacing: 1px;
+            border: none;
+            cursor: pointer;
+            background: linear-gradient(135deg, #43a047, #2e7d32);
+            color: #fff;
+            box-shadow: 0 8px 20px rgba(46, 125, 50, 0.35);
+            transition: all 0.15s;
+            font-family: inherit;
         }
 
-        .cliente-input:focus {
-            outline: none;
-            border-color: var(--color-primario);
+        .btn-cobrar:hover { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(46, 125, 50, 0.5); filter: brightness(1.1); }
+        .btn-cobrar:disabled { background: #333; color: #666; box-shadow: none; transform: none; cursor: not-allowed; }
+
+        .btn-vaciar {
+            width: 100%;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            color: var(--muted);
+            border-radius: 12px;
+            padding: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.15s;
         }
+
+        .btn-vaciar:hover { border-color: var(--danger); color: var(--danger); background: var(--danger-soft); }
+
+        .btn-cobrar:disabled { cursor: not-allowed; }
+        .btn-vaciar:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* ===== MODAL COBRO ===== */
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 10000;
+            background: rgba(0, 0, 0, 0.78);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal-backdrop.open { display: flex; }
+
+        .modal-cobro {
+            width: 500px;
+            max-width: 100%;
+            max-height: 92vh;
+            overflow-y: auto;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: 0 24px 70px rgba(0, 0, 0, 0.7);
+            animation: modalIn 0.2s ease-out;
+        }
+
+        @keyframes modalIn {
+            from { transform: translateY(24px); opacity: 0; }
+            to { transform: none; opacity: 1; }
+        }
+
+        .modal-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 18px 22px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .modal-head h3 { margin: 0; color: var(--accent); font-size: 1.05rem; }
+        .modal-close { background: none; border: none; color: #ff6b6b; font-size: 1.7rem; cursor: pointer; line-height: 1; padding: 0 4px; }
+        .modal-close:hover { color: var(--danger); }
+
+        .modal-total {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 22px;
+            background: var(--panel-alt);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .modal-total span { color: var(--muted); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; }
+        .modal-total strong { color: var(--success); font-size: 1.9rem; font-weight: 800; }
+
+        .modal-body { padding: 18px 22px; display: flex; flex-direction: column; gap: 16px; }
+
+        .form-label {
+            color: var(--muted);
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .form-label .link-quitar { text-transform: none; color: var(--danger); cursor: pointer; font-size: 0.72rem; border: none; background: none; font-family: inherit; }
+        .form-label .link-quitar:hover { text-decoration: underline; }
+
+        .modal-body input[type="text"],
+        .modal-body input[type="number"],
+        .modal-body textarea {
+            width: 100%;
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text);
+            font-size: 1rem;
+            padding: 11px 14px;
+            outline: none;
+            font-family: inherit;
+            transition: border-color 0.15s;
+        }
+
+        .modal-body input:focus, .modal-body textarea:focus { border-color: var(--accent); }
 
         .cliente-display {
-            background: var(--color-fondo);
-            border: 1px solid var(--color-borde);
-            border-radius: 8px;
-            padding: 16px;
-            text-align: center;
-            margin-top: 12px;
-            color: var(--color-primario);
-            font-weight: bold;
-            display: none;
-        }
-
-        .cliente-display.active {
-            display: block;
-        }
-
-        /* ========== BOTONES ========== */
-        .btn {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            font-size: 0.95rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: inline-block;
-        }
-
-        .btn-primary {
-            background: var(--color-primario);
-            color: #000;
-        }
-
-        .btn-primary:hover {
-            background: #009688;
-            transform: translateY(-2px);
-        }
-
-        .btn-success {
-            background: var(--color-success);
-            color: #000;
-        }
-
-        .btn-success:hover {
-            background: #00c8a7;
-        }
-
-        .btn-warning {
-            background: var(--color-warning);
-            color: #000;
-        }
-
-        .btn-warning:hover {
-            background: #f4c430;
-        }
-
-        .btn-danger {
-            background: var(--color-error);
-            color: #fff;
-        }
-
-        .btn-danger:hover {
-            background: #c82333;
-        }
-
-        .btn-block {
-            width: 100%;
-        }
-
-        .btn-small {
-            padding: 8px 16px;
-            font-size: 0.8rem;
-        }
-
-        /* ========== ALERTAS ========== */
-        .alert {
-            padding: 15px 20px;
+            background: var(--success-soft);
+            border: 1px solid var(--success);
+            color: var(--success);
             border-radius: 10px;
-            margin-bottom: 20px;
+            padding: 10px 14px;
+            font-weight: 600;
+            font-size: 0.9rem;
             display: flex;
+            justify-content: space-between;
             align-items: center;
             gap: 10px;
         }
 
-        .alert.success {
-            background: rgba(0, 216, 151, 0.15);
-            border: 1px solid var(--color-success);
-            color: var(--color-success);
+        .cliente-display.generico { background: rgba(255,255,255,0.04); border-color: var(--border); color: var(--muted); }
+
+        .pago-metodos { display: grid; grid-template-columns: repeat(auto-fit, minmax(88px, 1fr)); gap: 8px; }
+
+        .pago-chip {
+            padding: 12px 6px;
+            background: var(--input-bg);
+            border: 2px solid transparent;
+            border-radius: 12px;
+            color: var(--muted);
+            cursor: pointer;
+            text-align: center;
+            font-size: 0.74rem;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            align-items: center;
+            font-family: inherit;
+            transition: all 0.15s;
+            font-weight: 600;
         }
 
-        .alert.warning {
-            background: rgba(245, 166, 35, 0.15);
-            border: 1px solid var(--color-warning);
-            color: var(--color-warning);
-        }
+        .pago-chip i { font-size: 1.15rem; }
 
-        .alert.error {
-            background: rgba(211, 47, 47, 0.15);
-            border: 1px solid var(--color-error);
-            color: var(--color-error);
-        }
+        .pago-chip.active { border-color: var(--accent); background: var(--accent-soft); color: #fff; }
+        .pago-chip.ctacte.active { border-color: var(--warn); background: rgba(241, 196, 15, 0.12); color: #fff; }
+        .pago-chip.disabled { opacity: 0.35; cursor: not-allowed; }
 
-        .alert .icon {
+        .pago-grupo { display: none; flex-direction: column; gap: 8px; background: var(--panel-alt); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+        .pago-grupo.active { display: flex; }
+
+        .pago-grupo .double { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+        .pago-grupo label { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        .pago-grupo .big-input { font-size: 1.35rem; font-weight: 700; text-align: right; }
+
+        .vuelto-box {
+            padding: 13px;
+            border-radius: 10px;
+            text-align: center;
             font-size: 1.2rem;
+            font-weight: 700;
+            background: var(--panel-alt);
+            border: 1px solid var(--border);
         }
 
-        /* ========== TOAST ========== */
+        .vuelto-box.ok { color: var(--success); border-color: var(--success); background: var(--success-soft); }
+        .vuelto-box.falta { color: var(--danger); border-color: var(--danger); background: var(--danger-soft); }
+        .vuelto-box.info { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+
+        .modal-foot {
+            display: flex;
+            gap: 10px;
+            padding: 16px 22px;
+            border-top: 1px solid var(--border);
+        }
+
+        .modal-foot .btn {
+            flex: 1;
+            padding: 14px;
+            border-radius: 12px;
+            border: none;
+            font-weight: 800;
+            font-size: 1rem;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.15s;
+        }
+
+        .modal-foot .btn-cancelar { background: var(--panel-alt); border: 1px solid var(--border); color: var(--muted); }
+        .modal-foot .btn-cancelar:hover { border-color: var(--danger); color: var(--danger); }
+        .modal-foot .btn-confirmar { background: linear-gradient(135deg, #43a047, #2e7d32); color: #fff; }
+        .modal-foot .btn-confirmar:hover { filter: brightness(1.1); }
+        .modal-foot .btn-confirmar:disabled { background: #333; color: #666; cursor: not-allowed; }
+
+        /* ===== ALERTAS ===== */
+        .alert {
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9rem;
+        }
+
+        .alert.error { background: var(--danger-soft); border: 1px solid var(--danger); color: var(--danger); }
+        .alert.success { background: var(--success-soft); border: 1px solid var(--success); color: var(--success); }
+        .alert.warning { background: rgba(241, 196, 15, 0.12); border: 1px solid var(--warn); color: var(--warn); }
+
+        /* ===== TOAST ===== */
         .toast {
             position: fixed;
-            top: 20px;
+            top: 64px;
             right: 20px;
-            background: var(--color-success);
-            color: #000;
-            padding: 15px 20px;
-            border-radius: 10px;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
-            z-index: 10000;
+            z-index: 20000;
+            padding: 14px 18px;
+            border-radius: 12px;
             display: flex;
             align-items: center;
             gap: 10px;
-            animation: slideIn 0.3s ease-out;
+            font-weight: 600;
+            font-size: 0.9rem;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+            animation: toastIn 0.25s ease-out;
         }
 
-        @keyframes slideIn {
-            from { transform: translateX(120%); }
-            to { transform: translateX(0); }
-        }
+        .toast.ok { background: #1b5e20; color: #c8ffc8; border: 1px solid var(--success); }
+        .toast.error { background: #7f1d1d; color: #ffd6d6; border: 1px solid var(--danger); }
+        .toast.warn { background: #7a5c00; color: #fff3c4; border: 1px solid var(--warn); }
 
-        .toast .icon {
-            font-size: 1.2rem;
-        }
-
-        /* ========== FOOTER / INFORME ========== */
-        .footer-note {
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 1px solid var(--color-borde);
-            color: #667085;
-            font-size: 0.75rem;
-        }
+        @keyframes toastIn { from { transform: translateX(120%); } to { transform: none; } }
     </style>
 </head>
 <body>
@@ -774,142 +870,202 @@ if (isset($_SESSION['status_msj_warning'])) { $mensaje_warning = $_SESSION['stat
     <div class="content">
         <?php include 'topbar.php'; ?>
 
-        <h1>Venta Rápida</h1>
-
-        <?php if ($mensaje): ?>
-            <div class="alert alert<?php echo str_contains($mensaje, '❌') ? ' error' : ' success'; ?>">
-                <i class="fas <?php echo str_contains($mensaje, '❌') ? 'fa-exclamation-circle' : 'fa-check-circle'; ?>"></i>
-                <?php echo htmlspecialchars($mensaje); ?>
-            </div>
-        <?php endif; ?>
-        <?php if ($mensaje_warning): ?>
-            <div class="alert alert warning">
-                <i class="fas fa-exclamation-triangle"></i>
-                <?php echo htmlspecialchars($mensaje_warning); ?>
-            </div>
-        <?php endif; ?>
-
-        <div class="pos-layout">
-
-            <!-- COLUMNA IZQUIERDA: Input unificado + Carrito -->
-            <div>
-                <!-- Input UNIFICADO: Escáner + Búsqueda por nombre -->
-                <div class="card unified-search-card">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                        <span>
-                            <i class="fas fa-barcode" style="color: var(--color-primario); font-size: 1.2rem;"></i>
-                            Escanear / Buscar
-                        </span>
-                    </div>
-                    <input type="text" id="producto_input" class="unified-search"
-                           placeholder="Posicioná el cursor, escaneá código y presioná ENTER..."
-                           autofocus>
-                    <div class="search-results" id="resultadosBusqueda"></div>
-                    <div class="scanner-hint">
-                        <span>Escaneá</span> → se agrega al carrito. <br>
-                        <span>Escribí</span> → aparecen sugerencias debajo.
-                    </div>
+        <div class="pos-wrap">
+            <header class="pos-head">
+                <div>
+                    <h1><i class="fas fa-cash-register"></i> Caja Registradora</h1>
+                    <p class="pos-sub">Venta rápida: escaneá el código de barras o buscá un producto para comenzar</p>
                 </div>
-
-                <!-- Carrito -->
-                <div class="card cart-summary">
-                    <h3 style="margin:0 0 15px 0; color:var(--color-primary); font-size:1rem;"><i class="fas fa-shopping-cart"></i> Carrito <span id="cart-count">0</span></h3>
-                    <div class="cart-table">
-                        <thead>
-                            <tr>
-                                <th class="prod-code">Cód.</th>
-                                <th class="prod-desc">Producto</th>
-                                <th class="prod-precio">Precio</th>
-                                <th class="prod-cant">Cant.</th>
-                                <th class="prod-total">Total</th>
-                                <th style="width:30px; text-align:center;"></th>
-                            </thead>
-                            <tbody id="carrito_body">
-                                <tr><td colspan="6" class="empty-cart"><i class="fas fa-barcode"></i><p>Tapee o busque productos para comenzar.</p></td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <button type="button" class="btn btn-warning btn-block" onclick="vaciarCarrito()">🗑 Vaciar Carrito</button>
+                <div class="pos-clock">
+                    <span id="relojHora">--:--</span>
+                    <span id="relojFecha">--</span>
                 </div>
-            </div>
+            </header>
 
-            <!-- COLUMNA DERECHA: Cliente + Total + Pago -->
-            <div>
-                <form id="formVenta" method="POST" style="height:100%; display:flex; flex-direction:column;">
-                    <input type="hidden" name="detalle_productos" id="detalle_productos_input">
-                    <input type="hidden" name="cond_pago" id="cond_pago" value="CONTADO">
-                    <input type="hidden" name="venta_action" id="venta_action_input" value="Finalizar">
-                    <input type="hidden" name="id_venta_existente" id="id_venta_existente" value="0">
-                    <input type="hidden" name="id_cliente_hidden" id="id_cliente_hidden" value="0">
-                    <input type="hidden" name="pago_efectivo" id="pago_efectivo" value="0.00">
-                    <input type="hidden" name="pago_transf" id="pago_transf" value="0.00">
+            <?php if ($mensaje): ?>
+                <div class="alert <?php echo str_contains($mensaje, '❌') ? 'error' : 'success'; ?>" style="margin:12px 22px 0;">
+                    <i class="fas <?php echo str_contains($mensaje, '❌') ? 'fa-exclamation-circle' : 'fa-check-circle'; ?>"></i>
+                    <?php echo htmlspecialchars($mensaje); ?>
+                </div>
+            <?php endif; ?>
+            <?php if ($mensaje_warning): ?>
+                <div class="alert warning" style="margin:12px 22px 0;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <?php echo htmlspecialchars($mensaje_warning); ?>
+                </div>
+            <?php endif; ?>
 
-                    <div class="card cliente-section">
-                        <label style="color:var(--color-texto); font-size:0.85rem; margin-bottom:8px; display:block;">Cliente (opcional)</label>
-                        <input type="text" id="buscar_cliente" class="cliente-input" autocomplete="off" placeholder="Buscar cliente..." value="">
-                        <div class="search-results" id="resultadosBusquedaClientes" style="display:none;"></div>
-                        <div class="cliente-display" id="nombre_cliente_display">Venta Genérica</div>
+            <div class="pos-grid">
+                <!-- ===== COLUMNA IZQUIERDA: Búsqueda + Carrito ===== -->
+                <section class="pos-left">
+                    <div class="card search-card">
+                        <div class="search-box">
+                            <i class="fas fa-barcode search-icon"></i>
+                            <input type="text" id="producto_input" autocomplete="off" autofocus spellcheck="false"
+                                   placeholder="Escanear código de barras o buscar por nombre...">
+                            <button type="button" class="btn-limpiar" id="btnLimpiarBusqueda" title="Limpiar"><i class="fas fa-times"></i></button>
+                        </div>
+                        <div class="search-scanner-hint">
+                            <span><i class="fas fa-sync-alt"></i> Enter: agregar por código exacto</span>
+                            <span><i class="fas fa-keyboard"></i> Escribí para buscar por nombre</span>
+                        </div>
+                        <div id="resultadosBusqueda" class="search-results"></div>
                     </div>
 
-                    <div class="total-box">
-                        <div class="total-label">Total a Cobrar</div>
-                        <span class="total-amount" id="total_venta_display">$ 0.00</span>
-                        <input type="hidden" name="total_venta_input" id="total_venta_input" value="0.00">
-                    </div>
-
-                    <div class="payment-section">
-                        <div class="payment-methods" id="paymentMethods">
-                            <div class="payment-method active" onclick="setPago('efectivo')">
-                                <i class="fas fa-money-bill-wave"></i>
-                                <div class="method-name">Efectivo</div>
-                            </div>
-                            <div class="payment-method" onclick="setPago('transferencia')">
-                                <i class="fas fa-university"></i>
-                                <div class="method-name">Transferencia</div>
+                    <div class="card pos-cart">
+                        <div class="cart-head">
+                            <h3><i class="fas fa-shopping-cart"></i> Carrito <span id="cart-count" class="badge">0</span></h3>
+                        </div>
+                        <div id="carritoBody" class="cart-scroll">
+                            <div class="cart-empty">
+                                <i class="fas fa-cart-plus"></i>
+                                <p>Escaneá o buscá un producto para comenzar</p>
                             </div>
                         </div>
+                    </div>
+                </section>
 
-                        <div class="payment-input-group" id="efectivoInputGroup">
-                            <label style="color:var(--color-texto); font-size:0.85rem; margin-bottom:8px;">Efectivo recibido</label>
-                            <input type="number" id="monto_efectivo_input" class="payment-input" min="0" step="0.01" value="0"
-                                   oninput="calcularPago(this)">
+                <!-- ===== COLUMNA DERECHA: Resumen de Totales ===== -->
+                <aside class="pos-right">
+                    <div class="card pos-totals">
+                        <div class="totals-head"><span><i class="fas fa-receipt"></i> Resumen de venta</span></div>
+                        <div class="totals-body">
+                            <div class="totals-row"><span>Artículos</span><strong id="totalItems">0</strong></div>
+                            <div class="totals-row"><span>Subtotal</span><strong id="subtotalDisplay">$ 0,00</strong></div>
+                            <div class="total-grande">
+                                <span>Total a cobrar</span>
+                                <strong id="total_venta_display">$ 0,00</strong>
+                            </div>
                         </div>
-
-                        <div class="payment-input-group" id="transferenciaInputGroup" style="display:none;">
-                            <label style="color:var(--color-texto); font-size:0.85rem; margin-bottom:8px;">Transferencia recibida</label>
-                            <input type="number" id="monto_transferencia_input" class="payment-input" min="0" step="0.01" value="0"
-                                   oninput="calcularPago(this)">
+                        <div class="totals-actions">
+                            <button type="button" id="btnCobrar" class="btn-cobrar" onclick="abrirModalCobro()" disabled>
+                                <i class="fas fa-coins"></i> Cobrar
+                            </button>
+                            <button type="button" id="btnVaciar" class="btn-vaciar" onclick="vaciarCarrito()" disabled>
+                                <i class="fas fa-trash-alt"></i> Vaciar carrito
+                            </button>
                         </div>
                     </div>
-
-                    <div class="vuelto" id="vueltoDisplay">$ 0.00</div>
-
-                    <label style="color:var(--color-texto); font-size:0.85rem; margin-top:15px; display:block;">Observaciones</label>
-                    <textarea name="observaciones" id="observaciones" class="input-field" placeholder="Notas para el ticket..."
-                              style="height: 80px; resize: vertical; font-family: inherit;"></textarea>
-
-                    <button type="submit" class="btn btn-primary btn-block" style="margin-top:20px;">
-                        <i class="fas fa-check-circle"></i> Finalizar Venta
-                    </button>
-                </form>
+                </aside>
             </div>
         </div>
     </div>
 
+    <!-- ===== MODAL COBRO ===== -->
+    <div id="modalCobro" class="modal-backdrop">
+        <div class="modal-cobro">
+            <div class="modal-head">
+                <h3><i class="fas fa-cash-register"></i> Cobrar Venta</h3>
+                <button type="button" class="modal-close" onclick="cerrarModalCobro()">&times;</button>
+            </div>
+            <div class="modal-total">
+                <span>Total a cobrar</span>
+                <strong id="modalTotal">$ 0,00</strong>
+            </div>
+            <div class="modal-body">
+                <div>
+                    <label class="form-label">
+                        Cliente
+                        <button type="button" class="link-quitar" id="btnQuitarCliente" onclick="quitarCliente()" style="display:none;">Quitar cliente</button>
+                    </label>
+                    <div style="position:relative;">
+                        <input type="text" id="buscar_cliente" autocomplete="off" placeholder="Buscar cliente por nombre o documento...">
+                        <div id="resultadosBusquedaClientes" class="search-results"></div>
+                    </div>
+                    <div id="clienteDisplay" class="cliente-display generico" style="margin-top:8px;">
+                        <span><i class="fas fa-user"></i> Venta genérica (Consumidor final)</span>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="form-label">Forma de pago</label>
+                    <div class="pago-metodos">
+                        <button type="button" class="pago-chip active" data-metodo="efectivo" onclick="seleccionarPago('efectivo')">
+                            <i class="fas fa-money-bill-wave"></i> Efectivo
+                        </button>
+                        <button type="button" class="pago-chip" data-metodo="tarjeta" onclick="seleccionarPago('tarjeta')">
+                            <i class="fas fa-credit-card"></i> Tarjeta
+                        </button>
+                        <button type="button" class="pago-chip" data-metodo="transferencia" onclick="seleccionarPago('transferencia')">
+                            <i class="fas fa-university"></i> Transf. / QR
+                        </button>
+                        <button type="button" class="pago-chip" data-metodo="mixto" onclick="seleccionarPago('mixto')">
+                            <i class="fas fa-columns"></i> Mixto
+                        </button>
+                        <button type="button" class="pago-chip ctacte" data-metodo="ctacte" onclick="seleccionarPago('ctacte')">
+                            <i class="fas fa-book"></i> Cta. Cte.
+                        </button>
+                    </div>
+                </div>
+
+                <div class="pago-grupo" id="grupoEfectivo">
+                    <label for="recibidoInput">Dinero recibido</label>
+                    <input type="number" id="recibidoInput" class="big-input" min="0" step="0.01" value="0" oninput="calcularVuelto()">
+                    <div class="vuelto-box" id="vueltoBox">Vuelto: $ 0,00</div>
+                </div>
+
+                <div class="pago-grupo" id="grupoMixto">
+                    <div class="double">
+                        <div>
+                            <label for="mixtoEfectivo">Efectivo</label>
+                            <input type="number" id="mixtoEfectivo" class="big-input" min="0" step="0.01" value="0" oninput="calcularMixto()">
+                        </div>
+                        <div>
+                            <label for="mixtoDigital">Digital / Transf.</label>
+                            <input type="number" id="mixtoDigital" class="big-input" min="0" step="0.01" value="0" oninput="calcularMixto()">
+                        </div>
+                    </div>
+                    <div class="vuelto-box" id="mixtoEstado">Falta: $ 0,00</div>
+                </div>
+
+                <div class="pago-grupo" id="grupoInfo">
+                    <div class="vuelto-box info" id="infoPago">Se cobrará el total por el medio seleccionado.</div>
+                </div>
+
+                <div>
+                    <label class="form-label" for="obsInput">Observaciones (opcional)</label>
+                    <textarea id="obsInput" rows="2" placeholder="Notas para el ticket..."></textarea>
+                </div>
+            </div>
+            <div class="modal-foot">
+                <button type="button" class="btn btn-cancelar" onclick="cerrarModalCobro()">Cancelar</button>
+                <button type="button" class="btn btn-confirmar" id="btnFinalizarVenta" onclick="confirmarVenta()">
+                    <i class="fas fa-check-circle"></i> Finalizar venta
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== FORMULARIO OCULTO DE VENTA ===== -->
+    <form id="formVenta" method="POST" action="<?php echo route_file('pages/ventarapida.php'); ?>">
+        <input type="hidden" name="detalle_productos" id="detalle_productos_input">
+        <input type="hidden" name="cond_pago" id="cond_pago" value="CONTADO">
+        <input type="hidden" name="venta_action" id="venta_action_input" value="Finalizar">
+        <input type="hidden" name="id_cliente_hidden" id="id_cliente_hidden" value="0">
+        <input type="hidden" name="pago_efectivo" id="pago_efectivo_hidden" value="0.00">
+        <input type="hidden" name="pago_transf" id="pago_transf_hidden" value="0.00">
+        <input type="hidden" name="observaciones" id="observaciones_hidden">
+    </form>
+
     <?php if ($ticket_doc_a_imprimir): ?>
-    <div id="modalTicket" style="position:fixed; z-index:9999; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.8); display:flex; align-items:center; justify-content:center;">
-        <div style="background:var(--color-card); padding:35px; border-radius:12px; text-align:center; border:1px solid var(--color-primary); width:420px;">
-            <i class="fas fa-print" style="font-size:3rem; color:var(--color-primary); margin-bottom:15px;"></i>
-            <h3 style="color:var(--color-success); margin-bottom:10px;">Venta Procesada</h3>
-            <p style="color:var(--color-texto);">¿Desea imprimir el ticket N° <strong><?php echo $ticket_doc_a_imprimir; ?></strong>?</p>
+    <div id="modalTicket" style="position:fixed; z-index:99999; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.8); display:flex; align-items:center; justify-content:center; padding:20px;">
+        <div style="background:var(--panel); padding:35px; border-radius:14px; text-align:center; border:1px solid var(--accent); width:420px; max-width:100%; box-shadow:0 24px 70px rgba(0,0,0,.7);">
+            <i class="fas fa-check-circle" style="font-size:3rem; color:var(--success); margin-bottom:15px;"></i>
+            <h3 style="color:var(--success); margin:0 0 10px 0;">Venta Procesada</h3>
+            <p style="color:var(--text);">¿Desea imprimir el ticket N° <strong style="color:var(--accent);"><?php echo (int)$ticket_doc_a_imprimir; ?></strong>?</p>
             <div style="margin-top:25px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
-                <button onclick="window.open('vista_previa_ticket.php?n_documento=<?php echo $ticket_doc_a_imprimir; ?>', '_blank'); this.parentElement.parentElement.style.display='none';" class="btn btn-primary" style="padding:12px 20px;">
+                <button onclick="window.open('<?php echo route_file('pages/vista_previa_ticket.php'); ?>?n_documento=<?php echo (int)$ticket_doc_a_imprimir; ?>', '_blank'); this.parentElement.parentElement.parentElement.style.display='none';"
+                        style="background:var(--accent); color:#000; border:none; border-radius:10px; padding:12px 20px; font-weight:700; cursor:pointer; font-family:inherit;">
                     <i class="fas fa-print"></i> Imprimir
                 </button>
-                <button onclick="window.location.href='generar_pdf_ticket.php?n_documento=<?php echo $ticket_doc_a_imprimir; ?>&download=1'; this.parentElement.parentElement.style.display='none';" class="btn" style="background:var(--color-warning); color:#000; padding:12px 20px;">
+                <button onclick="window.location.href='<?php echo route_file('pages/generar_pdf_ticket.php'); ?>?n_documento=<?php echo (int)$ticket_doc_a_imprimir; ?>&download=1';"
+                        style="background:#e67e22; color:#fff; border:none; border-radius:10px; padding:12px 20px; font-weight:700; cursor:pointer; font-family:inherit;">
                     <i class="fas fa-file-pdf"></i> Descargar PDF
                 </button>
-                <button onclick="this.parentElement.parentElement.style.display='none'; window.location.href='<?php echo route_file('pages/ventarapida.php'); ?>'" class="btn btn-secondary" style="background:var(--color-borde); color:var(--color-texto); padding:12px 20px;">Cerrar</button>
+                <button onclick="this.parentElement.parentElement.parentElement.style.display='none'; window.location.href='<?php echo route_file('pages/ventarapida.php'); ?>'"
+                        style="background:var(--panel-alt); color:var(--text); border:1px solid var(--border); border-radius:10px; padding:12px 20px; font-weight:700; cursor:pointer; font-family:inherit;">
+                    Cerrar
+                </button>
             </div>
         </div>
     </div>

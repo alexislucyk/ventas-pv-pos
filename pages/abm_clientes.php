@@ -549,6 +549,11 @@ if ($accion === 'listar' && $id && isset($_GET['accion']) && $_GET['accion'] ===
                 <?php if ($accion === 'listar'): ?>
                     <a href="<?php echo URL_BASE; ?>clientes?accion=crear" class="btn btn-success">+ Nuevo Cliente</a>
                 <?php endif; ?>
+                <?php if (tiene_permiso('pages/cuentas_corrientes.php')): ?>
+                    <a href="<?php echo route_file('pages/cuentas_corrientes.php'); ?>" class="btn btn-info" title="Ir a Cuenta Corriente de Clientes" style="display: inline-flex; align-items: center; gap: 6px;">
+                        <i class="fas fa-user-clock"></i> Cta. Cte. Clientes
+                    </a>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -669,7 +674,7 @@ if ($accion === 'listar' && $id && isset($_GET['accion']) && $_GET['accion'] ===
                                 </td>
                                 <td style="white-space: nowrap;">
                                     <a href="<?php echo URL_BASE; ?>clientes?accion=editar&id=<?php echo (int)$c['id']; ?>" class="btn btn-primary btn-sm">Editar</a>
-                                    <a href="#" onclick="verVentas(<?php echo (int)$c['id']; ?>, <?php echo json_encode($c['apellido'] . ', ' . $c['nombre'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>); return false;" class="btn btn-info btn-sm" title="Ver ventas"><i class="fas fa-receipt"></i></a>
+                                    <a href="#" onclick='verVentas(<?php echo (int)$c['id']; ?>, <?php echo json_encode($c['apellido'] . ', ' . $c['nombre'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>); return false;' class="btn btn-info btn-sm" title="Ver ventas"><i class="fas fa-receipt"></i></a>
                                     <form method="POST" class="form-eliminar" style="display:inline;" onsubmit="return confirmarEliminar(this);">
                                         <input type="hidden" name="accion_post" value="eliminar">
                                         <input type="hidden" name="id_cliente" value="<?php echo (int)$c['id']; ?>">
@@ -720,7 +725,7 @@ if ($accion === 'listar' && $id && isset($_GET['accion']) && $_GET['accion'] ===
                             </div>
                             <div class="card-actions">
                                 <a href="<?php echo URL_BASE; ?>clientes?accion=editar&id=<?php echo (int)$c['id']; ?>" class="btn btn-primary btn-sm"><i class="fas fa-edit"></i> Editar</a>
-                                <a href="#" onclick="verVentas(<?php echo (int)$c['id']; ?>, <?php echo json_encode($c['apellido'] . ', ' . $c['nombre'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>); return false;" class="btn btn-info btn-sm"><i class="fas fa-receipt"></i> Ventas</a>
+                                <a href="#" onclick='verVentas(<?php echo (int)$c['id']; ?>, <?php echo json_encode($c['apellido'] . ', ' . $c['nombre'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>); return false;' class="btn btn-info btn-sm"><i class="fas fa-receipt"></i> Ventas</a>
                                 <form method="POST" class="form-eliminar" style="display:inline;" onsubmit="return confirmarEliminar(this);">
                                     <input type="hidden" name="accion_post" value="eliminar">
                                     <input type="hidden" name="id_cliente" value="<?php echo (int)$c['id']; ?>">
@@ -998,7 +1003,7 @@ if ($accion === 'listar' && $id && isset($_GET['accion']) && $_GET['accion'] ===
             .then(html => {
                 // Agregar botón volver después del contenido
                 html += '<div style="margin-top:15px; display:flex; gap:8px;">';
-                html += '<button onclick="verVentas(' + _modalClienteId + ', ' + JSON.stringify(_modalClienteNombre) + ');" class="btn btn-secondary" style="flex:1;"><i class="fas fa-arrow-left"></i> Volver a ventas</button>';
+                html += '<button onclick=\'verVentas(' + _modalClienteId + ', ' + JSON.stringify(_modalClienteNombre).replace(/'/g, "&#39;") + ')\' class="btn btn-secondary" style="flex:1;"><i class="fas fa-arrow-left"></i> Volver a ventas</button>';
                 html += '<button onclick="document.getElementById(\'modalVentasCliente\').style.display=\'none\'" class="btn btn-secondary" style="flex:1;">Cerrar</button>';
                 html += '</div>';
                 body.innerHTML = html;
