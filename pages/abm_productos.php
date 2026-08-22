@@ -27,6 +27,10 @@ try {
 
     $stmt_conf = $pdo->query("SELECT valor FROM configuracion WHERE clave = 'ganancia_global'");
     $ganancia_config = (float)($stmt_conf->fetchColumn() ?: 60);
+    
+    // Proveedores para filtro PDF
+    $proveedores_pdf_list = $pdo->prepare("SELECT DISTINCT TRIM(proveedor) as proveedor FROM productos WHERE empresa_id = :empresa_id AND proveedor IS NOT NULL AND TRIM(proveedor) != '' ORDER BY proveedor ASC");
+    $proveedores_pdf_list->execute([':empresa_id' => $empresa_id]);
 } catch (Exception $e) {
     $mensaje = "⚠️ Error de configuración: " . $e->getMessage();
 }
@@ -128,8 +132,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
             // Insertar producto (stock se maneja en tabla stocks, pero la tabla productos requiere el campo)
-            $sql = "INSERT INTO productos (cod_prod, descripcion, p_compra, p_venta, fecha_ult_compra, rubro, proveedor, moneda, empresa_id, stock) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)";
-            $pdo->prepare($sql)->execute([$cod_prod, $descripcion, $p_compra, $p_venta, $fecha_ult_compra, $rubro, $proveedor, $_POST['moneda'] ?? 'pesos', $empresa_id]);
+            $sql = "INSERT INTO productos (cod_prod, descripcion, p_compra, p_venta, fecha_ult_compra, rubro, proveedor, moneda, empresa_id, stock, unidad_medida) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)";
+            $pdo->prepare($sql)->execute([$cod_prod, $descripcion, $p_compra, $p_venta, $fecha_ult_compra, $rubro, $proveedor, $_POST['moneda'] ?? 'pesos', $empresa_id, $_POST['unidad_medida'] ?? 'Unidad']);
             
             // Guardar stock en tabla stocks (por sucursal)
             $sql_stock = "INSERT INTO stocks (empresa_id, sucursal_id, cod_prod, stock_actual) VALUES (?, ?, ?, ?) 
@@ -146,8 +150,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
             // Actualizar producto SIN el campo stock (se maneja en tabla stocks)
-            $sql = "UPDATE productos SET cod_prod=?, descripcion=?, p_compra=?, p_venta=?, fecha_ult_compra=?, rubro=?, proveedor=?, moneda=? WHERE id=? AND empresa_id=?";
-            $pdo->prepare($sql)->execute([$cod_prod, $descripcion, $p_compra, $p_venta, $fecha_ult_compra, $rubro, $proveedor, $_POST['moneda'] ?? 'pesos', $id_post, $empresa_id]);
+            $sql = "UPDATE productos SET cod_prod=?, descripcion=?, p_compra=?, p_venta=?, fecha_ult_compra=?, rubro=?, proveedor=?, moneda=?, unidad_medida=? WHERE id=? AND empresa_id=?";
+            $pdo->prepare($sql)->execute([$cod_prod, $descripcion, $p_compra, $p_venta, $fecha_ult_compra, $rubro, $proveedor, $_POST['moneda'] ?? 'pesos', $_POST['unidad_medida'] ?? 'Unidad', $id_post, $empresa_id]);
             
             // Guardar stock en tabla stocks (por sucursal)
             $sql_stock = "INSERT INTO stocks (empresa_id, sucursal_id, cod_prod, stock_actual) VALUES (?, ?, ?, ?) 
@@ -231,12 +235,13 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
         <?php include 'topbar.php'; ?>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h1>📦 Gestión de Productos</h1>
-            <?php if ($accion === 'listar'): ?>
-<div style="display: flex; gap: 10px;">
-                     <button type="button" class="btn" onclick="abrirModalMasivo()" style="background-color: #6f42c1; color: white;"><i class="fas fa-bolt"></i> Aumento Masivo</button>
-                     <button type="button" class="btn" onclick="abrirModalMultiples()" style="background-color: #ff9800; color: white;"><i class="fas fa-layer-group"></i> Carga Múltiple</button>
-                     <a href="<?php echo URL_BASE; ?>productos?accion=crear" class="btn btn-success">+ Nuevo Producto</a>
-                 </div>
+<?php if ($accion === 'listar'): ?>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                      <button type="button" class="btn" onclick="abrirModalMasivo()" style="background-color: #6f42c1; color: white;"><i class="fas fa-bolt"></i> Aumento Masivo</button>
+                      <button type="button" class="btn" onclick="abrirModalMultiples()" style="background-color: #ff9800; color: white;"><i class="fas fa-layer-group"></i> Carga Múltiple</button>
+                      <button type="button" class="btn" onclick="abrirModalPdfPrecios()" style="background-color: #00bcd4; color: white;"><i class="fas fa-file-pdf"></i> Listado PDF</button>
+                      <a href="<?php echo URL_BASE; ?>productos?accion=crear" class="btn btn-success">+ Nuevo Producto</a>
+                  </div>
             <?php endif; ?>
         </div>
 
@@ -259,6 +264,7 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
                                 <th>Descripción</th>
                                 <th>Rubro</th>
                                 <th>Moneda</th>
+                                <th>Unidad</th>
                                 <th class="text-right">Stock</th>
                                 <th class="text-right">P. Venta</th>
                                 <th>Acciones</th>
@@ -272,6 +278,7 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
                                 <td><strong><?php echo htmlspecialchars($p['descripcion']); ?></strong></td>
                                 <td><?php echo htmlspecialchars($p['rubro']); ?></td>
                                 <td><?php echo $p['moneda'] == 'dolar' ? 'U$S' : '$'; ?></td>
+                                <td><?php echo htmlspecialchars($p['unidad_medida'] ?? 'Unidad'); ?></td>
                                 <td class="text-right"><?php echo number_format($p['stock'], 2, ',', '.'); ?></td>
                                 <td class="text-right text-bold text-success"><?php echo $p['moneda'] == 'dolar' ? 'U$S' : '$'; ?><?php echo number_format($p['p_venta'], 2, ',', '.'); ?></td>
                                 <td>
@@ -353,6 +360,17 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
                                 </select>
                                 <button type="button" class="btn btn-success" onclick="agregarNuevoProveedor()" title="Agregar nuevo proveedor" style="width: 45px; display: flex; align-items: center; justify-content: center; padding: 0; margin-bottom: 0;">+</button>
                             </div>
+                        </div>
+                        <div style="flex: 1;">
+                            <label>Unidad de Medida</label>
+                            <select name="unidad_medida">
+                                <?php
+                                $unidades = ['Unidad', 'Kilogramo', 'Metro', 'Litro'];
+                                $unidad_actual = $producto_editar['unidad_medida'] ?? 'Unidad';
+                                foreach ($unidades as $u): ?>
+                                    <option value="<?php echo $u; ?>" <?php echo ($unidad_actual == $u) ? 'selected' : ''; ?>><?php echo $u; ?></option>
+                                <?php endforeach; ?>
+                            </select>
                         </div>
                         <div style="flex: 1;">
                             <label>Moneda</label>
@@ -947,7 +965,116 @@ function cerrarModalMultiples() {
              console.error(err);
              alert('❌ Error al guardar productos');
          });
-     }
-     </script>
+}
+      </script>
+
+    <!-- Modal Generar Listado PDF -->
+    <div id="modalPdfPrecios" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px; border-top: 4px solid #00bcd4;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #444; padding-bottom: 10px;">
+                <h3 style="margin: 0; color: #00bcd4;"><i class="fas fa-file-pdf"></i> Generar Listado de Precios</h3>
+                <span style="cursor: pointer; font-size: 24px; color: #888;" onclick="cerrarModalPdfPrecios()">&times;</span>
+            </div>
+            
+            <label style="color: #aaa; display: block; margin-bottom: 5px;">Seleccione el tipo de listado:</label>
+            <div class="radio-group" style="display: flex; flex-direction: column; gap: 8px; margin: 10px 0;">
+                <label style="display: flex; align-items: center; gap: 10px; color: #e0e0e0; cursor: pointer; font-size: 1rem; margin: 0;">
+                    <input type="radio" name="tipo_listado" value="todo" checked onchange="toggleFiltroPdf()" style="width: auto; accent-color: #00bcd4;">
+                    <i class="fas fa-list"></i> Listar todos los productos
+                </label>
+                <label style="display: flex; align-items: center; gap: 10px; color: #e0e0e0; cursor: pointer; font-size: 1rem; margin: 0;">
+                    <input type="radio" name="tipo_listado" value="busqueda" onchange="toggleFiltroPdf()" style="width: auto; accent-color: #00bcd4;">
+                    <i class="fas fa-search"></i> Según búsqueda actual
+                </label>
+                <label style="display: flex; align-items: center; gap: 10px; color: #e0e0e0; cursor: pointer; font-size: 1rem; margin: 0;">
+                    <input type="radio" name="tipo_listado" value="rubro" onchange="toggleFiltroPdf()" style="width: auto; accent-color: #00bcd4;">
+                    <i class="fas fa-tag"></i> Por Rubro / Categoría
+                </label>
+                <label style="display: flex; align-items: center; gap: 10px; color: #e0e0e0; cursor: pointer; font-size: 1rem; margin: 0;">
+                    <input type="radio" name="tipo_listado" value="proveedor" onchange="toggleFiltroPdf()" style="width: auto; accent-color: #00bcd4;">
+                    <i class="fas fa-truck"></i> Por Proveedor
+                </label>
+            </div>
+
+            <div class="filtro-condicional" id="filtro_rubro_pdf" style="display: none;">
+                <label style="color: #aaa; display: block; margin-bottom: 5px; margin-top: 15px;">Seleccione el Rubro:</label>
+                <select id="select_rubro_pdf" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 1rem; box-sizing: border-box;">
+                    <option value="">-- Seleccionar --</option>
+                    <?php foreach ($rubros_list as $r): ?>
+                        <option value="<?php echo htmlspecialchars($r['nombre']); ?>"><?php echo htmlspecialchars($r['nombre']); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="filtro-condicional" id="filtro_proveedor_pdf" style="display: none;">
+                <label style="color: #aaa; display: block; margin-bottom: 5px; margin-top: 15px;">Seleccione el Proveedor:</label>
+                <select id="select_proveedor_pdf" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 1rem; box-sizing: border-box;">
+                    <option value="">-- Seleccionar --</option>
+                    <?php foreach ($proveedores_pdf_list as $p): ?>
+                        <option value="<?php echo htmlspecialchars($p['proveedor']); ?>"><?php echo htmlspecialchars($p['proveedor']); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 25px;">
+                <button type="button" class="btn btn-secondary" onclick="cerrarModalPdfPrecios()" style="padding: 10px 20px; background: #444; color: #ccc; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 0.95rem;">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="generarPdfPrecios()" style="padding: 10px 20px; background: #00bcd4; color: #fff; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 0.95rem;"><i class="fas fa-file-pdf"></i> Generar PDF</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // --- MODAL LISTADO PDF ---
+    function abrirModalPdfPrecios() {
+        document.getElementById('modalPdfPrecios').style.display = 'block';
+        document.getElementById('modalPdfPrecios').style.alignItems = 'center';
+        document.getElementById('modalPdfPrecios').style.justifyContent = 'center';
+    }
+    function cerrarModalPdfPrecios() {
+        document.getElementById('modalPdfPrecios').style.display = 'none';
+    }
+    document.getElementById('modalPdfPrecios').addEventListener('click', function(e) {
+        if (e.target === this) cerrarModalPdfPrecios();
+    });
+
+    function toggleFiltroPdf() {
+        const seleccion = document.querySelector('input[name="tipo_listado"]:checked').value;
+        document.getElementById('filtro_rubro_pdf').style.display = (seleccion === 'rubro') ? 'block' : 'none';
+        document.getElementById('filtro_proveedor_pdf').style.display = (seleccion === 'proveedor') ? 'block' : 'none';
+    }
+
+    function generarPdfPrecios() {
+        const seleccion = document.querySelector('input[name="tipo_listado"]:checked').value;
+        let url = '<?php echo URL_BASE; ?>pages/generar_pdf_lista_precios.php?tipo=' + seleccion;
+
+        if (seleccion === 'rubro') {
+            const rubro = document.getElementById('select_rubro_pdf').value;
+            if (!rubro) {
+                alert('Seleccione un rubro.');
+                return;
+            }
+            url += '&valor=' + encodeURIComponent(rubro);
+        } else if (seleccion === 'proveedor') {
+            const proveedor = document.getElementById('select_proveedor_pdf').value;
+            if (!proveedor) {
+                alert('Seleccione un proveedor.');
+                return;
+            }
+            url += '&valor=' + encodeURIComponent(proveedor);
+        } else if (seleccion === 'busqueda') {
+            const q = document.getElementById('filtroProductos').value.trim();
+            if (q.length < 2) {
+                alert('Ingrese al menos 2 caracteres en la búsqueda.');
+                document.getElementById('filtroProductos').focus();
+                cerrarModalPdfPrecios();
+                return;
+            }
+            url += '&q=' + encodeURIComponent(q);
+        }
+
+        window.open(url, '_blank');
+        cerrarModalPdfPrecios();
+    }
+    </script>
 </body>
 </html>

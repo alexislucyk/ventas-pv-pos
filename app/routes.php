@@ -49,6 +49,7 @@ $router->get('/proveedores-autorizados', 'pages/abm_proveedores_autorizados.php'
 // Compras
 $router->get('/compras', 'pages/compras.php', 'compras');
 $router->get('/compras-rapidas', 'pages/compras_rapidas.php', 'compras.rapidas');
+$router->get('/historial-compras', 'pages/historial_compras.php', 'compras.historial');
 
 // Presupuestos
 $router->get('/presupuestos', 'pages/presupuestos.php', 'presupuestos');
@@ -90,6 +91,9 @@ $router->get('/abm-empresas', 'pages/abm_empresas.php', 'abm.empresas');
 
 // Utilidades
 $router->get('/backup', 'pages/backup.php', 'backup');
+$router->get('/actualizaciones', 'pages/actualizaciones.php', 'actualizaciones');
+$router->get('/actualizaciones.php', 'pages/actualizaciones.php');
+$router->post('/actualizaciones.php', 'pages/actualizaciones.php');
 $router->get('/facturacion-arca', 'pages/facturacion_arca.php', 'arca');
 $router->get('/cron-dolar', 'pages/cron_dolar.php', 'cron.dolar');
 
@@ -123,6 +127,11 @@ $router->get('/vista_recibo.php', 'pages/vista_recibo.php');
 $router->get('/licencia.php', 'pages/licencia.php');
 $router->get('/cobro_cuotas.php', 'pages/cobro_cuotas.php');
 $router->get('/reporte_cuotas.php', 'pages/reporte_cuotas.php');
+
+// Verificar Módulos (accedido desde "Permisos por Usuario").
+// Se usa UNICAMENTE la URL amigable /verificar-modulos (sin .php).
+$router->get('/verificar-modulos', 'pages/verificar_modulos.php', 'modulos.verificar');
+$router->post('/verificar-modulos', 'pages/verificar_modulos.php');
 
 // Rutas con parámetros dinámicos (ejemplo comentado)
 // $router->get('/producto/{id}', 'pages/producto_detalle.php');

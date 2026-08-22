@@ -37,6 +37,20 @@ let resultadoIdx = -1;
 
 
 // --- 3. FUNCIONES DEL CARRITO ---
+// Unidades a granel (Kg / Mt / Lt): permiten vender por importe
+const ABREVIATURAS = { 'Kilogramo': 'Kg', 'Metro': 'Mt', 'Litro': 'Lt' };
+function esGranel(item) {
+    return !!ABREVIATURAS[item.unidad_medida];
+}
+function abrevUnidad(item) {
+    return ABREVIATURAS[item.unidad_medida] || 'u';
+}
+function esc(t) {
+    const d = document.createElement('div');
+    d.textContent = t == null ? '' : String(t);
+    return d.innerHTML;
+}
+
 function agregarAlCarrito(prod) {
     const existe = carrito.find(item => item.cod_prod === prod.cod_prod);
 let pVenta = parseFloat(prod.p_venta) || 0;
@@ -67,6 +81,7 @@ let pVenta = parseFloat(prod.p_venta) || 0;
         carrito.unshift({ // unshift agrega al inicio del array
             cod_prod: prod.cod_prod,
             descripcion: prod.descripcion,
+            unidad_medida: prod.unidad_medida || 'Unidad',
             p_unit: pVenta,
             p_costo: pCosto,
             cant: 1,
@@ -412,13 +427,14 @@ function renderizarCarrito() {
             }
         }
         let precioHTML = arrowHTML + `$${item.p_unit.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        if (esGranel(item)) precioHTML += `<span style="color:#f1c40f; font-size:.8em;">/${abrevUnidad(item)}</span>`;
 
         tr.innerHTML = `
             <td>${item.cod_prod}</td>
-            <td>${item.descripcion}</td>
+            <td>${item.descripcion}${esGranel(item) ? ` <span style="color:#f1c40f; font-size:.8em;">(${abrevUnidad(item)})</span>` : ''}</td>
             <td>${precioHTML}</td>
 
-            <td><input type="number" value="${item.cant}" min="1" step="any" style="width: 60px !important; padding: 6px !important; margin: 0 !important; text-align: center;" onchange="cambiarCant(${index}, this.value)"></td>
+            <td><input type="number" value="${item.cant}" min="1" step="any" style="width: 60px !important; padding: 6px !important; margin: 0 !important; text-align: center;" onchange="cambiarCant(${index}, this.value)" ${esGranel(item) ? 'ondblclick="abrirModalImporte(' + index + ')" title="F2 o doble clic para vender por importe"' : ''}></td>
             <td>$${item.total.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
 
             <td><input type="number" value="${item.desc || 0}" min="0" max="100" step="1" style="width: 45px !important; padding: 6px !important; margin: 0 !important; text-align: center;" onchange="cambiarDesc(${index}, this.value)"></td>
@@ -440,6 +456,173 @@ window.cambiarCant = function(index, valor) {
     carrito[index].total = subtotal - descuentoMonto;
     renderizarCarrito();
 }
+
+// ================= MODAL IMPORTE (F2) =================
+// F2 abre el modal para vender por importe el producto a granel
+// (si hay varios en el carrito, permite elegir cuál). Doble clic en
+// la celda de cantidad de un producto granel también lo abre.
+let importeModalIdx = null;
+
+function asegurarModalImporte() {
+    if (document.getElementById('modalImporteOverlay')) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'modalImporteOverlay';
+    overlay.style.cssText = 'display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:9999; align-items:center; justify-content:center;';
+    overlay.innerHTML = `
+        <div style="background:#1a1a1a; border:1px solid #444; border-radius:10px; padding:25px; width:360px; box-shadow:0 10px 40px rgba(0,0,0,.6);">
+            <h3 style="margin:0 0 5px 0; color:#00bcd4; font-size:1.05rem;"><i class="fas fa-balance-scale"></i> Vender por importe</h3>
+            <div id="miProducto" style="color:#ccc; font-size:.85rem; margin-bottom:15px;"></div>
+            <label style="display:block; color:#3498db; font-weight:bold; font-size:.85em; margin-bottom:5px;">Importe a cobrar ($)</label>
+            <input type="number" id="miImporteInput" min="0" step="0.01" placeholder="0.00"
+                   style="width:100%; padding:12px; font-size:1.3rem; border-radius:6px; border:1px solid #444; background:#222; color:#fff; box-sizing:border-box; text-align:center;">
+            <div id="miCantidadCalc" style="color:#f1c40f; font-size:.85rem; margin-top:8px; min-height:1.2em;"></div>
+            <div style="display:flex; gap:10px; margin-top:18px;">
+                <button type="button" id="miBtnConfirmar" class="btn btn-primary" style="flex:2;">✔ Aplicar (Enter)</button>
+                <button type="button" id="miBtnCancelar" class="btn btn-secondary" style="flex:1;">Cancelar (Esc)</button>
+            </div>
+        </div>`;
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener('click', e => { if (e.target === overlay) cerrarModalImporte(); });
+    document.getElementById('miBtnCancelar').onclick = cerrarModalImporte;
+    document.getElementById('miBtnConfirmar').onclick = confirmarModalImporte;
+    document.getElementById('miImporteInput').addEventListener('input', recalcularPreviewImporte);
+    document.getElementById('miImporteInput').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); confirmarModalImporte(); }
+        if (e.key === 'Escape') { e.preventDefault(); cerrarModalImporte(); }
+    });
+}
+
+function abrirModalImporte(idx) {
+    // Si no se indica índice, usar el primer producto granel del carrito
+    if (idx === undefined || idx === null) {
+        for (let i = 0; i < carrito.length; i++) {
+            if (esGranel(carrito[i])) { idx = i; break; }
+        }
+    }
+    if (idx === undefined || idx === null || !carrito[idx] || !esGranel(carrito[idx])) {
+        alert('No hay productos a granel (Kg/Mt/Lt) en el carrito.');
+        return;
+    }
+    importeModalIdx = idx;
+    asegurarModalImporte();
+
+    // Lista de índices de productos granel (para navegar con flechas)
+    window.granelesModal = carrito.map((it, i) => ({ it, i })).filter(x => esGranel(x.it)).map(x => x.i);
+
+    renderizarInfoModal();
+
+    const input = document.getElementById('miImporteInput');
+    input.value = '';
+    document.getElementById('miCantidadCalc').textContent = '';
+    document.getElementById('modalImporteOverlay').style.display = 'flex';
+    input.focus();
+}
+window.abrirModalImporte = abrirModalImporte;
+
+// Muestra producto actual + selector (si hay varios) en el modal
+function renderizarInfoModal() {
+    const idx = importeModalIdx;
+    if (idx === null || !carrito[idx]) return;
+    const graneles = window.granelesModal || [];
+    let selectorHTML = '';
+    if (graneles.length > 1) {
+        selectorHTML = '<select id="miSelectorProd" style="width:100%; padding:8px; border-radius:6px; border:1px solid #444; background:#222; color:#fff; margin-bottom:10px;">' +
+            graneles.map(i => `<option value="${i}" ${i === idx ? 'selected' : ''}>${esc(carrito[i].descripcion)} ($${carrito[i].p_unit.toFixed(2)}/${abrevUnidad(carrito[i])})</option>`).join('') +
+            '</select>' +
+            '<div style="color:#888; font-size:.75rem; margin:-6px 0 8px 0;">↑/↓ para cambiar de producto</div>';
+    }
+    const item = carrito[idx];
+    document.getElementById('miProducto').innerHTML = selectorHTML +
+        `<b style="color:#fff;">${esc(item.descripcion)}</b><br>` +
+        `Precio: $${item.p_unit.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / ${abrevUnidad(item)}` +
+        (item.desc > 0 ? ` &middot; Desc: ${item.desc}%` : '');
+    const sel = document.getElementById('miSelectorProd');
+    if (sel) sel.onchange = function () {
+        importeModalIdx = parseInt(this.value, 10);
+        renderizarInfoModal();
+        recalcularPreviewImporte();
+        document.getElementById('miImporteInput').focus();
+    };
+}
+
+// Cambia al producto granel anterior/siguiente con las flechas
+function ciclarProductoGranel(direccion) {
+    const lista = window.granelesModal || [];
+    if (lista.length < 2) return;
+    const pos = lista.indexOf(importeModalIdx);
+    const nuevo = lista[(pos + direccion + lista.length) % lista.length];
+    importeModalIdx = nuevo;
+    renderizarInfoModal();
+    recalcularPreviewImporte();
+    document.getElementById('miImporteInput').focus();
+}
+
+// Recalcula la vista previa de cantidad según lo tipeado
+function recalcularPreviewImporte() {
+    const item = carrito[importeModalIdx];
+    const monto = parseFloat(document.getElementById('miImporteInput').value);
+    const calc = document.getElementById('miCantidadCalc');
+    if (item && !isNaN(monto) && monto > 0 && item.p_unit > 0) {
+        const descFactor = 1 - ((item.desc || 0) / 100);
+        const cant = Math.round((monto / (item.p_unit * descFactor)) * 1000) / 1000;
+        calc.textContent = '→ Cantidad: ' + cant + ' ' + abrevUnidad(item);
+    } else {
+        calc.textContent = '';
+    }
+}
+
+function confirmarModalImporte() {
+    const item = carrito[importeModalIdx];
+    const monto = parseFloat(document.getElementById('miImporteInput').value);
+    if (!item || isNaN(monto) || monto <= 0 || item.p_unit <= 0) { cerrarModalImporte(); return; }
+    const descFactor = 1 - ((item.desc || 0) / 100);
+    item.cant = Math.round((monto / (item.p_unit * descFactor)) * 1000) / 1000;
+    item.total = item.cant * item.p_unit * descFactor;
+    cerrarModalImporte();
+    renderizarCarrito();
+}
+
+function cerrarModalImporte() {
+    const overlay = document.getElementById('modalImporteOverlay');
+    if (overlay) overlay.style.display = 'none';
+    importeModalIdx = null;
+    const inp = document.getElementById('buscar_producto');
+    if (inp) inp.focus();
+}
+window.cerrarModalImporte = cerrarModalImporte;
+
+// Manejo de teclado del modal: F2 abre; dentro funcionan ↑/↓ (cambiar producto),
+// Enter (aplicar), Esc (cerrar) — sin importar dónde esté el foco.
+document.addEventListener('keydown', function (e) {
+    const overlay = document.getElementById('modalImporteOverlay');
+    const abierto = overlay && overlay.style.display === 'flex';
+
+    if (!abierto) {
+        if (e.key === 'F2') {
+            e.preventDefault();
+            abrirModalImporte();
+        }
+        return;
+    }
+
+    if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        ciclarProductoGranel(1);
+    } else if (e.key === 'ArrowUp' || e.key === 'PageUp' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        ciclarProductoGranel(-1);
+    } else if (e.key === 'Enter') {
+        // Si el foco está en el select, dejar que el usuario elija con flechas; no aplicar
+        if (document.activeElement && document.activeElement.id !== 'miSelectorProd') {
+            e.preventDefault();
+            confirmarModalImporte();
+        }
+    } else if (e.key === 'Escape') {
+        e.preventDefault();
+        cerrarModalImporte();
+    }
+});
 
 window.cambiarDesc = function(index, valor) {
     let d = parseFloat(valor);

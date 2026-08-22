@@ -1,0 +1,10 @@
+HTTP/1.1 200 OK
+Date: Fri, 21 Aug 2026 14:39:53 GMT
+Server: Apache/2.4.66 (Win64) OpenSSL/3.0.18 PHP/8.3.30
+X-Powered-By: PHP/8.3.30
+Expires: Thu, 19 Nov 1981 08:52:00 GMT
+Cache-Control: no-store, no-cache, must-revalidate
+Pragma: no-cache
+Transfer-Encoding: chunked
+Content-Type: text/html; charset=UTF-8
+

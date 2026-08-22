@@ -858,7 +858,7 @@ unset($_SESSION['ticket_a_imprimir_doc']);
         </div>
     </div>
 
-    <script src="<?php echo url('js/ventas.js'); ?>"></script>
+    <script src="<?php echo url('js/ventas.js?v=' . time()); ?>"></script>
     <script>
         var clientesData = <?php echo json_encode($clientes); ?>;
 

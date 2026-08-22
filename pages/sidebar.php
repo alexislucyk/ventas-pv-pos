@@ -542,9 +542,6 @@ body.sidebar-collapsed .topbar {
         <?php if (tiene_permiso('pages/abm_proveedores.php')): ?>
             <a href="<?php echo route_file('pages/abm_proveedores.php'); ?>" data-title="Proveedores"><i class="fas fa-truck"></i> <span>Proveedores</span></a>
         <?php endif; ?>
-        <?php if (tiene_permiso('pages/consulta_precios.php')): ?>
-            <a href="<?php echo route_file('pages/consulta_precios.php'); ?>" data-title="Consulta de Precios"><i class="fas fa-tag"></i> <span>Consulta de Precios</span></a>
-        <?php endif; ?>
         </div>
 
         <!-- ===== VENTAS ===== -->
@@ -578,6 +575,9 @@ body.sidebar-collapsed .topbar {
         <?php endif; ?>
         <?php if (tiene_permiso('pages/compras_rapidas.php')): ?>
             <a href="<?php echo route_file('pages/compras_rapidas.php'); ?>" data-title="Compra Rápida"><i class="fas fa-bolt"></i> <span>Compra Rápida</span></a>
+        <?php endif; ?>
+        <?php if (tiene_permiso('pages/historial_compras.php')): ?>
+            <a href="<?php echo route_file('pages/historial_compras.php'); ?>" data-title="Historial de Compras"><i class="fas fa-history"></i> <span>Historial</span></a>
         <?php endif; ?>
         </div>
 
@@ -646,6 +646,9 @@ body.sidebar-collapsed .topbar {
         <?php endif; ?>
         <?php if (tiene_permiso('pages/backup.php')): ?>
             <a href="<?php echo route_file('pages/backup.php'); ?>" data-title="Backup"><i class="fas fa-database"></i> <span>Backup</span></a>
+        <?php endif; ?>
+        <?php if ($_SESSION['usuario_rol'] === 'developer' || tiene_permiso('pages/actualizaciones.php')): ?>
+            <a href="<?php echo route_file('pages/actualizaciones.php'); ?>" data-title="Actualizar Sistema"><i class="fas fa-sync-alt"></i> <span>Actualizar Sistema</span></a>
         <?php endif; ?>
         </div>
     </div>

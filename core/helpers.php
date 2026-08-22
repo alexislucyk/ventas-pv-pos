@@ -15,9 +15,36 @@ if (!defined('BASE_PATH')) {
 /**
  * Acceso a la instancia global del Router.
  */
-function app(): Router
+function app(): ?Router
 {
     global $router;
+
+    // Bootstrap perezoso: si no hay router (acceso directo por URL física,
+    // ej. /pos_dev/pages/historial_compras.php), lo instanciamos y cargamos
+    // las rutas para que route()/route_file() sigan generando URLs limpias.
+    if ($router === null && !defined('ROUTER_BOOTSTRAPPED')) {
+        define('ROUTER_BOOTSTRAPPED', true);
+
+        $router_file = BASE_PATH . '/core/Router.php';
+        $routes_file = BASE_PATH . '/app/routes.php';
+
+        if (file_exists($router_file)) {
+            require_once $router_file;
+
+            if (class_exists('Router')) {
+                $router = new Router();
+
+                if (file_exists($routes_file)) {
+                    // routes.php espera encontrar $router en su ámbito
+                    $loadRoutes = function () use (&$router, $routes_file) {
+                        require $routes_file;
+                    };
+                    $loadRoutes();
+                }
+            }
+        }
+    }
+
     return $router;
 }
 
@@ -30,6 +57,11 @@ function app(): Router
  */
 function route(string $name, array $params = []): string
 {
+    // Sin router (acceso directo por URL física): fallback a URL amigable simple
+    if (app() === null) {
+        return url(ltrim($name, '/'));
+    }
+
     return app()->url($name, $params);
 }
 
@@ -46,7 +78,8 @@ function route(string $name, array $params = []): string
 function route_file(string $file): string
 {
     $base  = defined('URL_BASE') ? rtrim(URL_BASE, '/') : '';
-    $uri   = app()->uriForFile($file);
+    $router = app();
+    $uri   = $router !== null ? $router->uriForFile($file) : null;
 
     if ($uri !== null) {
         return $base . ($uri === '/' ? '/' : $uri);
@@ -64,10 +97,12 @@ function route_file(string $file): string
  */
 function redirect(string $to, int $code = 302): void
 {
-    // Si es una ruta nombrada, generar la URL
-    $named = app()->getNamedRoutes();
-    if (isset($named[$to])) {
-        $to = app()->url($to);
+    // Si es una ruta nombrada, generar la URL (requiere router activo)
+    if (app() !== null) {
+        $named = app()->getNamedRoutes();
+        if (isset($named[$to])) {
+            $to = app()->url($to);
+        }
     }
 
     header('Location: ' . $to, true, $code);

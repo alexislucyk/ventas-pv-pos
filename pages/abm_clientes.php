@@ -194,13 +194,12 @@ if ($accion === 'listar') {
     
     $stmt = $pdo->prepare("
         SELECT c.*, 
-            (SELECT COALESCE(SUM(debe), 0) - COALESCE(SUM(haber), 0) FROM ctacte WHERE id_cliente = c.id AND empresa_id = ?) as saldo_cc
+            (SELECT COALESCE(SUM(debe), 0) - COALESCE(SUM(haber), 0) FROM ctacte WHERE id_cliente = c.id AND empresa_id = " . (int)$empresa_id . ") as saldo_cc
         FROM clientes c 
         $where_sql 
         ORDER BY c.id DESC 
         LIMIT $por_pagina OFFSET $offset
     ");
-    $params[] = $empresa_id;
     $stmt->execute($params);
     $clientes = $stmt->fetchAll();
 }

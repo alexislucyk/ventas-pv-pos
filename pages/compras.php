@@ -37,6 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_compra'])) 
     $total_compra   = filter_var($_POST['total_compra'] ?? 0, FILTER_VALIDATE_FLOAT);
     $fecha_compra   = htmlspecialchars($_POST['fecha_compra'] ?? date('Y-m-d'));
     $detalle_json   = $_POST['detalle_productos'] ?? '[]'; // El JSON del carrito
+    $descuento_global = filter_var($_POST['descuento_factura'] ?? 0, FILTER_VALIDATE_FLOAT); // Descuento global factura
     $fecha_operacion = date('Y-m-d H:i:s'); // Fecha de registro en el sistema
     $usuario_id     = $_SESSION['usuario_id'] ?? 0;
 
@@ -105,13 +106,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_compra'])) 
                                 WHERE cod_prod = :cod AND empresa_id = :empresa_id";
             $stmt_update_prod = $pdo->prepare($sql_update_prod);
 
-
             foreach ($productos_detalle as $item) {
                 $cod_prod = htmlspecialchars($item['cod_prod'] ?? '');
                 $descripcion = htmlspecialchars($item['descripcion'] ?? '');
                 $cant = (float)($item['cant'] ?? 0);
                 $p_unit = (float)($item['p_unit'] ?? 0);
-                $total_linea = $cant * $p_unit; 
+                $total_linea = (float)($item['total'] ?? ($cant * $p_unit));
 
                 // 1. Insertar en compras_detalle
                 $stmt_detalle->execute([
@@ -169,8 +169,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_compra'])) 
             // Limpiar variables de POST para evitar recarga accidental
             unset($_POST);
             
-        } catch (Exception $e) {
-            $pdo->rollBack();
+        } catch (Throwable $e) {
+            if ($pdo && $pdo->inTransaction()) $pdo->rollBack();
             $error = true;
             $mensaje = "❌ ERROR CRÍTICO EN LA TRANSACCIÓN: " . $e->getMessage();
             error_log("Error de Compra: " . $e->getMessage() . " | Trace: " . $e->getTraceAsString());
@@ -214,13 +214,26 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
         $stmt_conf = $pdo->query("SELECT valor FROM configuracion WHERE clave = 'ganancia_global'");
         $ganancia_config = (float)($stmt_conf->fetchColumn() ?: 60);
 
-    } catch (Exception $e) {
+        // Últimas compras registradas (para widget de referencia rápida)
+        $sql_ultimas_compras = "SELECT c.id, c.n_documento, c.documento, c.total_compra, c.fecha_compra, p.razon AS proveedor
+                               FROM compras c
+                               LEFT JOIN proveedores p ON c.cod_proveedor = p.cod_prov AND p.empresa_id = c.empresa_id
+                               WHERE c.empresa_id = :empresa_id
+                               ORDER BY c.fecha_operacion DESC, c.id DESC
+                               LIMIT 10";
+        $stmt_ultimas = $pdo->prepare($sql_ultimas_compras);
+        $stmt_ultimas->execute([':empresa_id' => $empresa_id]);
+        $ultimas_compras = $stmt_ultimas->fetchAll(PDO::FETCH_ASSOC);
+
+    } catch (Throwable $e) {
         error_log("Error al cargar proveedores: " . $e->getMessage());
         $mensaje = "⚠️ Advertencia: No se pudieron cargar los proveedores.";
-        $proveedores = []; 
+        $proveedores = [];
         $rubros_list = [];
         $proveedores_list = [];
         $nuevo_cod_prov_sugerido = 1;
+        $ultimas_compras = [];
+        $ganancia_config = 60;
     }
 }
 
@@ -232,51 +245,20 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nueva Compra | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>"> 
-    <style>
-        /* Estilos base responsive para la cuadrícula */
-        .compra-grid { 
-            display: grid; 
-            grid-template-columns: 2fr 1fr; 
-            gap: 20px; 
-        }
-        /* Media Query para pantallas pequeñas (apilamiento) */
-        @media (max-width: 1100px) {
-            .compra-grid {
-                grid-template-columns: 1fr; /* Columna única */
-            }
-        }
-        /* Estilos de búsqueda y carrito */
-        #carrito tbody tr:hover { background-color: #333; }
-        .producto-encontrado, .resultado-proveedor-item { cursor: pointer; padding: 5px; border-bottom: 1px solid #444; }
-        .producto-encontrado:hover, .resultado-proveedor-item:hover { background-color: #555; }
-        #resultadosBusqueda, #resultadosBusquedaProveedores { 
-            max-height: 200px; 
-            overflow-y: auto; 
-            background: #222; 
-            border: 1px solid #444; 
-            position: absolute;
-            top: 100%;
-            left: 0;
-            width: 100%; 
-            z-index: 10; 
-        }
-        .text-right { text-align: right; }
-        .alert-error { background-color: #f44336; }
-        .alert-success { background-color: #4caf50; }
-        .alert { padding: 10px; margin-bottom: 20px; border-radius: 5px; color: white; }
-    </style>
+<link rel="stylesheet" href="<?php echo url('css/style.css'); ?>"> 
+    <link rel="stylesheet" href="<?php echo url('css/compras.css'); ?>"> 
 </head>
 <body>
 
     <button id="menuToggle" aria-label="Abrir Menú">☰ Menú</button>
     <?php include 'sidebar.php'; ?> 
     
-    <div class="content" style="padding-top: 70px;">
+    <div class="content">
         <?php include 'topbar.php'; ?>
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #00bcd4; margin-bottom: 30px; padding-bottom: 10px;">
-            <h1 style="border-bottom: none; margin-bottom: 0; padding-bottom: 0;">Registro de Compra a Proveedores</h1>
-            <a href="compras_rapidas.php" class="btn btn-yellow" style="text-decoration: none;"><i class="fas fa-bolt"></i> Carga Rápida (Sin Detalle)</a>
+        <div class="compra-header">
+            <h1>Registro de Compra a Proveedores</h1>
+            <a href="compras_rapidas.php" class="btn btn-yellow"><i class="fas fa-bolt"></i> Carga Rápida (Sin Detalle)</a>
+            <a href="<?php echo url('ajax/exportar_compras_csv.php'); ?>" class="btn btn-secondary"><i class="fas fa-file-csv"></i> Exportar CSV</a>
         </div>
         
         <?php if ($mensaje): ?>
@@ -290,53 +272,54 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
             <div class="card">
                 <h2>Detalle de Productos Comprados</h2>
                 
-                <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="busqueda-header">
                     <label for="buscar_producto"><i class="fas fa-search"></i> Buscar Producto</label>
-                    <button type="button" class="btn btn-success" onclick="abrirModalNuevoProducto()" title="Agregar nuevo producto" style="padding: 2px 8px; margin-bottom: 5px; font-size: 0.8rem; background: #27ae60;">+ Nuevo</button>
+                    <button type="button" class="btn btn-success" onclick="abrirModalNuevoProducto()" title="Agregar nuevo producto">+ Nuevo</button>
                 </div>
-                <div style="position: relative; margin-bottom: 15px;">
-                    <input type="text" id="buscar_producto" class="input-field" placeholder="Escriba el código o nombre del producto" style="margin-bottom: 0 !important;">
+                <div class="busqueda-producto-container">
+                    <input type="text" id="buscar_producto" class="input-field" placeholder="Escriba el código o nombre del producto">
                     <div id="resultadosBusqueda"></div>
                 </div>
 
                 <hr>
 
                 <h3>Carrito de Compra</h3>
-                <table id="carrito" style="width: 100%;">
-                    <thead>
-                        <tr>
-                            <th>Código</th>
-                            <th>Descripción</th>
-                            <th class="text-right">Costo Unit.</th>
-                            <th style="width: 10%;">Cant.</th>
-                            <th class="text-right">Total</th>
-                            <th>Acción</th>
-                        </tr>
-                    </thead>
+<table id="carrito" class="tabla-carrito">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Descripción</th>
+                                <th class="text-right">Costo Unit.</th>
+                                <th class="cant-col">Cant.</th>
+                                <th class="text-right">Dto.</th>
+                                <th class="text-right">Total</th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
                     <tbody>
                     </tbody>
                 </table>
             </div>
             
             <div class="card">
-                <form id="formCompra" method="POST" action="<?php echo url('pages/compras.php'); ?>">
+                <form id="formCompra" method="POST" action="<?php echo url('compras'); ?>">
                     <input type="hidden" name="registrar_compra" value="1">
                     <input type="hidden" name="detalle_productos" id="detalle_productos_input">
 
                     <h2>Datos del Proveedor y Factura</h2>
 
-                    <div class="contenedor-busqueda-proveedor" style="margin-bottom: 20px;"> 
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="contenedor-busqueda-proveedor"> 
+                        <div class="busqueda-header">
                             <label for="buscar_proveedor"><i class="fas fa-truck"></i> Buscar Proveedor</label>
-                            <button type="button" class="btn btn-success" onclick="abrirModalNuevoProveedor()" title="Agregar nuevo proveedor" style="padding: 2px 8px; margin-bottom: 5px; font-size: 0.8rem; background: #27ae60;">+ Nuevo</button>
+                            <button type="button" class="btn btn-success" onclick="abrirModalNuevoProveedor()" title="Agregar nuevo proveedor">+ Nuevo</button>
                         </div>
-                        <div style="position: relative;">
-                            <input type="text" id="buscar_proveedor" class="input-field" placeholder="Seleccionar Proveedor" style="margin-bottom: 0 !important;">
+                        <div class="busqueda-container">
+                            <input type="text" id="buscar_proveedor" class="input-field" placeholder="Seleccionar Proveedor">
                             <div id="resultadosBusquedaProveedores"></div>
                         </div>
                     </div>
                     
-                    <div style="margin-bottom: 10px;">
+                    <div class="proveedor-display">
                         Proveedor Actual: <strong id="nombre_proveedor_display">No Seleccionado</strong>
                     </div>
 
@@ -379,12 +362,26 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
 
                     <h3>Totales y Pago</h3>
                     
-                    <div style="display: flex; justify-content: space-between; font-size: 1.2em; margin-bottom: 15px;">
-                        <strong>TOTAL COMPRA:</strong> 
-                        <strong id="total_compra_display" style="color: yellow;">$0.00</strong>
+                    <div class="total-row">
+                        <strong>Subtotal:</strong>
+                        <strong id="subtotal_display">$0.00</strong>
+                    </div>
+                    <div class="total-row">
+                        <strong>Descuento Total:</strong>
+                        <strong id="descuento_total_display" class="total-amt-desc">$0.00</strong>
+                    </div>
+                    
+                    <div class="total-divider"></div>
+                    <div class="total-row total-final">
+                        <strong>TOTAL COMPRA:</strong>
+                        <strong id="total_compra_display" class="total-amt">$0.00</strong>
                     </div>
 
                     <input type="hidden" name="total_compra" id="total_compra_input" value="0.00">
+                    <input type="hidden" name="detalle_descuentos" id="detalle_descuentos_input" value="{}">
+
+                    <label for="descuento_factura">Descuento General Factura ($)</label>
+                    <input type="number" step="0.01" min="0" id="descuento_factura" name="descuento_factura" class="input-field" value="0.00">
 
                     <label for="cond_pago">Condición de Pago</label>
                     <select id="cond_pago" name="cond_pago" class="input-field" required>
@@ -392,22 +389,48 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                         <option value="CRÉDITO">CRÉDITO (Cta. Cte.)</option>
                     </select>
                     
-                    <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
-                        Registrar Compra y Actualizar Stock
-                    </button>
+ <button type="submit" class="btn btn-primary">Registrar Compra y Actualizar Stock</button>
                     
-                </form>
-            </div>
-            
-        </div>
-    </div>
+                 </form>
+             </div>
+             
+             <!-- Widget Últimas Compras -->
+             <div class="card ultimas-compras-widget">
+                 <h2>Últimas Compras</h2>
+                 <?php if (!empty($ultimas_compras)): ?>
+                 <table>
+                     <thead>
+                         <tr>
+                             <th>Doc</th>
+                             <th>Proveedor</th>
+                             <th class="text-right">Total</th>
+                             <th>Fecha</th>
+                         </tr>
+                     </thead>
+                     <tbody>
+                         <?php foreach ($ultimas_compras as $c): ?>
+                         <tr>
+                             <td><?php echo htmlspecialchars($c['documento'] . ' ' . $c['n_documento']); ?></td>
+                             <td><?php echo htmlspecialchars($c['proveedor'] ?? 'S/D'); ?></td>
+                             <td class="text-right">$<?php echo number_format($c['total_compra'], 2); ?></td>
+                             <td><?php echo date('d/m', strtotime($c['fecha_compra'])); ?></td>
+                         </tr>
+                         <?php endforeach; ?>
+                     </tbody>
+                 </table>
+                 <?php else: ?>
+                 <p class="no-data-msg">No hay compras registradas.</p>
+                 <?php endif; ?>
+             </div>
+         </div>
+     </div>
     
     <!-- Modal Nuevo Producto Rápido -->
-    <div id="modalNuevoProducto" class="modal" style="display:none; position:fixed; z-index:10000; left:0; top:0; width:100%; height:100%; background: rgba(0,0,0,0.9);">
-        <div class="modal-content" style="background: #1a1a1a; margin: 2% auto; padding: 25px; width: 500px; border-radius: 12px; border: 1px solid #333; max-height: 90vh; overflow-y: auto;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px;">
-                <h2 style="margin:0; color:#00bcd4;">Registrar Producto</h2>
-                <span onclick="cerrarModalNuevoProducto()" style="cursor:pointer; font-size: 28px; color: #ff4444;">&times;</span>
+    <div id="modalNuevoProducto" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Registrar Producto</h2>
+                <span onclick="cerrarModalNuevoProducto()" class="close">&times;</span>
             </div>
             <form id="formNuevoProducto">
                 <label>Código de Barras / Interno *</label>
@@ -415,29 +438,29 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                 <label>Descripción *</label>
                 <input type="text" id="np_descripcion" class="input-field" required>
                 
-                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                    <div style="flex: 1;">
+                <div class="form-row">
+                    <div>
                         <label>Costo (Compra) *</label>
                         <input type="number" step="0.01" id="np_p_compra" class="input-field" required oninput="calcularPrecioVentaSugerido()">
                     </div>
-                    <div style="flex: 1;">
+                    <div>
                         <label>Precio Venta ($) *</label>
                         <input type="number" step="0.01" id="np_p_venta" class="input-field" required>
                     </div>
                 </div>
 
-                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                    <div style="flex: 1;">
+                <div class="form-row">
+                    <div>
                         <label>Stock Inicial</label>
                         <input type="number" step="0.01" id="np_stock" class="input-field" value="0">
                     </div>
-                    <div style="flex: 1;">
+                    <div>
                         <label>Fecha Ult. Compra</label>
                         <input type="date" id="np_fecha_ult_compra" class="input-field" value="<?php echo date('Y-m-d'); ?>">
                     </div>
                 </div>
 
-                <div style="margin-bottom: 10px;">
+                <div>
                     <label>Rubro</label>
                     <select id="np_rubro" class="input-field">
                         <?php foreach ($rubros_list as $r): ?>
@@ -445,7 +468,7 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div style="margin-bottom: 10px;">
+                <div>
                     <label>Proveedor Principal</label>
                     <select id="np_proveedor" class="input-field">
                         <?php foreach ($proveedores_list as $p): ?>
@@ -453,17 +476,17 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <button type="button" class="btn btn-primary btn-block" onclick="guardarNuevoProducto()" style="margin-top: 15px; height: 45px; font-weight: bold;">GUARDAR Y AGREGAR</button>
+                <button type="button" class="btn btn-primary btn-block" onclick="guardarNuevoProducto()">GUARDAR Y AGREGAR</button>
             </form>
         </div>
     </div>
 
     <!-- Modal Nuevo Proveedor Rápido -->
-    <div id="modalNuevoProveedor" class="modal" style="display:none; position:fixed; z-index:10000; left:0; top:0; width:100%; height:100%; background: rgba(0,0,0,0.9);">
-        <div class="modal-content" style="background: #1a1a1a; margin: 10% auto; padding: 25px; width: 400px; border-radius: 12px; border: 1px solid #333;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px;">
-                <h2 style="margin:0; color:#00bcd4;">Registrar Proveedor</h2>
-                <span onclick="cerrarModalNuevoProveedor()" style="cursor:pointer; font-size: 28px; color: #ff4444;">&times;</span>
+    <div id="modalNuevoProveedor" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Registrar Proveedor</h2>
+                <span onclick="cerrarModalNuevoProveedor()" class="close">×</span>
             </div>
             <form id="formNuevoProveedor">
                 <label>Código Proveedor *</label>
@@ -474,362 +497,15 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                 <input type="text" id="nprov_cuit" class="input-field">
                 <label>Teléfono</label>
                 <input type="text" id="nprov_telefono" class="input-field">
-                <button type="button" class="btn btn-primary btn-block" onclick="guardarNuevoProveedor()" style="margin-top: 15px; height: 45px; font-weight: bold;">GUARDAR Y SELECCIONAR</button>
+                <button type="button" class="btn btn-primary btn-block" onclick="guardarNuevoProveedor()">GUARDAR Y SELECCIONAR</button>
             </form>
         </div>
     </div>
 
+    <script>
+        var proveedoresData = <?php echo json_encode($proveedores); ?>;
+        var gananciaConfig = <?php echo $ganancia_config; ?>;
+    </script>
+    <script src="<?php echo url('js/compras.js'); ?>"></script>
 </body>
-<script src="<?php echo url('js/global.js'); ?>"></script> 
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Inicialización
-        let carrito = []; 
-        let proveedoresData = <?php echo json_encode($proveedores); ?>;
-        
-        // ===========================================
-        // 1. FUNCIONALIDAD DEL CARRITO Y CÁLCULOS
-        // ===========================================
-
-        function calcularTotales() {
-            let totalCompra = carrito.reduce((sum, item) => sum + item.total, 0);
-
-            document.getElementById('total_compra_display').textContent = '$' + totalCompra.toFixed(2);
-            document.getElementById('total_compra_input').value = totalCompra.toFixed(2); 
-        }
-
-        function renderizarCarrito() {
-            const tbody = document.querySelector('#carrito tbody');
-            tbody.innerHTML = '';
-            
-            carrito.forEach((item, index) => {
-                const row = tbody.insertRow();
-                row.dataset.index = index;
-                
-                // Nota: Los inputs de Cantidad y Costo usan 'change' para recalcular
-                row.innerHTML = `
-                    <td>${item.cod_prod}</td>
-                    <td>${item.descripcion}</td>
-                    <td class="text-right">
-                        <input type="number" step="0.01" value="${item.p_unit.toFixed(2)}" data-cod-prod="${item.cod_prod}"
-                            class="input-field update-costo" style="width: 80px; padding: 5px; text-align: right;">
-                    </td>
-                    <td>
-                        <input type="number" min="1" step="any" value="${item.cant}" data-cod-prod="${item.cod_prod}"
-                            class="input-field update-cantidad" style="width: 60px; padding: 5px;">
-                    </td>
-                    <td class="text-right">$${item.total.toFixed(2)}</td>
-                    <td>
-                        <button type="button" class="btn btn-danger btn-sm remover-item" data-cod-prod="${item.cod_prod}">X</button>
-                    </td>
-                `;
-            });
-            calcularTotales();
-        }
-
-        // Eventos para actualizar costo y cantidad
-        document.querySelector('#carrito').addEventListener('change', function(e) {
-            const target = e.target;
-            const cod_prod = target.dataset.codProd;
-            const index = carrito.findIndex(item => item.cod_prod === cod_prod);
-
-            if (index !== -1) {
-                if (target.classList.contains('update-cantidad')) {
-                    const nuevaCantidad = parseFloat(target.value) || 1;
-                    carrito[index].cant = Math.max(1, nuevaCantidad);
-                } else if (target.classList.contains('update-costo')) {
-                    const nuevoCosto = parseFloat(target.value) || 0;
-                    carrito[index].p_unit = Math.max(0, nuevoCosto);
-                }
-                
-                // Recalcular el total de la línea
-                carrito[index].total = carrito[index].cant * carrito[index].p_unit;
-                
-                // Asegurar que el input refleje el valor actualizado si se forzó el mínimo
-                target.value = (target.classList.contains('update-cantidad')) ? carrito[index].cant : carrito[index].p_unit.toFixed(2);
-                
-                renderizarCarrito(); 
-            }
-        });
-
-        // Evento para remover item
-        document.querySelector('#carrito').addEventListener('click', function(e) {
-            if (e.target.classList.contains('remover-item')) {
-                const cod_prod = e.target.dataset.codProd;
-                carrito = carrito.filter(item => item.cod_prod !== cod_prod);
-                renderizarCarrito();
-            }
-        });
-
-
-        // ===========================================
-        // 2. BÚSQUEDA DE PRODUCTOS (AJAX)
-        // ===========================================
-
-        const inputBuscar = document.getElementById('buscar_producto');
-        const resultadosDiv = document.getElementById('resultadosBusqueda');
-
-        inputBuscar.addEventListener('input', function() {
-            const busqueda = inputBuscar.value.trim();
-            if (busqueda.length < 3) {
-                resultadosDiv.innerHTML = '';
-                resultadosDiv.style.display = 'none';
-                return;
-            }
-
-            // Llamada AJAX (Requiere el archivo buscar_producto_ajax.php)
-            const xhr = new XMLHttpRequest();
-            xhr.open('GET', 'buscar_producto_ajax.php?q=' + encodeURIComponent(busqueda), true); 
-            xhr.onload = function() {
-                if (this.status == 200) {
-                    try {
-                        const productos = JSON.parse(this.responseText);
-                        mostrarResultados(productos);
-                    } catch (e) {
-                        resultadosDiv.innerHTML = 'Error al procesar la respuesta JSON.';
-                    }
-                }
-            };
-            xhr.send();
-        });
-
-        function mostrarResultados(productos) {
-            resultadosDiv.innerHTML = '';
-            if (productos.length === 0) {
-                resultadosDiv.innerHTML = '<div style="padding: 10px;">No se encontraron productos.</div>';
-                resultadosDiv.style.display = 'block';
-                return;
-            }
-
-            productos.forEach(producto => {
-                const div = document.createElement('div');
-                div.classList.add('producto-encontrado');
-                // Se muestra el costo promedio actual como referencia
-                div.textContent = `[${producto.cod_prod}] ${producto.descripcion} - Stock: ${producto.stock} - Costo Prom: $${parseFloat(producto.costo_promedio || 0).toFixed(2)}`;
-                div.dataset.producto = JSON.stringify(producto);
-                resultadosDiv.appendChild(div);
-            });
-            resultadosDiv.style.display = 'block';
-        }
-
-        resultadosDiv.addEventListener('click', function(e) {
-            if (e.target.classList.contains('producto-encontrado')) {
-                const producto = JSON.parse(e.target.dataset.producto);
-                
-                const index = carrito.findIndex(item => item.cod_prod === producto.cod_prod);
-                // Usamos el costo promedio actual del producto como sugerencia para el p_unit de la compra
-                const costo_inicial = parseFloat(producto.costo_promedio || 0); 
-                
-                if (index !== -1) {
-                    carrito[index].cant += 1;
-                } else {
-                    carrito.push({
-                        cod_prod: producto.cod_prod,
-                        descripcion: producto.descripcion,
-                        p_unit: costo_inicial, 
-                        cant: 1,
-                        total: costo_inicial,
-                    });
-                }
-                
-                inputBuscar.value = '';
-                resultadosDiv.innerHTML = '';
-                resultadosDiv.style.display = 'none';
-                renderizarCarrito();
-            }
-        });
-        
-        document.addEventListener('click', function(e) {
-            if (!inputBuscar.contains(e.target) && !resultadosDiv.contains(e.target)) {
-                resultadosDiv.style.display = 'none';
-            }
-        });
-
-
-        // ===========================================
-        // 3. BÚSQUEDA Y SELECCIÓN DE PROVEEDORES
-        // ===========================================
-        
-        const inputBuscarProveedor = document.getElementById('buscar_proveedor');
-        const resultadosDivProveedores = document.getElementById('resultadosBusquedaProveedores');
-        const nombreProveedorDisplay = document.getElementById('nombre_proveedor_display');
-        const proveedorIdHidden = document.getElementById('proveedor_id_hidden');
-        const cuitProveedorDisplay = document.getElementById('cuit_proveedor_display');
-
-        inputBuscarProveedor.addEventListener('input', function() {
-            const busqueda = inputBuscarProveedor.value.trim().toLowerCase();
-            resultadosDivProveedores.innerHTML = '';
-
-            if (busqueda.length < 2) {
-                resultadosDivProveedores.style.display = 'none';
-                return;
-            }
-
-            // Filtrar el array cargado por PHP (proveedoresData)
-            const resultados = proveedoresData.filter(proveedor => 
-                proveedor.nombre.toLowerCase().includes(busqueda) || 
-                proveedor.cuit.includes(busqueda)
-            );
-
-            if (resultados.length > 0) {
-                resultados.forEach(proveedor => {
-                    const div = document.createElement('div');
-                    div.classList.add('resultado-proveedor-item');
-                    div.textContent = `${proveedor.nombre} (CUIT: ${proveedor.cuit})`;
-                    div.dataset.proveedor = JSON.stringify(proveedor);
-                    resultadosDivProveedores.appendChild(div);
-                });
-                resultadosDivProveedores.style.display = 'block';
-            } else {
-                resultadosDivProveedores.style.display = 'none';
-            }
-        });
-
-        resultadosDivProveedores.addEventListener('click', function(e) {
-            if (e.target.classList.contains('resultado-proveedor-item')) {
-                const proveedor = JSON.parse(e.target.dataset.proveedor);
-                
-                // Asignar datos al formulario y display (usando id_proveedor que es el cod_prov)
-                nombreProveedorDisplay.textContent = proveedor.nombre;
-                proveedorIdHidden.value = proveedor.id_proveedor;
-                cuitProveedorDisplay.value = proveedor.cuit;
-
-                inputBuscarProveedor.value = proveedor.nombre; 
-                resultadosDivProveedores.style.display = 'none';
-            }
-        });
-        
-        document.addEventListener('click', function(e) {
-            if (!inputBuscarProveedor.contains(e.target) && !resultadosDivProveedores.contains(e.target)) {
-                resultadosDivProveedores.style.display = 'none';
-            }
-        });
-        
-        // ===========================================
-        // 4. ENVÍO DE FORMULARIO
-        // ===========================================
-
-        const formCompra = document.getElementById('formCompra');
-        const detalleProductosInput = document.getElementById('detalle_productos_input');
-
-        formCompra.addEventListener('submit', function(e) {
-            
-            if (proveedorIdHidden.value === '0' || proveedorIdHidden.value === '') {
-                mostrarMensaje("Faltan Datos", "Debe seleccionar un proveedor para registrar la compra.", "error");
-                e.preventDefault();
-                return;
-            }
-            
-            if (carrito.length === 0) {
-                mostrarMensaje("Carrito Vacío", "Debe agregar al menos un producto para registrar la compra.", "error");
-                e.preventDefault();
-                return;
-            }
-            
-            // Si todo está bien, serializar el carrito a JSON antes de enviar
-            detalleProductosInput.value = JSON.stringify(carrito);
-            
-            // El resto se procesa en el bloque PHP superior
-        });
-
-        // ===========================================
-        // 5. LÓGICA MODALES RÁPIDOS (PRODUCTO Y PROVEEDOR)
-        // ===========================================
-        window.abrirModalNuevoProducto = function() {
-            const modal = document.getElementById('modalNuevoProducto');
-            modal.style.display = 'block';
-            const busq = document.getElementById('buscar_producto').value.trim();
-            if (busq !== "") document.getElementById('np_cod_prod').value = busq;
-            document.getElementById('np_cod_prod').focus();
-        };
-
-        window.cerrarModalNuevoProducto = function() {
-            document.getElementById('modalNuevoProducto').style.display = 'none';
-            document.getElementById('formNuevoProducto').reset();
-        };
-
-        window.guardarNuevoProducto = function() {
-            const formData = new FormData();
-            formData.append('cod_prod', document.getElementById('np_cod_prod').value.trim());
-            formData.append('descripcion', document.getElementById('np_descripcion').value.trim());
-            formData.append('p_compra', document.getElementById('np_p_compra').value);
-            formData.append('p_venta', document.getElementById('np_p_venta').value);
-            formData.append('stock', document.getElementById('np_stock').value);
-            formData.append('fecha_ult_compra', document.getElementById('np_fecha_ult_compra').value);
-            formData.append('rubro', document.getElementById('np_rubro').value);
-            formData.append('proveedor', document.getElementById('np_proveedor').value);
-
-            fetch('<?php echo URL_BASE; ?>ajax/agregar_producto_rapido.php', { method: 'POST', body: formData })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    // Agregamos directamente al carrito de compras
-                    carrito.push({
-                        cod_prod: data.producto.cod_prod,
-                        descripcion: data.producto.descripcion,
-                        p_unit: parseFloat(data.producto.p_compra), 
-                        cant: 1,
-                        total: parseFloat(data.producto.p_compra)
-                    });
-                    renderizarCarrito();
-                    cerrarModalNuevoProducto();
-                } else { alert("Error: " + data.error); }
-            });
-        };
-
-        window.abrirModalNuevoProveedor = function() {
-            document.getElementById('modalNuevoProveedor').style.display = 'block';
-            document.getElementById('nprov_razon').focus();
-        };
-
-        window.cerrarModalNuevoProveedor = function() {
-            document.getElementById('modalNuevoProveedor').style.display = 'none';
-            document.getElementById('formNuevoProveedor').reset();
-        };
-
-        window.guardarNuevoProveedor = function() {
-            const formData = new FormData();
-            formData.append('cod_prov', document.getElementById('nprov_cod_prov').value.trim());
-            formData.append('razon', document.getElementById('nprov_razon').value.trim());
-            formData.append('cuit', document.getElementById('nprov_cuit').value.trim());
-            formData.append('telefono', document.getElementById('nprov_telefono').value.trim());
-
-            fetch('<?php echo URL_BASE; ?>ajax/agregar_proveedor_rapido.php', { method: 'POST', body: formData })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    // Actualizar lista local de proveedores para el buscador
-                    proveedoresData.push({
-                        id_proveedor: data.id_proveedor,
-                        nombre: data.nombre,
-                        cuit: data.cuit
-                    });
-                    // Seleccionar automáticamente al nuevo proveedor
-                    nombreProveedorDisplay.textContent = data.nombre;
-                    proveedorIdHidden.value = data.id_proveedor;
-                    cuitProveedorDisplay.value = data.cuit;
-                    cerrarModalNuevoProveedor();
-                } else { alert("Error: " + data.error); }
-            });
-        };
-
-        // Función para calcular precio de venta sugerido (60% de ganancia)
-        window.calcularPrecioVentaSugerido = function() {
-            const gananciaRef = <?php echo $ganancia_config; ?>;
-            const pCompraInput = document.getElementById('np_p_compra');
-            const pVentaInput = document.getElementById('np_p_venta');
-            const pCompra = parseFloat(pCompraInput.value.replace(',', '.')) || 0;
-            if (pCompra > 0) {
-                const multiplicador = 1 + (gananciaRef / 100);
-                pVentaInput.value = (pCompra * multiplicador).toFixed(2);
-            } else { pVentaInput.value = ''; }
-        };
-
-        // Cerrar modales al hacer clic fuera
-        window.addEventListener('click', function(e) {
-            if (e.target.id === 'modalNuevoProducto') cerrarModalNuevoProducto();
-            if (e.target.id === 'modalNuevoProveedor') cerrarModalNuevoProveedor();
-        });
-    });
-</script>
 </html>

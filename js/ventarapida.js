@@ -56,6 +56,16 @@ function iniciar() {
             }
             const cod = input.value.trim();
             if (!cod) return;
+            // Formato cantidad*código (ej: 3*7790123 → agrega 3 unidades)
+            const m = cod.match(/^(\d+(?:[.,]\d+)?)\*(.+)$/);
+            if (m) {
+                const cant = parseFloat(m[1].replace(',', '.'));
+                const codigo = m[2].trim();
+                if (!isNaN(cant) && cant > 0 && codigo) {
+                    buscarPorCodigo(codigo, resultados, cant);
+                    return;
+                }
+            }
             buscarPorCodigo(cod, resultados);
         }
     });
@@ -162,17 +172,26 @@ function precioPesos(p) {
     return parseFloat(p.p_venta) || 0;
 }
 
+// ================= UNIDADES GRANEL (Kg / Mt / Lt) =================
+const ABREVIATURAS = { 'Kilogramo': 'Kg', 'Metro': 'Mt', 'Litro': 'Lt' };
+function esGranel(item) {
+    return !!ABREVIATURAS[item.unidad_medida];
+}
+function abrevUnidad(item) {
+    return ABREVIATURAS[item.unidad_medida] || 'u';
+}
+
 // ================= BÚSQUEDA / SCANNER =================
-function buscarPorCodigo(codigo, resultados) {
+function buscarPorCodigo(codigo, resultados, cantidad) {
     const input = document.getElementById('producto_input');
     fetch(BASE + 'pages/buscar_producto_codigo_ajax.php?codigo=' + encodeURIComponent(codigo))
         .then(r => r.json())
         .then(data => {
             if (data.success && data.producto) {
-                agregarProducto(data.producto);
+                agregarProducto(data.producto, cantidad);
                 input.value = '';
                 input.focus();
-                toast('Agregado: ' + data.producto.descripcion, 'ok');
+                toast('Agregado: ' + data.producto.descripcion + (cantidad && cantidad !== 1 ? ' x' + cantidad : ''), 'ok');
             } else {
                 const primerSugerencia = resultados && resultados.querySelector('.search-result-item');
                 if (primerSugerencia && primerSugerencia.dataset.idx !== undefined) {
@@ -250,7 +269,8 @@ function limpiarBusqueda() {
 }
 
 // ================= CARRITO =================
-function agregarProducto(prod) {
+function agregarProducto(prod, cantidad) {
+    const cant = (cantidad !== undefined && !isNaN(cantidad) && cantidad > 0) ? cantidad : 1;
     let pv = parseFloat(prod.p_venta) || 0;
     let pc = parseFloat(prod.p_compra) || 0;
 
@@ -268,17 +288,18 @@ function agregarProducto(prod) {
 
     const idx = carrito.findIndex(i => i.cod_prod === prod.cod_prod);
     if (idx > -1) {
-        carrito[idx].cant = redondear(carrito[idx].cant + 1);
+        carrito[idx].cant = redondear(carrito[idx].cant + cant);
         carrito[idx].total = redondear(carrito[idx].p_unit * carrito[idx].cant);
     } else {
         carrito.push({
             cod_prod: prod.cod_prod,
             descripcion: prod.descripcion,
+            unidad_medida: prod.unidad_medida || 'Unidad',
             p_unit: redondear(pv),
             p_costo_venta: redondear(pc),
-            cant: 1,
+            cant: cant,
             desc: 0,
-            total: redondear(pv),
+            total: redondear(pv * cant),
             stock_actual: parseFloat(prod.stock) || 0
         });
     }
@@ -294,15 +315,16 @@ function renderCarrito() {
         body.innerHTML = '';
         carrito.forEach((item, idx) => {
             const sinStock = item.cant > (item.stock_actual || 0);
+            const granel = esGranel(item);
             const row = document.createElement('div');
             row.className = 'cart-item';
             row.innerHTML =
                 '<div class="ci-info">' +
-                    '<div class="ci-nombre">' + esc(item.descripcion) + '</div>' +
-                    '<div class="ci-cod">' + esc(item.cod_prod) + ' &middot; ' + formatear(item.p_unit) + ' c/u</div>' +
+                    '<div class="ci-nombre">' + esc(item.descripcion) + (granel ? ' <span style="color:var(--warn);font-size:.75rem;">(' + abrevUnidad(item) + ')</span>' : '') + '</div>' +
+                    '<div class="ci-cod">' + esc(item.cod_prod) + ' &middot; ' + formatear(item.p_unit) + (granel ? '/' + abrevUnidad(item) : ' c/u') + '</div>' +
                 '</div>' +
                 '<div class="ci-qty">' +
-                    '<input type="number" min="1" step="1" value="' + item.cant + '" onchange="setCantidad(' + idx + ', this.value)">' +
+                    '<input type="number" min="' + (granel ? '0.001' : '1') + '" step="' + (granel ? '0.001' : '1') + '" value="' + item.cant + '" onchange="setCantidad(' + idx + ', this.value)" title="Cantidad en ' + abrevUnidad(item) + '"' + (granel ? ' ondblclick="abrirModalImporte(' + idx + ')"' : '') + '>' +
                 '</div>' +
                 '<span class="ci-total' + (sinStock ? ' sin-stock' : '') + '" title="' + (sinStock ? 'Stock insuficiente' : '') + '">' + formatear(item.total) + '</span>' +
                 '<button type="button" class="ci-remove" title="Quitar" onclick="quitarItem(' + idx + ')">&times;</button>';
@@ -313,16 +335,169 @@ function renderCarrito() {
 }
 
 function setCantidad(idx, valor) {
-    const n = parseInt(valor, 10);
-    if (isNaN(n) || n <= 0) { renderCarrito(); return; }
-    if (idx >= 0 && idx < carrito.length) {
-        carrito[idx].cant = n;
-        carrito[idx].total = redondear(carrito[idx].p_unit * n);
-        renderCarrito();
-    }
+    if (idx < 0 || idx >= carrito.length) return;
+    const granel = esGranel(carrito[idx]);
+    const n = parseFloat(valor);
+    if (isNaN(n) || n <= 0 || (!granel && parseInt(valor, 10) !== n)) { renderCarrito(); return; }
+    carrito[idx].cant = granel ? Math.round(n * 1000) / 1000 : Math.round(n);
+    carrito[idx].total = redondear(carrito[idx].p_unit * carrito[idx].cant);
+    renderCarrito();
 }
 
 window.setCantidad = setCantidad;
+
+// ================= MODAL IMPORTE (F2) =================
+// F2 abre el modal para vender por importe el producto a granel
+// (si hay varios en el carrito, se navega con ↑/↓). Doble clic en la
+// cantidad de un producto granel también lo abre.
+let importeModalIdx = null;
+
+function asegurarModalImporte() {
+    if (document.getElementById('modalImporteOverlay')) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'modalImporteOverlay';
+    overlay.style.cssText = 'display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:9999; align-items:center; justify-content:center;';
+    overlay.innerHTML = `
+        <div style="background:#1a1a1a; border:1px solid #444; border-radius:10px; padding:25px; width:360px; box-shadow:0 10px 40px rgba(0,0,0,.6);">
+            <h3 style="margin:0 0 5px 0; color:var(--accent); font-size:1.05rem;"><i class="fas fa-balance-scale"></i> Vender por importe</h3>
+            <div id="miProducto" style="color:#ccc; font-size:.85rem; margin-bottom:15px;"></div>
+            <label style="display:block; color:#3498db; font-weight:bold; font-size:.85em; margin-bottom:5px;">Importe a cobrar ($)</label>
+            <input type="number" id="miImporteInput" min="0" step="0.01" placeholder="0.00"
+                   style="width:100%; padding:12px; font-size:1.3rem; border-radius:6px; border:1px solid #444; background:#222; color:#fff; box-sizing:border-box; text-align:center;">
+            <div id="miCantidadCalc" style="color:var(--warn); font-size:.85rem; margin-top:8px; min-height:1.2em;"></div>
+            <div style="display:flex; gap:10px; margin-top:18px;">
+                <button type="button" id="miBtnConfirmar" class="btn-vaciar" style="flex:2; background:var(--success); border-color:var(--success);">✔ Aplicar (Enter)</button>
+                <button type="button" id="miBtnCancelar" class="btn-vaciar" style="flex:1;">Cancelar (Esc)</button>
+            </div>
+        </div>`;
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener('click', e => { if (e.target === overlay) cerrarModalImporte(); });
+    document.getElementById('miBtnCancelar').onclick = cerrarModalImporte;
+    document.getElementById('miBtnConfirmar').onclick = confirmarModalImporte;
+    document.getElementById('miImporteInput').addEventListener('input', recalcularPreviewImporte);
+}
+
+function abrirModalImporte(idx) {
+    if (idx === undefined || idx === null) {
+        for (let i = 0; i < carrito.length; i++) {
+            if (esGranel(carrito[i])) { idx = i; break; }
+        }
+    }
+    if (idx === undefined || idx === null || !carrito[idx] || !esGranel(carrito[idx])) {
+        toast('No hay productos a granel (Kg/Mt/Lt) en el carrito', 'warn');
+        return;
+    }
+    importeModalIdx = idx;
+    asegurarModalImporte();
+    window.granelesModal = carrito.map((it, i) => ({ it, i })).filter(x => esGranel(x.it)).map(x => x.i);
+
+    renderizarInfoModal();
+
+    const input = document.getElementById('miImporteInput');
+    input.value = '';
+    document.getElementById('miCantidadCalc').textContent = '';
+    document.getElementById('modalImporteOverlay').style.display = 'flex';
+    input.focus();
+}
+window.abrirModalImporte = abrirModalImporte;
+
+function renderizarInfoModal() {
+    const idx = importeModalIdx;
+    if (idx === null || !carrito[idx]) return;
+    const graneles = window.granelesModal || [];
+    let selectorHTML = '';
+    if (graneles.length > 1) {
+        selectorHTML = '<select id="miSelectorProd" style="width:100%; padding:8px; border-radius:6px; border:1px solid #444; background:#222; color:#fff; margin-bottom:10px;">' +
+            graneles.map(i => `<option value="${i}" ${i === idx ? 'selected' : ''}>${esc(carrito[i].descripcion)} (${formatear(carrito[i].p_unit)}/${abrevUnidad(carrito[i])})</option>`).join('') +
+            '</select>' +
+            '<div style="color:#888; font-size:.75rem; margin:-6px 0 8px 0;">↑/↓ para cambiar de producto</div>';
+    }
+    const item = carrito[idx];
+    document.getElementById('miProducto').innerHTML = selectorHTML +
+        `<b style="color:#fff;">${esc(item.descripcion)}</b><br>` +
+        `Precio: ${formatear(item.p_unit)} / ${abrevUnidad(item)}`;
+    const sel = document.getElementById('miSelectorProd');
+    if (sel) sel.onchange = function () {
+        importeModalIdx = parseInt(this.value, 10);
+        renderizarInfoModal();
+        recalcularPreviewImporte();
+        document.getElementById('miImporteInput').focus();
+    };
+}
+
+function ciclarProductoGranel(direccion) {
+    const lista = window.granelesModal || [];
+    if (lista.length < 2) return;
+    const pos = lista.indexOf(importeModalIdx);
+    importeModalIdx = lista[(pos + direccion + lista.length) % lista.length];
+    renderizarInfoModal();
+    recalcularPreviewImporte();
+    document.getElementById('miImporteInput').focus();
+}
+
+function recalcularPreviewImporte() {
+    const item = carrito[importeModalIdx];
+    const monto = parseFloat(document.getElementById('miImporteInput').value);
+    const calc = document.getElementById('miCantidadCalc');
+    if (item && !isNaN(monto) && monto > 0 && item.p_unit > 0) {
+        const cant = Math.round((monto / item.p_unit) * 1000) / 1000;
+        calc.textContent = '→ Cantidad: ' + cant + ' ' + abrevUnidad(item);
+    } else {
+        calc.textContent = '';
+    }
+}
+
+function confirmarModalImporte() {
+    const item = carrito[importeModalIdx];
+    const monto = parseFloat(document.getElementById('miImporteInput').value);
+    if (!item || isNaN(monto) || monto <= 0 || item.p_unit <= 0) { cerrarModalImporte(); return; }
+    item.cant = Math.round((monto / item.p_unit) * 1000) / 1000;
+    item.total = redondear(item.p_unit * item.cant);
+    cerrarModalImporte();
+    renderCarrito();
+}
+
+function cerrarModalImporte() {
+    const overlay = document.getElementById('modalImporteOverlay');
+    if (overlay) overlay.style.display = 'none';
+    importeModalIdx = null;
+    const inp = document.getElementById('producto_input');
+    if (inp) inp.focus();
+}
+window.cerrarModalImporte = cerrarModalImporte;
+
+// Teclado del modal: F2 abre; dentro: ↑/↓ cambia producto, Enter aplica, Esc cierra.
+document.addEventListener('keydown', function (e) {
+    const overlay = document.getElementById('modalImporteOverlay');
+    const abierto = overlay && overlay.style.display === 'flex';
+
+    if (!abierto) {
+        if (e.key === 'F2') {
+            e.preventDefault();
+            abrirModalImporte();
+        }
+        return;
+    }
+
+    if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        ciclarProductoGranel(1);
+    } else if (e.key === 'ArrowUp' || e.key === 'PageUp' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        ciclarProductoGranel(-1);
+    } else if (e.key === 'Enter') {
+        if (document.activeElement && document.activeElement.id !== 'miSelectorProd') {
+            e.preventDefault();
+            confirmarModalImporte();
+        }
+    } else if (e.key === 'Escape') {
+        // Evitar que el Escape cierre también el modal de cobro de fondo
+        e.preventDefault();
+        e.stopPropagation();
+        cerrarModalImporte();
+    }
+}, true);
 
 function quitarItem(idx) {
     if (idx >= 0 && idx < carrito.length) {

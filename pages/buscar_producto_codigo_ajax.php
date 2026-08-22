@@ -23,7 +23,7 @@ if ($codigo === '') {
 }
 
 try {
-    $sql = "SELECT p.cod_prod, p.descripcion, p.p_compra, p.p_venta, p.moneda,
+    $sql = "SELECT p.cod_prod, p.descripcion, p.p_compra, p.p_venta, p.moneda, p.unidad_medida,
                    COALESCE(s.stock_actual, 0) AS stock
             FROM productos p
             LEFT JOIN stocks s ON p.cod_prod COLLATE utf8mb4_unicode_ci = s.cod_prod COLLATE utf8mb4_unicode_ci

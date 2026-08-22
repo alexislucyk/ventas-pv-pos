@@ -352,7 +352,7 @@ if ($id_seleccionado > 0) {
                         <a href="?tipo=funcion<?php echo $id_seleccionado ? '&u=' . $id_seleccionado : ''; ?>" class="btn-secondary <?php echo $filtro_tipo === 'funcion' ? 'btn-primary' : ''; ?>" style="padding: 6px 12px; font-size: 0.8rem; text-decoration: none;">
                             <i class="fas fa-cogs"></i> Funciones
                         </a>
-                        <a href="verificar_modulos.php" class="btn-primary" style="text-decoration: none; padding: 6px 12px; font-size: 0.8rem;">
+                        <a href="<?php echo route('modulos.verificar'); ?>" class="btn-primary" style="text-decoration: none; padding: 6px 12px; font-size: 0.8rem;">
                             <i class="fas fa-clipboard-check"></i> Verificar Módulos
                         </a>
                     </div>

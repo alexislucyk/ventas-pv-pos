@@ -628,9 +628,6 @@ try {
         <?php if (tiene_permiso('pages/compras.php')): ?>
         <a href="<?php echo route('compras'); ?>" class="action-btn btn-compra"><i class="fas fa-truck-loading"></i><span>Cargar Compra</span></a>
         <?php endif; ?>
-        <?php if (tiene_permiso('pages/consulta_precios.php')): ?>
-        <a href="<?php echo route('precios'); ?>" class="action-btn btn-precio"><i class="fas fa-search-dollar"></i><span>Consultar Precio</span></a>
-        <?php endif; ?>
         <?php if (tiene_permiso('pages/reporte_cuotas.php')): ?>
         <a href="<?php echo route('reporte.cuotas'); ?>" class="action-btn" style="border-color: #ff5252;"><i class="fas fa-hand-holding-usd" style="color: #ff5252; background: rgba(255, 82, 82, 0.1);"></i><span>Cuentas a Cobrar</span></a>
         <?php endif; ?>

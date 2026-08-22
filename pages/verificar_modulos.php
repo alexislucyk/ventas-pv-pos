@@ -365,21 +365,21 @@ $porcentaje = $total > 0 ? round(($existentes / $total) * 100) : 0;
             </div>
 
             <div class="actions-bar">
-                <a href="abm_permisos_usuarios.php" class="btn-secondary">
+                <a href="<?php echo route_file('pages/abm_permisos_usuarios.php'); ?>" class="btn-secondary">
                     <i class="fas fa-arrow-left"></i> Volver a Permisos
                 </a>
-                <a href="verificar_modulos.php" class="btn-primary">
+                <a href="<?php echo route('modulos.verificar'); ?>" class="btn-primary">
                     <i class="fas fa-sync-alt"></i> Re-verificar
                 </a>
                 <div style="margin-left: auto; display: flex; gap: 8px; align-items: center;">
                     <span style="color: #888; font-size: 0.85rem;">Filtrar:</span>
-                    <a href="verificar_modulos.php?tipo=todos" class="btn-secondary <?php echo $filtro_tipo === 'todos' ? 'btn-primary' : ''; ?>" style="padding: 8px 14px; font-size: 0.8rem; text-decoration: none;">
+                    <a href="<?php echo route('modulos.verificar'); ?>?tipo=todos" class="btn-secondary <?php echo $filtro_tipo === 'todos' ? 'btn-primary' : ''; ?>" style="padding: 8px 14px; font-size: 0.8rem; text-decoration: none;">
                         Todos
                     </a>
-                    <a href="verificar_modulos.php?tipo=pagina" class="btn-secondary <?php echo $filtro_tipo === 'pagina' ? 'btn-primary' : ''; ?>" style="padding: 8px 14px; font-size: 0.8rem; text-decoration: none;">
+                    <a href="<?php echo route('modulos.verificar'); ?>?tipo=pagina" class="btn-secondary <?php echo $filtro_tipo === 'pagina' ? 'btn-primary' : ''; ?>" style="padding: 8px 14px; font-size: 0.8rem; text-decoration: none;">
                         <i class="fas fa-file-alt"></i> Páginas
                     </a>
-                    <a href="verificar_modulos.php?tipo=funcion" class="btn-secondary <?php echo $filtro_tipo === 'funcion' ? 'btn-primary' : ''; ?>" style="padding: 8px 14px; font-size: 0.8rem; text-decoration: none;">
+                    <a href="<?php echo route('modulos.verificar'); ?>?tipo=funcion" class="btn-secondary <?php echo $filtro_tipo === 'funcion' ? 'btn-primary' : ''; ?>" style="padding: 8px 14px; font-size: 0.8rem; text-decoration: none;">
                         <i class="fas fa-cogs"></i> Funciones
                     </a>
                 </div>
@@ -507,6 +507,8 @@ $porcentaje = $total > 0 ? round(($existentes / $total) * 100) : 0;
     <?php endif; ?>
 
     <script>
+    // URL amigable del verificador de módulos (sin .php)
+    var URL_MODULOS = "<?php echo route('modulos.verificar'); ?>";
     function confirmarEliminar(id, nombre) {
         confirmarAccion(
             'Eliminar Módulo',
@@ -516,7 +518,7 @@ $porcentaje = $total > 0 ? round(($existentes / $total) * 100) : 0;
             function() {
                 const form = document.createElement('form');
                 form.method = 'POST';
-                form.action = 'verificar_modulos.php';
+                form.action = URL_MODULOS;
                 const input = document.createElement('input');
                 input.type = 'hidden';
                 input.name = 'eliminar_modulo';
@@ -545,7 +547,7 @@ $porcentaje = $total > 0 ? round(($existentes / $total) * 100) : 0;
             function() {
                 const form = document.createElement('form');
                 form.method = 'POST';
-                form.action = 'verificar_modulos.php';
+                form.action = URL_MODULOS;
                 const inputId = document.createElement('input');
                 inputId.type = 'hidden';
                 inputId.name = 'modulo_id';

@@ -124,22 +124,22 @@ foreach ($productos as $index => $prod) {
             // ACTUALIZAR producto existente
             $sql = "UPDATE productos 
                     SET descripcion = ?, p_compra = ?, p_venta = ?, fecha_ult_compra = CURDATE(), 
-                        rubro = ?, proveedor = ?, moneda = ? 
+                        rubro = ?, proveedor = ?, moneda = ?, unidad_medida = ? 
                     WHERE empresa_id = ? AND cod_prod = ?";
             $stmt = $pdo->prepare($sql);
             $stmt->execute([
-                $descripcion, $p_compra, $p_venta, $rubro, $proveedor, $moneda,
+                $descripcion, $p_compra, $p_venta, $rubro, $proveedor, $moneda, ($prod['unidad'] ?? 'Unidad'),
                 $empresa_id, $cod_prod
             ]);
             $actualizados++;
         } else {
             // INSERTAR nuevo producto
-            $sql = "INSERT INTO productos (cod_prod, descripcion, p_compra, p_venta, fecha_ult_compra, rubro, proveedor, moneda, empresa_id, stock)
-                    VALUES (?, ?, ?, ?, CURDATE(), ?, ?, ?, ?, 0)";
+            $sql = "INSERT INTO productos (cod_prod, descripcion, p_compra, p_venta, fecha_ult_compra, rubro, proveedor, moneda, empresa_id, stock, unidad_medida)
+                    VALUES (?, ?, ?, ?, CURDATE(), ?, ?, ?, ?, 0, ?)";
             $stmt = $pdo->prepare($sql);
             $stmt->execute([
                 $cod_prod, $descripcion, $p_compra, $p_venta, 
-                $rubro, $proveedor, $moneda, $empresa_id
+                $rubro, $proveedor, $moneda, $empresa_id, ($prod['unidad'] ?? 'Unidad')
             ]);
             $insertados++;
         }

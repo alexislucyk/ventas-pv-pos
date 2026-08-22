@@ -1,0 +1,229 @@
+/* ==================== COMPRAS.PHP ESTILOS EXTRAÍDOS ==================== */
+
+/* Grid de compra */
+.compra-grid { 
+    display: grid; 
+    grid-template-columns: 2fr 1fr; 
+    gap: 20px; 
+}
+@media (max-width: 1100px) {
+    .compra-grid {
+        grid-template-columns: 1fr; /* Columna única en móviles */
+    }
+}
+
+/* Carrito */
+#carrito tbody tr:hover { background-color: #333; }
+
+/* Productos y búsqueda */
+.producto-encontrado, .resultado-proveedor-item { cursor: pointer; padding: 5px; border-bottom: 1px solid #444; }
+.producto-encontrado:hover, .resultado-proveedor-item:hover { background-color: #555; }
+
+#resultadosBusqueda, #resultadosBusquedaProveedores { 
+    max-height: 200px; 
+    overflow-y: auto; 
+    background: #222; 
+    border: 1px solid #444; 
+    position: absolute;
+    top: 100%; 
+    left: 0; 
+    width: 100%; 
+    z-index: 1000; 
+}
+
+/* Resaltado de producto activo (navegación teclado) */
+.producto-encontrado.producto-activo {
+    background-color: #3498db;
+    color: #000;
+}
+
+.text-right { text-align: right; }
+
+/* Header section */
+.compra-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid #00bcd4;
+    margin-bottom: 30px;
+    padding-bottom: 10px;
+}
+
+/* Total de compra resaltado */
+.total-amt { color: yellow; font-weight: bold; }
+.total-amt-desc { color: #e74c3c; font-weight: bold; }
+.total-row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+.total-divider { border-top: 2px solid #00bcd4; margin: 10px 0; }
+.total-final { font-size: 1.2em; margin-top: 10px; }
+
+/* Alertas */
+.alert-error { background-color: #f44336; }
+.alert-success { background-color: #4caf50; }
+.alert { padding: 10px; margin-bottom: 20px; border-radius: 5px; color: white; }
+
+/* Estilos del formulario de compra */
+.contenedor-busqueda-proveedor { margin-bottom: 20px; }
+.busqueda-container { position: relative; margin-bottom: 15px; }
+.busqueda-producto-container { position: relative; margin-bottom: 15px; }
+
+/* Totales */
+.total-compra-display { font-size: 1.2em; margin-bottom: 15px; }
+
+/* Modal estilos */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 10000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.9);
+}
+.modal-content {
+    background: #1a1a1a;
+    margin: 2% auto;
+    padding: 25px;
+    width: 500px;
+    border-radius: 12px;
+    border: 1px solid #333;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+.modal.modal-visible { display: block; }
+.modal-content.proveedor {
+    width: 400px;
+    margin: 10% auto;
+    padding: 25px;
+}
+
+.modal h2 { margin:0; color:#00bcd4; }
+.modal .close {
+    cursor: pointer;
+    font-size: 28px;
+    color: #ff4444;
+    float: right;
+}
+
+/* Modal header styles */
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #333;
+    padding-bottom: 10px;
+}
+.modal-title {
+    margin: 0;
+    color: #00bcd4;
+}
+
+.form-group { margin-bottom: 15px; }
+.form-row { display: flex; gap: 10px; margin-bottom: 10px; }
+.form-row > div { flex: 1; }
+.busqueda-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+.proveedor-display { margin-bottom: 10px; }
+.no-data-msg { color: #888; padding: 15px; }
+.form-group label { display: block; margin-bottom: 5px; }
+.form-group input, .form-group select, .form-group textarea {
+    width: 100%;
+    padding: 8px;
+    background: #333;
+    border: 1px solid #555;
+    border-radius: 4px;
+    color: #fff;
+    box-sizing: border-box;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+    outline: none;
+    border-color: #00bcd4;
+}
+
+/* Botones */
+.btn {
+    padding: 8px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.btn-success { background-color: #4caf50; color: white; }
+.btn-primary { background-color: #005cd4; color: white; }
+.btn-danger { background-color: #f44336; color: white; }
+.btn-yellow { background-color: #ff9800; color: white; }
+.btn-secondary { background-color: #555555; color: #fff !important; }
+.btn-block { width: 100%; }
+.btn-sm { padding: 4px 8px; font-size: 0.8em; }
+.btn-block.btn-primary { height: 50px; font-weight: bold; margin-top: 15px; }
+
+/* Inputs */
+.input-field {
+    width: 100%;
+    padding: 8px;
+    background: #333;
+    border: 1px solid #555;
+    border-radius: 4px;
+    color: #fff;
+    box-sizing: border-box;
+    margin-bottom: 5px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .grid-fechas { grid-template-columns: 1fr; }
+}
+
+/* Table styles */
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 8px; text-align: left; border-bottom: 1px solid #444; }
+th { background: #252525; }
+.tabla-carrito { margin-top: 10px; }
+.cant-col { width: 10%; }
+
+/* Widget Últimas Compras */
+.ultimas-compras-widget {
+    max-height: 400px;
+    overflow-y: auto;
+}
+.ultimas-compras-widget h2 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 1.3em;
+}
+.ultimas-compras-widget table {
+    font-size: 0.85em;
+}
+.ultimas-compras-widget th {
+    font-weight: bold;
+    color: #00bcd4;
+}
+.ultimas-compras-widget tbody tr:hover {
+    background-color: #444 !important;
+    cursor: pointer;
+}
+
+/* Notificaciones toast */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: #fff;
+    padding: 15px 25px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    z-index: 20000;
+    min-width: 250px;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+.toast.visible { opacity: 1; }
+.toast.error { background: #f44336; }
+.toast.success { background: #4caf50; }

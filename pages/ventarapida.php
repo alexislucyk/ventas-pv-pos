@@ -1075,6 +1075,6 @@ if (isset($_SESSION['status_msj_warning'])) {
         const APP_BASE = '<?php echo url(''); ?>';
         const clientesData = <?php echo json_encode($clientes); ?>;
     </script>
-    <script src="<?php echo url('js/ventarapida.js'); ?>"></script>
+    <script src="<?php echo url('js/ventarapida.js?v=' . time()); ?>"></script>
 </body>
 </html>
