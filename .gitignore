@@ -17,6 +17,10 @@ config/.licencia_last_success
 cache/*.json
 cache/ultimo_backup.txt
 
+# Cache de phpqrcode (máscaras QR generadas en runtime, ~450 archivos)
+libs/phpqrcode/cache/
+libs/phpqrcode/*/cache/
+
 # Archivos temporales
 *.tmp
 *.log

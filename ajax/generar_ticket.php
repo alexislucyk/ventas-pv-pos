@@ -4,7 +4,9 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once '../config/db_config.php'; 
-require_once '../../pos/funciones/ticket_generator.php';
+// FIX: el path anterior ('../../pos/funciones/') apuntaba fuera de la app
+// (la carpeta hermana pos/ no existe) y provocaba un fatal error.
+require_once dirname(__DIR__) . '/funciones/ticket_generator.php';
 
 $empresa_id = $_SESSION['empresa_id'] ?? null;
 if (!$empresa_id) {
