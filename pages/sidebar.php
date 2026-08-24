@@ -6,8 +6,10 @@
 require_once PATH_BASE . 'funciones/funciones_configuracion.php';
 
 try {
-$sql_sidebar = "SELECT nombre_fantasia FROM empresas WHERE id = 1 LIMIT 1";
-    $stmt_sidebar = $pdo->query($sql_sidebar);
+    // Usar la empresa activa de la sesión (no hardcodear id = 1)
+    $empresa_id_sidebar = (int)($_SESSION['empresa_id'] ?? 1);
+    $stmt_sidebar = $pdo->prepare("SELECT nombre_fantasia FROM empresas WHERE id = ? LIMIT 1");
+    $stmt_sidebar->execute([$empresa_id_sidebar]);
     $res_sidebar = $stmt_sidebar->fetch(PDO::FETCH_ASSOC);
     
     $nombre_empresa_sidebar = (!empty($res_sidebar['nombre_fantasia'])) ? $res_sidebar['nombre_fantasia'] : "Mi Negocio";

@@ -17,8 +17,10 @@ $mensaje = '';
 $producto_editar = array(); 
 
 try {
-    $proveedores_list = $pdo->query('SELECT razon FROM proveedores WHERE empresa_id = ' . (int)$empresa_id . ' ORDER BY razon ASC')->fetchAll(PDO::FETCH_ASSOC);
-    $rubros_list = $pdo->query('SELECT nombre FROM rubros ORDER BY nombre ASC')->fetchAll(PDO::FETCH_ASSOC);
+    $stmt_prov = $pdo->prepare("SELECT razon FROM proveedores WHERE empresa_id = ? ORDER BY razon ASC");
+    $stmt_prov->execute([$empresa_id]);
+    $proveedores_list = $stmt_prov->fetchAll(PDO::FETCH_ASSOC);
+    $rubros_list = $pdo->query("SELECT nombre FROM rubros ORDER BY nombre ASC")->fetchAll(PDO::FETCH_ASSOC);
     
     $stmt_cod_prov = $pdo->prepare("SELECT cod_prov FROM proveedores WHERE empresa_id = :empresa_id ORDER BY (cod_prov + 0) DESC LIMIT 1");
     $stmt_cod_prov->execute([':empresa_id' => $empresa_id]);

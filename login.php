@@ -39,6 +39,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($user['estado'] !== 'ACTIVO') {
                     $error = 'Tu cuenta está desactivada. Contacta al administrador.';
                 } else {
+                    // Regenerar ID de sesión para prevenir session fixation
+                    session_regenerate_id(true);
+
                     // 5. Autenticación exitosa: Crear variables de sesión
                     $_SESSION['usuario_id'] = $user['id'];
                     $_SESSION['usuario_nombre'] = $usuario;
