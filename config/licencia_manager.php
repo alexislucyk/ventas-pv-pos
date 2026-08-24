@@ -4,10 +4,18 @@
 /**
  * Gestor de Licencia para Conexión con App Engine Propio
  */
+// Cargador de .env (safety: en caso de que se incluya sin db_config.php)
+if (!function_exists('env')) {
+    require_once __DIR__ . '/../core/env.php';
+    cargarEnv();
+}
+
 // Configuración de la Licencia
 define('APP_NAME', 'LS-POS-PRO'); // Nombre identificador de la app
-define('LICENCIA_KEY', APP_NAME . '-2024-XXXX-XXXX'); // Clave única del cliente
-define('APP_VERSION', '2.5.0'); // Versión actual del sistema
+// Versión leída de .env (sincronizada con los tags de Git: v2.7.1).
+// Fallback a '2.5.0' solo si .env no define APP_VERSION.
+define('APP_VERSION', env('APP_VERSION', '2.5.0'));
+define('LICENCIA_KEY', APP_NAME . '-' . env('LICENCIA_KEY_SUFFIX', '2024-XXXX-XXXX'));
 
 // --- FUNCIONES PARA GESTIONAR LA IP DEL SERVIDOR DE LICENCIAS ---
 function getLicenciaServerIp() {

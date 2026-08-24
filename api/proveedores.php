@@ -7,28 +7,9 @@
 // proveedores_autorizados. Cualquier visitante de la consulta remota
 // verá únicamente estos proveedores (sin depender del usuario).
 
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
-
-// Manejar preflight requests
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit();
-}
-
-// Token de acceso (debe coincidir con el configurado en la página de consulta)
-define('API_TOKEN', 'consignaciones_remote_2024_vpn');
-
-// Validar token de acceso
-$token = $_GET['token'] ?? $_SERVER['HTTP_AUTHORIZATION'] ?? '';
-
-if ($token !== API_TOKEN) {
-    http_response_code(401);
-    echo json_encode(['error' => 'Token de acceso inválido o faltante']);
-    exit();
-}
+// Cargar guardia de API (configura CORS + valida token)
+require_once __DIR__ . '/_api_auth.php';
+apiAuth();
 
 // Obtener empresa_id desde parámetro GET o usar la primera disponible
 $empresa_id = isset($_GET['empresa_id']) ? (int)$_GET['empresa_id'] : null;

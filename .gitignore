@@ -5,6 +5,9 @@ node_modules/
 # Archivos de backup (no subir al repositorio)
 backups/
 *.sql
+# Excepción: las migraciones propias del sistema SÍ van al repo
+!migrations/
+!migrations/*.sql
 
 # Archivos de configuración sensibles
 config/.licencia_ip.conf
@@ -36,3 +39,9 @@ Thumbs.db
 
 # Laragon (si aplica)
 laragon/
+
+# Variables de entorno (credenciales, tokens, versiones)
+# IMPORTANTE: .env contiene secretos, NUNCA subir al repositorio.
+# .env.example SÍ se sube como plantilla de referencia.
+.env
+!.env.example

@@ -19,6 +19,11 @@ setlocale(LC_NUMERIC, 'C');
 $app_root_real = dirname(__DIR__);
 $app_folder    = basename($app_root_real); // ej. 'pos_dev', 'ventas_dev', 'pos_prod', 'pos_prod_v2'
 
+// --- CARGAR VARIABLES DE ENTORNO (.env) ---
+// El cargador ligero está en core/env.php (sin dependencias de Composer).
+require_once __DIR__ . '/../core/env.php';
+cargarEnv();
+
 // Determinar entorno según el SUFIJO de la carpeta REAL de instalación:
 // independiente de la URL con la que se acceda (SCRIPT_NAME/REQUEST_URI).
 if (substr($app_folder, -4) === '_dev') {
@@ -26,7 +31,13 @@ if (substr($app_folder, -4) === '_dev') {
     $ambiente = "MODO DESARROLLO (PRUEBAS)";
 } else {
     $db_name  = 'pos_prod';       // Base de datos de producción
-    $ambiente = "PRODUCCIÓN";
+        $ambiente = "PRODUCCIÓN";
+}
+
+// Permitir override del nombre de BD vía .env (prioridad absoluta)
+$_nombre_bd_env = env('DB_NAME');
+if (!empty($_nombre_bd_env)) {
+    $db_name = $_nombre_bd_env;
 }
 
 // El folder de URL es el directorio real en el que corre la app (dinámico).
@@ -48,11 +59,18 @@ if (!defined('URL_BASE')) {
 if (!defined('PATH_BASE')) {
     define('PATH_BASE', $_SERVER['DOCUMENT_ROOT'] . $folder);
 }
+if (!defined('BASE_PATH')) {
+    define('BASE_PATH', $app_root_real);
+}
+if (!defined('CORE_PATH')) {
+    define('CORE_PATH', BASE_PATH . '/core/');
+}
 
-// 3. Datos de conexión (Ajustados a tu IP y pass)
-$host    = '192.168.7.45';
-$user    = 'root';
-$pass    = 'isidoro9';
+// 3. Datos de conexión — leídos de .env con fallback a valores heredados
+//    (mantiene compatibilidad durante la migración a .env).
+$host    = env('DB_HOST', '192.168.7.45');
+$user    = env('DB_USER', 'root');
+$pass    = env('DB_PASS', 'isidoro9');
 
 $dsn = "mysql:host=$host;dbname=$db_name;charset=utf8mb4";
 
