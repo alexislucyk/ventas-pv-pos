@@ -18,9 +18,33 @@ function generar_html_ticket_contenido(PDO $pdo, int|string $n_documento, int $e
     }
 
     try {
+        // La venta se busca por n_documento SIN depender de la empresa de la sesión:
+        // la impresión puede ocurrir con una sesión/empresa distinta a la del alta.
+        $sql_venta = "
+            SELECT
+                v.empresa_id, v.fecha_venta, v.total_venta, v.descuento_global, v.cond_pago,
+                v.pago_efectivo, v.pago_transf, v.observaciones,
+                c.nombre AS nombre_cliente, c.apellido AS apellido_cliente
+            FROM ventas v
+            LEFT JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = v.empresa_id
+            WHERE v.n_documento = :n_documento
+            ORDER BY v.id DESC
+            LIMIT 1
+        ";
+        $stmt_venta = $pdo->prepare($sql_venta);
+        $stmt_venta->execute([':n_documento' => $n_documento]);
+        $venta = $stmt_venta->fetch(PDO::FETCH_ASSOC);
+
+        if (!$venta) {
+            return "Error: Venta N° " . $n_documento . " no encontrada.";
+        }
+
+        // Empresa real de la venta (no la de la sesión)
+        $empresa_real = (int)($venta['empresa_id'] ?? $empresa_id);
+
         $sql_empresa = "SELECT * FROM empresas WHERE id = ? LIMIT 1";
         $stmt_emp = $pdo->prepare($sql_empresa);
-        $stmt_emp->execute([$empresa_id]);
+        $stmt_emp->execute([$empresa_real]);
         $emp = $stmt_emp->fetch(PDO::FETCH_ASSOC);
 
         $nombre    = (!empty($emp['nombre_fantasia'])) ? $emp['nombre_fantasia'] : "Mi Negocio";
@@ -28,31 +52,11 @@ function generar_html_ticket_contenido(PDO $pdo, int|string $n_documento, int $e
         $localidad = (!empty($emp['localidad']))       ? $emp['localidad']       : "";
         $telefono  = (!empty($emp['telefono']))        ? $emp['telefono']        : "";
 
-        $sql_venta = "
-            SELECT 
-                v.fecha_venta, v.total_venta, v.descuento_global, v.cond_pago, v.pago_efectivo, v.pago_transf, v.observaciones,
-                c.nombre AS nombre_cliente, c.apellido AS apellido_cliente
-            FROM ventas v
-            LEFT JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = :empresa_id_join
-            WHERE v.n_documento = :n_documento AND v.empresa_id = :empresa_id_where
-        ";
-        $stmt_venta = $pdo->prepare($sql_venta);
-        $stmt_venta->execute([
-            ':n_documento' => $n_documento,
-            ':empresa_id_join' => $empresa_id,
-            ':empresa_id_where' => $empresa_id
-        ]);
-        $venta = $stmt_venta->fetch(PDO::FETCH_ASSOC);
-
-        if (!$venta) {
-            return "Error: Venta N° " . $n_documento . " no encontrada.";
-        }
-
         $observaciones = !empty($venta['observaciones']) ? trim($venta['observaciones']) : '';
 
         $sql_detalle = "SELECT descripcion, cant, p_unit, descuento_unitario, total FROM ventas_detalle WHERE n_documento = :n_documento AND empresa_id = :empresa_id";
         $stmt_detalle = $pdo->prepare($sql_detalle);
-        $stmt_detalle->execute([':n_documento' => $n_documento, ':empresa_id' => $empresa_id]);
+        $stmt_detalle->execute([':n_documento' => $n_documento, ':empresa_id' => $empresa_real]);
         $productos = $stmt_detalle->fetchAll(PDO::FETCH_ASSOC);
 
         // --- 4. CÁLCULOS ---

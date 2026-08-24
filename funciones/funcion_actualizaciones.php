@@ -224,18 +224,141 @@ if (!function_exists('actualizaciones_git_disponible')) {
     }
 
     /**
-     * Aplica una migración SQL. Devuelve [bool, mensaje].
+     * Verifica si una tabla existe en la base de datos actual.
+     */
+    function actualizaciones_verificar_tabla($pdo, $tabla) {
+        try {
+            $stmt = $pdo->prepare(
+                "SELECT COUNT(*) FROM information_schema.TABLES
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?"
+            );
+            $stmt->execute([$tabla]);
+            return (int)$stmt->fetchColumn() > 0;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Verifica si una columna existe en una tabla dentro de la BD actual.
+     */
+    function actualizaciones_verificar_columna($pdo, $tabla, $columna) {
+        try {
+            $stmt = $pdo->prepare(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?"
+            );
+            $stmt->execute([$tabla, $columna]);
+            return (int)$stmt->fetchColumn() > 0;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Analiza un script SQL y extrae las operaciones de estructura (DDL) para
+     * poder verificar contra el esquema real si ya fueron aplicadas manualmente.
+     *
+     * @return array<int, array{tipo:string, tabla:string, nombre?:string}>
+     */
+    function actualizaciones_analizar_sql($sql) {
+        $ops = [];
+
+        // 1) Índices / claves: ADD [UNIQUE] KEY|INDEX
+        if (preg_match_all('/ALTER\s+TABLE\s+`?(\w+)`?\s+ADD\s+(?:UNIQUE\s+)?(?:KEY|INDEX)\s+`?(\w+)`?/i', $sql, $m, PREG_SET_ORDER)) {
+            foreach ($m as $r) {
+                $ops[] = ['tipo' => 'indice', 'tabla' => $r[1], 'nombre' => strtolower($r[2])];
+            }
+        }
+
+        // 2) Columnas: ADD [COLUMN] `col`
+        //    Excluye que tras ADD siga KEY/INDEX/CONSTRAINT/PRIMARY/FOREIGN/DEFAULT
+        if (preg_match_all('/ALTER\s+TABLE\s+`?(\w+)`?\s+ADD\s+(?:COLUMN\s+)?(?!\s*(?:UNIQUE\s+)?(?:KEY|INDEX|CONSTRAINT|PRIMARY|FOREIGN|DEFAULT)\b)`?(\w+)`?/i', $sql, $m, PREG_SET_ORDER)) {
+            foreach ($m as $r) {
+                $ops[] = ['tipo' => 'columna', 'tabla' => $r[1], 'nombre' => strtolower($r[2])];
+            }
+        }
+
+        // 3) Tablas: CREATE TABLE [IF NOT EXISTS] `tabla`
+        if (preg_match_all('/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?(\w+)`?/i', $sql, $m, PREG_SET_ORDER)) {
+            foreach ($m as $r) {
+                $ops[] = ['tipo' => 'tabla', 'tabla' => $r[1]];
+            }
+        }
+
+        return $ops;
+    }
+
+    /**
+     * Determina si una migración ya fue aplicada manualmente.
+     *
+     * Compara las operaciones DDL del script contra el esquema real
+     * (information_schema). Si TODAS las estructuras ya existen, se considera
+     * que la migración ya fue implementada y no debe re-ejecutarse.
+     *
+     * @return bool
+     */
+    function actualizaciones_migracion_ya_aplicada($pdo, $sql) {
+        $ops = actualizaciones_analizar_sql($sql);
+        if (empty($ops)) {
+            // Sin operaciones DDL detectadas (solo INSERT/UPDATE/DELETE):
+            // no se puede verificar por estructura. Se asume que NO está aplicada
+            // (suele tratarse de datos y es seguro dejarla para ejecución).
+            return false;
+        }
+
+        foreach ($ops as $op) {
+            if ($op['tipo'] === 'columna') {
+                if (!actualizaciones_verificar_columna($pdo, $op['tabla'], $op['nombre'])) {
+                    return false;
+                }
+            } else {
+                // tabla e índices: verificamos que la tabla exista
+                if (!actualizaciones_verificar_tabla($pdo, $op['tabla'])) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Aplica una migración SQL, verificando antes que no haya sido aplicada
+     * manualmente.
+     *
+     * @return array{0:string, 1:string} Estado ('aplicada'|'omitida'|'error') y mensaje.
      */
     function actualizaciones_aplicar_migracion($pdo, $archivo) {
         $sql = file_get_contents($archivo);
         if ($sql === false || trim($sql) === '') {
-            return [false, 'No se pudo leer la migración ' . basename($archivo)];
+            return ['error', 'No se pudo leer la migración ' . basename($archivo)];
         }
+
+        // ANTES de ejecutar: chequear que no haya sido implementada manualmente
+        if (actualizaciones_migracion_ya_aplicada($pdo, $sql)) {
+            return ['omitida', 'Ya aplicada (estructura existente en la BD)'];
+        }
+
         try {
             $pdo->exec($sql);
-            return [true, 'OK'];
+            return ['aplicada', 'OK'];
         } catch (Exception $e) {
-            return [false, $e->getMessage()];
+            $msg = $e->getMessage();
+
+            // Migraciones con DELIMITER / CREATE FUNCTION no son ejecutables con
+            // la API de PDO (solo la consola mysql). Se omiten con aviso.
+            if (stripos($msg, 'delimiter') !== false
+                || (stripos($msg, 'sql syntax') !== false && stripos($sql, 'delimiter') !== false)) {
+                return ['omitida', 'No ejecutable automáticamente (usa DELIMITER/CREATE FUNCTION). Aplíquela manualmente: ' . $msg];
+            }
+
+            // Si falla por duplicado (p. ej. columna ya existente), tratarla como omitida.
+            if (stripos($msg, 'duplicate column') !== false
+                || stripos($msg, 'already exists') !== false
+                || stripos($msg, 'duplicate') !== false) {
+                return ['omitida', 'Ya aplicada: ' . $msg];
+            }
+            return ['error', $msg];
         }
     }
 
@@ -330,6 +453,16 @@ if (!function_exists('actualizaciones_git_disponible')) {
             $modo_deteccion = 'commit';
         }
 
+        // Texto a mostrar en la card "Disponible en GitHub".
+        // Si hay release/tag se muestra la versión; si la detección es por commit
+        // (repo sin tags), se muestra el commit remoto para indicar la actualización.
+        $version_display = '-';
+        if (!empty($github['version'])) {
+            $version_display = 'v' . $github['version'];
+        } elseif ($modo_deteccion === 'commit' && !empty($sha_remoto)) {
+            $version_display = 'commit ' . substr($sha_remoto, 0, 7);
+        }
+
         $estado = [
             'entorno'                => es_entorno_produccion() ? 'produccion' : 'desarrollo',
             'git_disponible'         => $git_ok,
@@ -338,6 +471,7 @@ if (!function_exists('actualizaciones_git_disponible')) {
             'sha_remoto'             => $sha_remoto,
             'version_local'          => $version_local,
             'version_remota'         => $github['version'],
+            'version_display'        => $version_display,
             'raw_tag'                => $github['raw'],
             'metodo_github'          => $github['method'],
             'error_github'           => $github['error'],
@@ -405,12 +539,17 @@ if (!function_exists('aplicar_actualizacion')) {
             $max = 0;
             foreach ($pendientes as $num => $archivo) {
                 $log[] = "[PASO] Aplicando migración #{$num}: " . basename($archivo);
-                list($ok, $msg) = actualizaciones_aplicar_migracion($pdo, $archivo);
-                if (!$ok) {
+                list($estado_mig, $msg) = actualizaciones_aplicar_migracion($pdo, $archivo);
+
+                if ($estado_mig === 'error') {
                     $log[] = "[ERROR] Migración #{$num} falló: {$msg}";
                     return ['success' => false, 'log' => $log];
                 }
-                $log[] = "[OK] Migración #{$num} aplicada.";
+                if ($estado_mig === 'omitida') {
+                    $log[] = "[SKIP] Migración #{$num} omitida: {$msg}";
+                } else {
+                    $log[] = "[OK] Migración #{$num} aplicada.";
+                }
                 $max = max($max, $num);
             }
             try {

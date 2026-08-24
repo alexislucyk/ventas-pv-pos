@@ -191,6 +191,7 @@ if (isset($pdo) && ($pdo instanceof PDO)) {
 
                 $pdo->commit();
                 $_SESSION['ticket_a_imprimir_doc'] = $n_documento;
+                $_SESSION['ticket_a_imprimir_id'] = $id_venta_actual;
                 $_SESSION['status_msj'] = "✅ Venta N° $n_documento procesada correctamente.";
 
                 if (!empty($productos_sin_stock)) {
@@ -210,6 +211,7 @@ if (isset($pdo) && ($pdo instanceof PDO)) {
 }
 
 $ticket_doc_a_imprimir = isset($_SESSION['ticket_a_imprimir_doc']) ? $_SESSION['ticket_a_imprimir_doc'] : null;
+$ticket_id_a_imprimir = isset($_SESSION['ticket_a_imprimir_id']) ? $_SESSION['ticket_a_imprimir_id'] : null;
 $cliente_tel = '';
 $cliente_nom = '';
 if ($ticket_doc_a_imprimir) {
@@ -227,6 +229,7 @@ if ($ticket_doc_a_imprimir) {
     }
 }
 unset($_SESSION['ticket_a_imprimir_doc']);
+unset($_SESSION['ticket_a_imprimir_id']);
 
 if (isset($_SESSION['status_msj'])) {
     $mensaje = $_SESSION['status_msj'];
@@ -1058,7 +1061,8 @@ if (isset($_SESSION['status_msj_warning'])) {
                         style="background:var(--accent); color:#000; border:none; border-radius:10px; padding:12px 20px; font-weight:700; cursor:pointer; font-family:inherit;">
                     <i class="fas fa-print"></i> Imprimir
                 </button>
-                <button onclick="window.location.href='<?php echo route_file('pages/generar_pdf_ticket.php'); ?>?n_documento=<?php echo (int)$ticket_doc_a_imprimir; ?>&download=1';"
+                <?php $pdf_ref_venta = ((int)($ticket_id_a_imprimir ?? 0)) > 0 ? ('id=' . (int)$ticket_id_a_imprimir) : ('n_documento=' . (int)$ticket_doc_a_imprimir); ?>
+                <button onclick="window.location.href='<?php echo route_file('pages/generar_pdf_ticket.php'); ?>?<?php echo $pdf_ref_venta; ?>&download=1';"
                         style="background:#e67e22; color:#fff; border:none; border-radius:10px; padding:12px 20px; font-weight:700; cursor:pointer; font-family:inherit;">
                     <i class="fas fa-file-pdf"></i> Descargar PDF
                 </button>

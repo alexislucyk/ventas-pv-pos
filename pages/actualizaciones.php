@@ -78,6 +78,41 @@ $pendientes = $estado['migraciones_pendientes'];
         .badge-env { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: .75em; font-weight: bold; text-transform: uppercase; margin-bottom: 16px; }
         .badge-prod { background: rgba(244,67,54,.15); color: #f44336; border: 1px solid #f44336; }
         .badge-dev { background: rgba(243,156,18,.15); color: #f1c40f; border: 1px solid #f1c40f; }
+        /* --- Overlay y barra de progreso de la consulta --- */
+        #overlayConsulta {
+            position: fixed; inset: 0; z-index: 1200;
+            background: rgba(0,0,0,.72);
+            display: flex; align-items: center; justify-content: center;
+            backdrop-filter: blur(2px);
+        }
+        #overlayConsulta .prog-box {
+            width: 420px; max-width: 90%;
+            background: #1e1e1e; border: 1px solid #333;
+            border-radius: 14px; padding: 28px 30px; text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,.6);
+        }
+        #overlayConsulta .prog-title {
+            font-size: 1.05rem; font-weight: 700; color: #f0f0f0; margin-bottom: 4px;
+        }
+        #overlayConsulta .prog-fase {
+            font-size: .85rem; color: #00bcd4; margin-bottom: 18px; min-height: 1.2em;
+        }
+        #overlayConsulta .prog-track {
+            height: 10px; background: #2a2a2a; border-radius: 20px; overflow: hidden;
+        }
+        #overlayConsulta .prog-fill {
+            height: 100%; width: 35%; border-radius: 20px;
+            background: linear-gradient(90deg, #00bcd4, #008ba3);
+            animation: prog-avance 1.1s ease-in-out infinite;
+        }
+        @keyframes prog-avance {
+            0%   { transform: translateX(-110%); }
+            100% { transform: translateX(320%); }
+        }
+        #overlayConsulta .prog-spin {
+            display: inline-block; margin-right: 8px;
+            animation: fa-spin 1.1s infinite linear;
+        }
     </style>
 </head>
 <body>
@@ -120,7 +155,7 @@ $pendientes = $estado['migraciones_pendientes'];
                     </div>
                     <div class="stat-card">
                         <i class="fas fa-cloud-download-alt" style="color:#4caf50;"></i>
-                        <div class="stat-value">v<?php echo htmlspecialchars($estado['version_remota'] ?: '-'); ?></div>
+                        <div class="stat-value"><?php echo htmlspecialchars($estado['version_display'] ?? '-'); ?></div>
                         <div class="stat-label">Disponible en GitHub</div>
                     </div>
                     <div class="stat-card">
@@ -179,9 +214,9 @@ $pendientes = $estado['migraciones_pendientes'];
             <?php endif; ?>
 
             <div style="display:flex; gap:12px; margin-top:6px; flex-wrap:wrap;">
-                <a href="<?php echo URL_BASE; ?>pages/actualizaciones.php?forzar=1" class="btn btn-check">
-                    <i class="fas fa-sync"></i> Comprobar de nuevo
-                </a>
+                <button type="button" id="btnComprobar" class="btn btn-check">
+                    <i class="fas fa-sync"></i> <span>Comprobar de nuevo</span>
+                </button>
 
                 <?php if ($estado['hay_actualizacion']): ?>
                     <button type="button" class="btn btn-update" id="btnAplicar">
@@ -202,24 +237,75 @@ $pendientes = $estado['migraciones_pendientes'];
         </div>
     </div>
 
+    <!-- Overlay de progreso al comprobar actualizaciones -->
+    <div id="overlayConsulta" style="display:none;">
+        <div class="prog-box">
+            <div class="prog-title"><i class="fas fa-sync prog-spin"></i>Consultando GitHub…</div>
+            <div class="prog-fase" id="progFase">Contactando repositorio…</div>
+            <div class="prog-track"><div class="prog-fill"></div></div>
+        </div>
+    </div>
+
     <script>
     document.addEventListener('DOMContentLoaded', function () {
+        var urlConsulta = "<?php echo URL_BASE; ?>ajax/consultar_actualizaciones.php";
+
+        // ---- Comprobar de nuevo (con barra de progreso) ----
+        var btnComprobar = document.getElementById('btnComprobar');
+        if (btnComprobar) {
+            btnComprobar.addEventListener('click', function () {
+                var spun = this.querySelector('i');
+                if (spun) spun.classList.add('fa-spin');
+                var overlay = document.getElementById('overlayConsulta');
+                var faseEl = document.getElementById('progFase');
+                overlay.style.display = 'flex';
+
+                var fases = [
+                    'Contactando repositorio…',
+                    'Verificando rama y commits…',
+                    'Comparando versiones…',
+                    'Finalizando consulta…'
+                ];
+                var i = 0;
+                var timer = setInterval(function () {
+                    i = (i + 1) % fases.length;
+                    if (faseEl) faseEl.textContent = fases[i];
+                }, 1200);
+
+                // Consulta real forzando la actualización de la caché
+                fetch(urlConsulta, { method: 'GET', cache: 'no-store' })
+                    .then(function (r) { return r.json().catch(function () { return {}; }); })
+                    .then(function () {
+                        clearInterval(timer);
+                        if (faseEl) faseEl.textContent = '¡Listo! Recargando…';
+                        setTimeout(function () { location.reload(); }, 600);
+                    })
+                    .catch(function () {
+                        clearInterval(timer);
+                        if (faseEl) faseEl.textContent = 'Error de conexión. Recargando…';
+                        setTimeout(function () { location.reload(); }, 800);
+                    });
+            });
+        }
+
+        // ---- Actualizar ahora (confirmación) ----
         var btn = document.getElementById('btnAplicar');
-        if (!btn) return;
-        btn.addEventListener('click', function (e) {
-            e.preventDefault();
-            if (window.confirmarAccion) {
-                window.confirmarAccion(
-                    '¿Actualizar el sistema?',
-                    'Se generará un respaldo de la base de datos y se sobrescribirá el código con la última versión de GitHub. Esta operación puede tardar unos segundos.',
-                    'SÍ, ACTUALIZAR',
-                    'btn-success',
-                    function () { document.getElementById('formActualizar').submit(); }
-                );
-            } else if (window.confirm('¿Seguro que desea actualizar el sistema?')) {
-                document.getElementById('formActualizar').submit();
-            }
-        });
+        if (btn) {
+            btn.addEventListener('click', function (e) {
+                e.preventDefault();
+                if (window.confirmarAccion) {
+                    window.confirmarAccion(
+                        '¿Actualizar el sistema?',
+                        'Se generará un respaldo de la base de datos y se sobrescribirá el código con la última versión de GitHub. Esta operación puede tardar unos segundos.',
+                        'SÍ, ACTUALIZAR',
+                        'btn-success',
+                        function () { document.getElementById('formActualizar').submit(); }
+                    );
+                } else if (window.confirm('¿Seguro que desea actualizar el sistema?')) {
+                    document.getElementById('formActualizar').submit();
+                }
+            });
+        }
     });
     </script>
 </body>

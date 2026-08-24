@@ -81,19 +81,23 @@ try {
                                           c.dni, c.id_tipo_iva,
                                           af.cae, af.cae_vto, af.punto_venta, af.n_comprobante, af.tipo_comprobante
                                   FROM ventas v
-                                  LEFT JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = :empresa_id
+                                  LEFT JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = v.empresa_id
                                   LEFT JOIN ventas_financiacion vf ON v.id = vf.id_venta
                                   LEFT JOIN ventas_afip af ON v.id = af.id_venta
-                                  WHERE v.n_documento = :n_documento AND v.empresa_id = :empresa_id
+                                  WHERE v.n_documento = :n_documento
+                                  ORDER BY v.id DESC
                                   LIMIT 1");
-            $stmt->execute([':n_documento' => $n_doc, ':empresa_id' => $empresa_id]);
+            $stmt->execute([':n_documento' => $n_doc]);
         }
         $venta = $stmt->fetch(PDO::FETCH_ASSOC);
     } catch (Exception $e) { /* ignorar */ }
     if (!$venta) die("Venta no encontrada.");
     
-    // Usar el número de documento real de la venta encontrada (importante cuando se busca por ID)
+    // Usar el número de documento real y la empresa real de la venta encontrada.
+    // La empresa no se toma de la sesión para no fallar si la sesión cambió entre el
+    // alta de la venta y la impresión (multi-empresa / multi-sucursal).
     $n_doc = (int)$venta['n_documento'];
+    if (!empty($venta['empresa_id'])) $empresa_id = (int)$venta['empresa_id'];
 
     // Determinar si es una factura oficial o una orden interna
     $es_oficial = !empty($venta['cae']);
@@ -102,8 +106,9 @@ try {
         $letra_comprobante = ($venta['tipo_comprobante'] == 11) ? "C" : (($venta['tipo_comprobante'] == 1) ? "A" : "B");
     }
 
-    // Consulta de datos de la empresa
-    $empresa_id = $_SESSION['empresa_id'] ?? 1;
+    // Consulta de datos de la empresa.
+    // $empresa_id ya quedó resuelto: es la empresa real de la venta encontrada (o la de la
+    // sesión si no hubiera columna). No debe re-asignarse desde la sesión aquí.
     $stmt_emp = $pdo->prepare("SELECT * FROM empresas WHERE id = ? LIMIT 1");
     $stmt_emp->execute([$empresa_id]);
     $emp = $stmt_emp->fetch(PDO::FETCH_ASSOC);

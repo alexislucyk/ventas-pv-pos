@@ -329,6 +329,7 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
 
                 $pdo->commit();
                 $_SESSION['ticket_a_imprimir_doc'] = $n_documento;
+                $_SESSION['ticket_a_imprimir_id'] = $id_venta_actual;
                 $_SESSION['status_msj'] = "✅ Venta N° $n_documento procesada correctamente.";
                 
                 if (!empty($productos_sin_stock)) {
@@ -350,6 +351,7 @@ if (isset($_SESSION['status_msj'])) { $mensaje = $_SESSION['status_msj']; unset(
 $mensaje_warning = '';
 if (isset($_SESSION['status_msj_warning'])) { $mensaje_warning = $_SESSION['status_msj_warning']; unset($_SESSION['status_msj_warning']); }
 $ticket_doc_a_imprimir = isset($_SESSION['ticket_a_imprimir_doc']) ? $_SESSION['ticket_a_imprimir_doc'] : null;
+$ticket_id_a_imprimir = isset($_SESSION['ticket_a_imprimir_id']) ? $_SESSION['ticket_a_imprimir_id'] : null;
 $cliente_tel = '';
 $cliente_nom = '';
 if ($ticket_doc_a_imprimir) {
@@ -362,6 +364,7 @@ if ($ticket_doc_a_imprimir) {
     }
 }
 unset($_SESSION['ticket_a_imprimir_doc']);
+unset($_SESSION['ticket_a_imprimir_id']);
 ?>
 
 <!DOCTYPE html>
@@ -836,7 +839,8 @@ unset($_SESSION['ticket_a_imprimir_doc']);
                 <button onclick="window.open('vista_previa_ticket.php?n_documento=<?php echo $ticket_doc_a_imprimir; ?>', '_blank'); this.parentElement.parentElement.parentElement.style.display='none';" class="btn btn-primary" style="padding: 10px 20px;">
                     <i class="fas fa-print"></i> Imprimir
                 </button>
-                <button onclick="enviarTicketWA('', '', '<?php echo $ticket_doc_a_imprimir; ?>', event)" class="btn" style="background: #e67e22; color: white; padding: 10px 20px;">
+                <?php $pdf_ref_ventas = ((int)($ticket_id_a_imprimir ?? 0)) > 0 ? ('id=' . (int)$ticket_id_a_imprimir) : ('n_documento=' . (int)$ticket_doc_a_imprimir); ?>
+                <button onclick="enviarTicketWA('', '', '<?php echo $pdf_ref_ventas; ?>', event)" class="btn" style="background: #e67e22; color: white; padding: 10px 20px;">
                     <i class="fas fa-file-pdf"></i> Descargar PDF
                 </button>
                 <button onclick="this.parentElement.parentElement.parentElement.style.display='none';" class="btn btn-secondary" style="padding: 10px 20px; background:#444;">Cerrar</button>
@@ -890,8 +894,9 @@ unset($_SESSION['ticket_a_imprimir_doc']);
         }
 
         function enviarTicketWA(telefono, nombre, nDoc, event) {
-            // En lugar de enviar por WhatsApp, redireccionamos a la generación del PDF con el flag de descarga
-            const urlDownload = 'generar_pdf_ticket.php?n_documento=' + nDoc + '&download=1';
+            // En lugar de enviar por WhatsApp, redireccionamos a la generación del PDF con el flag de descarga.
+            // nDoc puede venir como 'id=...' o 'n_documento=...' (la búsqueda por id es la más robusta).
+            const urlDownload = 'generar_pdf_ticket.php?' + nDoc + '&download=1';
             window.location.href = urlDownload;
             mostrarToast("Iniciando descarga del comprobante...");
         }
