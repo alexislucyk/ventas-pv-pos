@@ -85,3 +85,28 @@ El sistema es un **Punto de Venta (POS)** desarrollado en **PHP puro 8.3** (sin 
 | 4 | Sin tests / CI-CD | **Alta** | Alto | Alta |
 | 5 | CORS `*` + token hardcodeado | **Alta** | Alto | Media |
 | 6-18 | Ver detalle anterior | Media-Baja | Medio-Bajo | Variable |
+
+---
+
+## 📌 Estado de Resolución (actualizado 24/08/2026)
+
+| # | Ítem | Estado |
+|---|---|---|
+| 1 | Secretos hardcodeados → `.env` + CORS restringido + token centralizado | ✅ Resuelto (`6597939`) |
+| 2 | Inconsistencia de versión → `APP_VERSION` 2.7.1 en `.env`, BD via migración 37 | ✅ Resuelto (`6597939`) |
+| 3 | `empresa_id = 1` en sidebar → usa sesión con prepared statement | ✅ Resuelto (`7f2831f`) |
+| 7 | Session fixation → `session_regenerate_id(true)` en login | ✅ Resuelto (`7f2831f`) |
+| 17 | Query no preparada en abm_productos.php → prepared statement | ✅ Resuelto (`7f2831f`) |
+| 8 | Archivos duplicados/obsoletos eliminados (6 archivos) | ✅ Resuelto (`b772988`) |
+| 9 | HTML estáticos list_*.html eliminados (~400KB) | ✅ Resuelto (`b772988`) |
+| 10 | phpqrcode cache des-trackeado (~400 archivos) + .gitignore | ✅ Resuelto (`b772988`) |
+| 14 | check_arca_requirements.php vacío eliminado | ✅ Resuelto (`b772988`) |
+| — | **BONUS**: fix fatal error path en ajax/generar_ticket.php | ✅ Resuelto (`b772988`) |
+| — | **BONUS**: config global de errores PHP (log en prod, display en dev) | ✅ Resuelto (pendiente commit) |
+| — | **BONUS**: die() de conexión ya no filtra detalles de BD en producción | ✅ Resuelto (pendiente commit) |
+| 4 | Tests / CI-CD | ⬜ Pendiente |
+| 5 | Rate limiting APIs | ⬜ Pendiente |
+| 6 | Refactor global de `die()` | ⬜ Pendiente (parcial: db_config) |
+| 11 | Migrador unificado | ⬜ Pendiente |
+| 12 | Build system / SRI CDNs | ⬜ Pendiente |
+| 15 | PSR / autoloading | ⬜ Pendiente |

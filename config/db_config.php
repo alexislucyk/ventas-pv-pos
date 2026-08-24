@@ -40,6 +40,15 @@ if (!empty($_nombre_bd_env)) {
     $db_name = $_nombre_bd_env;
 }
 
+// --- 1b. Configuración global de errores PHP ---
+// Centraliza el reporte de errores: en desarrollo se muestran en pantalla,
+// en producción se registran en el log y se ocultan al usuario.
+$es_dev = (substr($app_folder, -4) === '_dev');
+error_reporting(E_ALL);
+ini_set('log_errors', '1');
+ini_set('display_errors', $es_dev ? '1' : '0');
+ini_set('display_startup_errors', $es_dev ? '1' : '0');
+
 // El folder de URL es el directorio real en el que corre la app (dinámico).
 // Usamos SCRIPT_NAME (más estable que REQUEST_URI) para el segmento de URL;
 // si la app está en la raíz web (sin subcarpeta) el directorio queda vacío.
@@ -85,6 +94,13 @@ $options = array(
 try {
      $pdo = new PDO($dsn, $user, $pass, $options);
 } catch (PDOException $e) {
-     die("Error crítico: No se pudo conectar a la base de datos " . $db_name . ". " . $e->getMessage());
+     // Registrar el detalle real en el log; al usuario solo un mensaje genérico
+     // (evita filtrar host/credenciales/detalles de BD en producción).
+     error_log("POS ERROR de conexión a BD [{$db_name}@{$host}]: " . $e->getMessage());
+     if (!empty($es_dev)) {
+         die("Error crítico: No se pudo conectar a la base de datos {$db_name}. " . $e->getMessage());
+     }
+     http_response_code(500);
+     die("Error crítico: No se pudo conectar a la base de datos. Contacte al administrador.");
 }
 ?>
