@@ -164,7 +164,7 @@ try {
     $pdf->SetX(7);
     $pdf->Cell(($ancho_total/2) - 8, 4, to_iso($emp['direccion']), 0, 1, 'L');
     $pdf->SetX(7);
-    $pdf->Cell(($ancho_total/2) - 8, 4, to_iso($emp['localidad'] . " - " . $emp['provincia']), 0, 1, 'L');
+    $pdf->Cell(($ancho_total/2) - 8, 4, to_iso(trim($emp['localidad'] . (isset($emp['provincia']) && !empty($emp['provincia']) ? ' - ' . $emp['provincia'] : ''))), 0, 1, 'L');
     
     if ($es_oficial) {
         $pdf->SetX(7);
@@ -335,6 +335,8 @@ try {
     $desc_global = (float)($venta['descuento_global'] ?? 0);
     $interes = 0;
     $entrega = 0;
+    // Subtotal de productos sin intereses (se usaba sin inicializar: warnings y $ 0,00)
+    $total_base = $total_bruto_acumulado;
 
     // Mostrar Subtotal Bruto
     $pdf->Cell(115, 6, to_iso("SUBTOTAL BRUTO: "), 0, 0, 'R');

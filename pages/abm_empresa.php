@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($_POST['guardar_empresa'])) {
             // Validaciones
             $cuit = trim($_POST['cuit']);
-            if (!empty($cuit) && !preg_match('/^\d{2}-\d{8}-\d{1}$/', $cuit)) {
+            if (!empty($cuit) && !normalizar_cuit($cuit, $cuit)) {
                 throw new Exception("El CUIT debe tener formato XX-XXXXXXXX-X");
             }
 
@@ -416,7 +416,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <p><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars(isset($empresa['direccion']) ? $empresa['direccion'] : '-'); ?>, <?php echo htmlspecialchars(isset($empresa['localidad']) ? $empresa['localidad'] : '-'); ?></p>
                 <p><i class="fas fa-phone-alt"></i> <?php echo htmlspecialchars(isset($empresa['telefono']) ? $empresa['telefono'] : '-'); ?></p>
                 <div style="margin-top: 10px;">
-                    <span class="data-tag">CUIT: <?php echo htmlspecialchars(isset($empresa['cuit']) ? $empresa['cuit'] : '00-00000000-0'); ?></span>
+                    <span class="data-tag">CUIT: <?php echo htmlspecialchars(isset($empresa['cuit']) ? formatear_cuit($empresa['cuit']) : '00-00000000-0'); ?></span>
                     <span class="data-tag">IVA: <?php echo htmlspecialchars(isset($empresa['condicion_iva']) ? $empresa['condicion_iva'] : '-'); ?></span>
                     <span class="data-tag">IIBB: <?php echo htmlspecialchars(isset($empresa['ingresos_brutos']) ? $empresa['ingresos_brutos'] : '-'); ?></span>
                 </div>
@@ -445,7 +445,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div style="display: flex; gap: 10px;">
                         <div style="flex: 1;">
                             <label>CUIT (XX-XXXXXXXX-X)</label>
-                            <input type="text" name="cuit" class="input-field" value="<?php echo htmlspecialchars(isset($empresa['cuit']) ? $empresa['cuit'] : ''); ?>" placeholder="00-00000000-0" maxlength="13">
+                            <input type="text" name="cuit" class="input-field" value="<?php echo htmlspecialchars(isset($empresa['cuit']) ? formatear_cuit($empresa['cuit']) : ''); ?>" placeholder="00-00000000-0" maxlength="13">
                             <div class="help-text">Formato: XX-XXXXXXXX-X</div>
                         </div>
                         <div style="flex: 1;">
@@ -624,14 +624,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         });
 
-        // Formatear CUIT automáticamente
-        document.querySelector('input[name="cuit"]').addEventListener('blur', function(e) {
-            let value = e.target.value.replace(/\D/g, '');
-            if (value.length === 11) {
-                value = value.substring(0, 2) + '-' + value.substring(2, 10) + '-' + value.substring(10, 11);
-                e.target.value = value;
-            }
-        });
+        // Formatear CUIT automáticamente (al cargar, al escribir y al salir del campo)
+        const cuitInput = document.querySelector('input[name="cuit"]');
+        if (cuitInput) {
+            const formatearCuitCampo = function() {
+                const v = cuitInput.value.replace(/\D/g, '');
+                if (v.length === 11) {
+                    cuitInput.value = v.substring(0, 2) + '-' + v.substring(2, 10) + '-' + v.substring(10, 11);
+                }
+            };
+            // Al cargar la página, normaliza un CUIT que venga sin guiones
+            formatearCuitCampo();
+            cuitInput.addEventListener('blur', formatearCuitCampo);
+            cuitInput.addEventListener('input', function(e) {
+                // Dejar solo dígitos, con límite de 11 para evitar sobre-formatos molestos
+                const v = e.target.value.replace(/\D/g, '').substring(0, 11);
+                e.target.value = v;
+            });
+        }
 
         function editarSucursal(data) {
             document.getElementById('id_sucursal').value = data.id;

@@ -85,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new Exception("La localidad es obligatoria.");
         }
 
-        if (!empty($cuit) && !preg_match('/^\d{2}-\d{8}-\d{1}$/', $cuit)) {
+        if (!empty($cuit) && !normalizar_cuit($cuit, $cuit)) {
             throw new Exception("El CUIT debe tener formato XX-XXXXXXXX-X");
         }
 
@@ -849,7 +849,7 @@ $condiciones_iva = [
                             <?php endif; ?>
                             <div style="margin-top: 8px;">
                                 <?php if (!empty($emp['cuit'])): ?>
-                                    <span class="data-tag">CUIT: <?php echo htmlspecialchars($emp['cuit']); ?></span>
+                                    <span class="data-tag">CUIT: <?php echo htmlspecialchars(formatear_cuit($emp['cuit'] ?? '')); ?></span>
                                 <?php endif; ?>
                                 <?php if (!empty($emp['condicion_iva'])): ?>
                                     <span class="data-tag">IVA: <?php echo htmlspecialchars($emp['condicion_iva']); ?></span>
@@ -971,7 +971,7 @@ $condiciones_iva = [
                         <div class="form-group">
                             <label>CUIT (XX-XXXXXXXX-X)</label>
                             <input type="text" name="cuit" class="input-field" 
-                                   value="<?php echo htmlspecialchars($emp['cuit'] ?? ''); ?>"
+                                   value="<?php echo htmlspecialchars(formatear_cuit($emp['cuit'] ?? '')); ?>"
                                    placeholder="00-00000000-0" maxlength="13">
                             <div class="help-text">Formato: XX-XXXXXXXX-X</div>
                         </div>
@@ -1080,15 +1080,21 @@ $condiciones_iva = [
             });
         }
 
-        // Formatear CUIT automáticamente
+        // Formatear CUIT automáticamente (al cargar, al escribir y al salir del campo)
         const cuitField = document.querySelector('input[name="cuit"]');
         if (cuitField) {
-            cuitField.addEventListener('blur', function(e) {
-                let value = e.target.value.replace(/\D/g, '');
-                if (value.length === 11) {
-                    value = value.substring(0, 2) + '-' + value.substring(2, 10) + '-' + value.substring(10, 11);
-                    e.target.value = value;
+            const formatearCuitCampo = function() {
+                const v = cuitField.value.replace(/\D/g, '');
+                if (v.length === 11) {
+                    cuitField.value = v.substring(0, 2) + '-' + v.substring(2, 10) + '-' + v.substring(10, 11);
                 }
+            };
+            // Al cargar la página, normaliza un CUIT que venga sin guiones
+            formatearCuitCampo();
+            cuitField.addEventListener('blur', formatearCuitCampo);
+            cuitField.addEventListener('input', function(e) {
+                const v = e.target.value.replace(/\D/g, '').substring(0, 11);
+                e.target.value = v;
             });
         }
 

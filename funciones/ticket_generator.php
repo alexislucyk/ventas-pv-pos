@@ -52,6 +52,17 @@ function generar_html_ticket_contenido(PDO $pdo, int|string $n_documento, int $e
         $localidad = (!empty($emp['localidad']))       ? $emp['localidad']       : "";
         $telefono  = (!empty($emp['telefono']))        ? $emp['telefono']        : "";
 
+        // LOGO DE LA EMPRESA: se toma directamente de la imagen cargada en
+        // "Perfil del Negocio" (abm_empresa). La ruta real vive en $emp['logo_path']
+        // (tabla empresas) y el archivo se sirve desde la raíz web de la app.
+        $logo_url = '';
+        if (!empty($emp['logo_path'])) {
+            $ruta_logo_disco = dirname(__DIR__) . '/' . ltrim($emp['logo_path'], '/');
+            if (@is_file($ruta_logo_disco)) {
+                $logo_url = (defined('URL_BASE') ? URL_BASE : '/') . ltrim($emp['logo_path'], '/');
+            }
+        }
+
         $observaciones = !empty($venta['observaciones']) ? trim($venta['observaciones']) : '';
 
         $sql_detalle = "SELECT descripcion, cant, p_unit, descuento_unitario, total FROM ventas_detalle WHERE n_documento = :n_documento AND empresa_id = :empresa_id";
@@ -72,6 +83,12 @@ function generar_html_ticket_contenido(PDO $pdo, int|string $n_documento, int $e
         
         // --- ENCABEZADO (CONTACTO) ---
         $html .= '<div class="center">';
+        
+        // Logo de la empresa (arriba de todo, si tiene imagen cargada)
+        if ($logo_url) {
+            $html .= '<img src="' . htmlspecialchars($logo_url) . '" alt="logo" style="max-width:45mm; max-height:25mm; display:block; margin:0 auto 2px auto;" />';
+        }
+        
         $html .= '<h3><b>' . htmlspecialchars($nombre) . '</b></h3>'; 
         
         if ($direccion != "") {

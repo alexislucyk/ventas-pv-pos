@@ -13,6 +13,37 @@ if (!defined('BASE_PATH')) {
 }
 
 /**
+ * Formatear un CUIT/CUIL a la forma estándar XX-XXXXXXXX-X.
+ * Acepta el CUIT con o sin guiones (ej. "23317411804" -> "23-31741180-4").
+ * Si no parece un CUIT de 11 dígitos, devuelve el valor tal cual.
+ */
+if (!function_exists('formatear_cuit')) {
+    function formatear_cuit($cuit) {
+        $dig = preg_replace('/\D/', '', (string)$cuit);
+        if (strlen($dig) === 11) {
+            return substr($dig, 0, 2) . '-' . substr($dig, 2, 8) . '-' . substr($dig, 10, 1);
+        }
+        return $cuit;
+    }
+}
+
+/**
+ * Deja el CUIT en dígitos puros (11 dígitos) aplicando el formato estándar.
+ * También devuelve true si es válido. Auxiliar para validaciones del ABM.
+ */
+if (!function_exists('normalizar_cuit')) {
+    function normalizar_cuit($cuit, &$formateado = null) {
+        $dig = preg_replace('/[^0-9]/', '', (string)$cuit);
+        if (strlen($dig) === 11) {
+            $formateado = substr($dig, 0, 2) . '-' . substr($dig, 2, 8) . '-' . substr($dig, 10, 1);
+            return true;
+        }
+        $formateado = $cuit;
+        return false;
+    }
+}
+
+/**
  * Acceso a la instancia global del Router.
  */
 function app(): ?Router
