@@ -1,0 +1,225 @@
+/*
+ * ============================================================
+ * VENTAS — Estilos específicos de ventas.php
+ * ============================================================
+ * Extraído de: pages/ventas.php (bloque <style> línea 377)
+ * ============================================================
+ */
+
+/* ── LAYOUT DE VENTA ── */
+.venta-grid {
+    display: grid;
+    grid-template-columns: 3fr 1fr;
+    gap: 20px;
+}
+
+/* ── CARD OVERRIDE (dark) ── */
+.card {
+    background-color: var(--bg-card) !important;
+    border: 1px solid var(--border-strong) !important;
+    border-radius: var(--radius-md) !important;
+    box-shadow: var(--shadow-md) !important;
+    padding: 20px;
+}
+
+/* ── ENCABEZADO DE SECCIÓN ── */
+.content h1 {
+    color: var(--accent);
+    font-weight: 700;
+    border-bottom: 1px solid var(--border-strong);
+    padding-bottom: 10px;
+    margin-bottom: 25px;
+    display: flex;
+    align-items: center;
+}
+
+.content h1::before {
+    content: "\f201";
+    font-family: "Font Awesome 5 Free";
+    margin-right: 15px;
+    font-size: 1.5rem;
+}
+
+/* ── INPUTS ESTILO DARK ── */
+.input-field,
+input[type="text"],
+input[type="number"],
+select,
+textarea {
+    background-color: var(--bg-input) !important;
+    border: 1px solid var(--border-input) !important;
+    color: var(--text-white) !important;
+    border-radius: var(--radius-sm);
+    padding: 10px;
+}
+
+.input-field:focus {
+    border-color: var(--accent) !important;
+    outline: none;
+}
+
+/* ── TABLAS DE CARRITO ── */
+.table-full {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+.table-full th {
+    background-color: var(--bg-secondary);
+    color: var(--accent);
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    padding: 12px;
+    text-align: left;
+    border-bottom: 2px solid var(--border-strong);
+}
+
+.table-full td {
+    padding: 12px;
+    border-bottom: 1px solid var(--bg-elevated);
+}
+
+.table-full tr:hover {
+    background-color: var(--bg-hover);
+}
+
+/* ── CAJAS DE TOTALES ── */
+.total-box {
+    background: var(--bg-secondary);
+    padding: 20px;
+    text-align: center;
+    margin: 15px 0;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-strong);
+}
+
+#total_venta_display {
+    font-size: 2.2rem;
+    color: var(--success-alt);
+    font-weight: bold;
+}
+
+.vuelto-box {
+    background: var(--bg-secondary);
+    padding: 15px;
+    text-align: center;
+    margin-bottom: 15px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--warning);
+    display: none;
+}
+
+#vuelto_display {
+    font-size: 1.8rem;
+    color: var(--warning);
+    font-weight: bold;
+}
+
+/* ── BÚSQUEDA DE PRODUCTOS / CLIENTES ── */
+#resultadosBusqueda,
+#resultadosBusquedaClientes {
+    position: absolute;
+    z-index: 1000;
+    background: var(--bg-input);
+    width: 100%;
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid var(--border-medium);
+    color: var(--text-white);
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+.resultado-item {
+    padding: 12px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-strong);
+}
+
+.resultado-item:hover {
+    background-color: var(--accent);
+    color: var(--text-dark);
+}
+
+.resultado-item.resaltado {
+    background-color: var(--bg-deep);
+    color: var(--text-white);
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* ── ALERTA INFO ── */
+.alert-info {
+    background-color: var(--bg-secondary);
+    border-left: 4px solid var(--accent);
+    color: var(--text-secondary);
+    padding: 15px;
+}
+
+/* ── BOTONES ── */
+.btn-block {
+    width: 100%;
+    border-radius: 6px;
+}
+
+/* ── LABELS ── */
+label {
+    color: var(--text-faint);
+    font-size: 0.9rem;
+    margin-bottom: 5px;
+    display: block;
+}
+
+hr {
+    border: 0;
+    border-top: 1px solid var(--border-strong);
+    margin: 20px 0;
+}
+
+/* ── TOAST / NOTIFICACIÓN ── */
+.toast-notificacion {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: var(--success);
+    color: white;
+    padding: 15px 25px;
+    border-radius: var(--radius-md);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: bold;
+    animation: slideInToast 0.3s ease-out forwards;
+}
+
+@keyframes slideInToast {
+    from { transform: translateX(120%); }
+    to   { transform: translateX(0); }
+}
+
+.toast-fade-out {
+    animation: fadeOutToast 0.5s ease-out forwards;
+}
+
+@keyframes fadeOutToast {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+}
+
+/* ── CARRITO: quitar spinners en inputs numéricos ── */
+#carrito input[type=number]::-webkit-inner-spin-button,
+#carrito input[type=number]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+#carrito input[type=number] { -moz-appearance: textfield; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 1100px) {
+    .venta-grid {
+        grid-template-columns: 1fr;
+        display: block;
+    }
+}

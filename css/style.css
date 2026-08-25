@@ -3,28 +3,46 @@
  * SISTEMA POS - PUNTO DE VENTA
  * ARCHIVO PRINCIPAL DE ESTILOS (BUNDLE / MASTER STYLESHEET)
  * ============================================================
- * Todos los estilos se encuentran modularizados en sus archivos correspondientes:
  *
- * 1. base.css               - Resets, tipografía, fondo y estructura base HTML/Body
- * 2. layout_components.css  - Contenedores de contenido, tarjetas (cards), paneles
- * 3. forms_buttons.css      - Entradas de formulario, botones, badges, widgets
- * 4. autocomplete.css       - Desplegables de autocompletado y búsqueda
- * 5. tables.css             - Tablas, encabezados sticky y scroll de carritos
- * 6. modals_alerts.css      - Modales de diálogo, avisos, alertas y z-indexes
- * 7. sidebar.css            - Barra de navegación lateral colapsable y categorías
- * 8. topbar.css             - Barra superior, selector de sucursal, cotización dólar y usuario
- * 9. utilities.css          - Barras de progreso indeterminadas y animaciones auxiliares
- * 10. responsive.css        - Grids adaptativos, vistas de venta/compra/presupuesto y media queries
+ * ESTRUCTURA DE MÓDULOS:
+ *
+ * base/
+ *   1. variables.css          - CSS custom properties (colores, tema oscuro)
+ *   2. base.css               - Resets, tipografía, fondo y estructura base HTML/Body
+ *
+ * layout/
+ *   3. layout_components.css  - Contenedores de contenido, tarjetas (cards), paneles
+ *   4. responsive.css         - Grids adaptativos y media queries globales
+ *
+ * components/
+ *   5. forms_buttons.css      - Entradas de formulario, botones, badges, widgets
+ *   6. autocomplete.css       - Desplegables de autocompletado y búsqueda
+ *   7. tables.css             - Tablas, encabezados sticky y scroll de carritos
+ *   8. modals_alerts.css      - Modales de diálogo, avisos, alertas y z-indexes
+ *   9. sidebar.css            - Barra de navegación lateral colapsable y categorías
+ *  10. topbar.css             - Barra superior, selector de sucursal, cotización dólar y usuario
+ *  11. utilities.css          - Barras de progreso indeterminadas y animaciones auxiliares
+ *
+ * pages/      - Estilos específicos por página (cargados condicionalmente)
+ * print/      - Estilos de impresión (ticket, presupuesto, recibo)
+ * login/      - Estilos de la página de login
+ *
  * ============================================================
  */
 
-@import url('base.css');
-@import url('layout_components.css');
-@import url('forms_buttons.css');
-@import url('autocomplete.css');
-@import url('tables.css');
-@import url('modals_alerts.css');
-@import url('sidebar.css');
-@import url('topbar.css');
-@import url('utilities.css');
-@import url('responsive.css');
+/* ── BASE ── */
+@import url('base/variables.css');
+@import url('layout/base.css');
+
+/* ── LAYOUT ── */
+@import url('layout/layout_components.css');
+@import url('layout/responsive.css');
+
+/* ── COMPONENTS ── */
+@import url('components/forms_buttons.css');
+@import url('components/autocomplete.css');
+@import url('components/tables.css');
+@import url('components/modals_alerts.css');
+@import url('components/sidebar.css');
+@import url('components/topbar.css');
+@import url('components/utilities.css');

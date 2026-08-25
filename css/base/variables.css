@@ -1,0 +1,86 @@
+/*
+ * ============================================================
+ * SISTEMA POS — VARIABLES CSS (Design Tokens)
+ * ============================================================
+ * Todos los colores y valores del tema oscuro centralizados.
+ * Usar estas variables en lugar de valores hardcodeados.
+ *
+ * Frecuencia de uso analizada sobre 48 archivos PHP del proyecto.
+ * ============================================================
+ */
+
+:root {
+
+    /* ── FONDOS (Backgrounds) ── */
+    --bg-root:          #111111;   /* Fondo más oscuro */
+    --bg-primary:       #121212;   /* Fondo base del body */
+    --bg-secondary:     #181818;   /* Fondo alternativo / encabezados de tabla */
+    --bg-dark:          #1a1a1a;   /* Contenedores oscuros */
+    --bg-card:          #1e1e1e;   /* Cards y paneles */
+    --bg-elevated:      #222222;   /* Elementos elevados */
+    --bg-input:         #2a2a2a;   /* Inputs, selects, textareas */
+    --bg-hover:         #252525;   /* Filas de tabla al hover */
+    --bg-subtle:        #2c2c2c;   /* Fondo sutil para destacar */
+    --bg-surface:       #232323;   /* Superficies intermedias */
+    --bg-deep:          #3a3a3a;   /* Fondo profundo */
+
+    /* ── ACENTO PRINCIPAL ── */
+    --accent:           #00bcd4;   /* Cian principal (173 usos) */
+    --accent-hover:     #0097a7;   /* Cian más oscuro para hover */
+    --accent-light:     #4dd0e1;   /* Cian más claro */
+    --accent-dim:       rgba(0, 188, 212, 0.15); /* Cian translúcido */
+
+    /* ── TEXTOS ── */
+    --text-primary:     #f0f0f0;   /* Texto principal */
+    --text-secondary:   #e0e0e0;   /* Texto secundario */
+    --text-muted:       #888888;   /* Texto atenuado (76 usos) */
+    --text-faint:       #aaaaaa;   /* Texto muy tenue (52 usos) */
+    --text-dim:         #666666;   /* Texto apagado */
+    --text-placeholder: #555555;   /* Placeholders */
+    --text-white:       #ffffff;   /* Blanco puro */
+    --text-dark:        #000000;   /* Negro puro */
+
+    /* ── BORDES ── */
+    --border-strong:    #333333;   /* Borde principal (115 usos) */
+    --border-medium:    #444444;   /* Borde medio (82 usos) */
+    --border-light:     #555555;   /* Borde claro */
+    --border-subtle:    #222222;   /* Borde casi invisible */
+    --border-input:     #444444;   /* Borde de inputs */
+
+    /* ── ESTADOS / SEMÁFORO ── */
+    --success:          #2ecc71;   /* Verde éxito (68 usos) */
+    --success-alt:      #4caf50;   /* Verde alternativo (31 usos) */
+    --success-dark:     #27ae60;   /* Verde oscuro */
+    --success-bs:       #28a745;   /* Verde Bootstrap */
+
+    --danger:           #e74c3c;   /* Rojo peligro (67 usos) */
+    --danger-alt:       #f44336;   /* Rojo alternativo (17 usos) */
+    --danger-bs:        #dc3545;   /* Rojo Bootstrap */
+    --danger-dark:      #b71c1c;   /* Rojo oscuro */
+    --danger-bright:    #ff5252;   /* Rojo brillante */
+
+    --warning:          #f1c40f;   /* Amarillo advertencia (30 usos) */
+    --warning-alt:      #f39c12;   /* Naranja advertencia (22 usos) */
+    --warning-deep:     #e67e22;   /* Naranja profundo */
+    --warning-bs:       #ff9800;   /* Naranja Bootstrap (10 usos) */
+
+    --info:             #3498db;   /* Azul info (39 usos) */
+    --info-bs:          #17a2b8;   /* Azul Bootstrap */
+
+    /* ── ESPECIALES ── */
+    --whatsapp:         #25d366;   /* Verde WhatsApp (10 usos) */
+
+    /* ── RADIO / SOMBRAS / ESPACIADO ── */
+    --radius-sm:        4px;
+    --radius-md:        8px;
+    --radius-lg:        12px;
+    --radius-xl:        16px;
+
+    --shadow-sm:        0 2px 4px rgba(0, 0, 0, 0.3);
+    --shadow-md:        0 4px 6px rgba(0, 0, 0, 0.3);
+    --shadow-lg:        0 6px 15px rgba(0, 0, 0, 0.4);
+    --shadow-accent:    0 0 10px rgba(0, 188, 212, 0.3);
+
+    --transition:       all 0.3s ease;
+    --transition-fast:  all 0.15s ease;
+}

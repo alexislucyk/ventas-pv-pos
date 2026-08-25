@@ -1,0 +1,305 @@
+/*
+ * ============================================================
+ * ABM CLIENTES — Estilos específicos de abm_clientes.php
+ * ============================================================
+ * Extraído de: pages/abm_clientes.php (bloque <style> línea 223)
+ * Requiere: abm_base.css
+ * ============================================================
+ */
+
+/* ── BARRA DE FILTROS COMPACTA ── */
+.filtros-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: stretch;
+    margin-bottom: 20px;
+    padding: 10px 14px;
+    background: var(--bg-dark);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--bg-input);
+}
+
+.filtros-bar input,
+.filtros-bar select,
+.filtros-bar .btn-filtro,
+.filtros-bar .btn-export,
+.filtros-bar .view-toggle {
+    border: 1px solid var(--bg-deep);
+    background: var(--bg-elevated);
+    color: var(--text-faint);
+    border-radius: var(--radius-sm);
+    font-size: 0.78em;
+    outline: none;
+    transition: border-color 0.2s, background 0.2s;
+    height: 30px;
+    box-sizing: border-box;
+}
+
+.filtros-bar input:focus,
+.filtros-bar select:focus { border-color: var(--accent); }
+
+.filtros-bar input[type="text"] {
+    flex: 1.3;
+    min-width: 180px;
+    max-width: 300px;
+    padding: 0 10px;
+}
+
+.filtros-bar select {
+    min-width: 90px;
+    max-width: 130px;
+    padding: 0 6px;
+}
+
+.filtros-bar .btn-filtro {
+    padding: 0 10px;
+    background: var(--bg-input);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    text-decoration: none;
+    line-height: 30px;
+}
+
+.filtros-bar .btn-filtro:hover {
+    background: var(--border-strong);
+    color: var(--text-white);
+    border-color: var(--text-placeholder);
+}
+
+.filtros-bar .btn-export {
+    padding: 0 10px;
+    background: var(--success-dark);
+    color: var(--text-white);
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    line-height: 30px;
+    text-decoration: none;
+}
+
+.filtros-bar .btn-export:hover { background: var(--success); }
+
+.filtros-bar .view-toggle {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px;
+    gap: 2px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--bg-deep);
+    height: 30px;
+}
+
+.filtros-bar .view-toggle button {
+    height: 24px;
+    padding: 0 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.78em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-fast);
+}
+
+.filtros-bar .view-toggle button.active {
+    background: var(--accent);
+    color: var(--text-white);
+}
+
+.filtros-bar .view-toggle button:hover:not(.active) { color: var(--text-faint); }
+
+/* ── TOGGLE DE VISTA (tabla/cards) ── */
+.view-toggle {
+    display: flex;
+    gap: 4px;
+    background: var(--bg-elevated);
+    border-radius: var(--radius-md);
+    padding: 3px;
+}
+
+.view-toggle button {
+    padding: 6px 12px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85em;
+    transition: var(--transition-fast);
+}
+
+.view-toggle button.active {
+    background: var(--accent);
+    color: var(--text-white);
+}
+
+.view-toggle button:hover:not(.active) { color: var(--text-faint); }
+
+/* ── CARDS DE CLIENTES ── */
+.clientes-cards {
+    display: none;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 15px;
+}
+
+.clientes-cards.active   { display: grid; }
+.clientes-table          { display: none; }
+.clientes-table.active   { display: table; }
+
+.cliente-card {
+    background: var(--bg-card);
+    border: 1px solid var(--bg-input);
+    border-radius: var(--radius-lg);
+    padding: 18px 20px;
+    transition: var(--transition);
+    position: relative;
+}
+
+.cliente-card:hover {
+    border-color: var(--border-medium);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+}
+
+.cliente-card .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+}
+
+.cliente-card .card-name { font-weight: 600; font-size: 1em; color: var(--text-white); }
+.cliente-card .card-id   { color: var(--text-dim); font-size: 0.8em; }
+
+.cliente-card .card-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    font-size: 0.82em;
+    color: var(--text-faint);
+    margin: 10px 0;
+}
+
+.cliente-card .card-details span { display: flex; align-items: center; gap: 5px; }
+.cliente-card .card-details i    { width: 14px; color: var(--text-dim); }
+
+.cliente-card .card-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--bg-input);
+}
+
+.cliente-card .card-actions a {
+    flex: 1;
+    text-align: center;
+    padding: 6px;
+    border-radius: 6px;
+    font-size: 0.78em;
+    text-decoration: none;
+    transition: var(--transition-fast);
+}
+
+/* ── SALDO CC ── */
+.saldo-deudor  { color: var(--danger);  font-weight: bold; }
+.saldo-acreedor{ color: var(--info);    font-weight: bold; }
+.saldo-cero    { color: var(--success-alt); font-weight: bold; }
+
+/* ── BOTÓN WHATSAPP ── */
+.btn-whatsapp {
+    color: var(--whatsapp) !important;
+    font-size: 1.1em;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    transition: var(--transition-fast);
+    text-decoration: none;
+}
+
+.btn-whatsapp:hover {
+    background: rgba(37, 211, 102, 0.1);
+    transform: scale(1.15);
+}
+
+/* ── PAGINACIÓN ── */
+.paginacion {
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+    margin-top: 20px;
+}
+
+.paginacion a,
+.paginacion span {
+    padding: 8px 14px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 0.85em;
+    background: var(--bg-elevated);
+    color: var(--text-faint);
+    transition: var(--transition-fast);
+}
+
+.paginacion a:hover { background: var(--border-strong); color: var(--text-white); }
+.paginacion .current { background: var(--accent); color: var(--text-white); }
+
+/* ── MODAL VENTAS DEL CLIENTE ── */
+.modal-ventas-cliente .modal-content {
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+    margin: 5vh auto;
+}
+
+.modal-ventas-cliente table  { font-size: 0.85em; }
+.modal-ventas-cliente table th { padding: 8px 10px; font-size: 0.8em; }
+.modal-ventas-cliente table td { padding: 6px 10px; }
+
+/* ── FORMULARIO COMPACTO ── */
+.form-seccion {
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--bg-input);
+}
+
+.form-seccion:last-child { border-bottom: none; margin-bottom: 0; }
+
+.form-seccion h3 {
+    color: var(--accent);
+    font-size: 0.78em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0 0 8px 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.form-seccion h3 i { font-size: 0.9em; }
+
+/* ── EXPORTAR ── */
+.btn-export {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: var(--success-dark);
+    color: var(--text-white);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85em;
+    transition: background 0.2s;
+    text-decoration: none;
+}
+
+.btn-export:hover { background: var(--success); }

@@ -8,26 +8,39 @@
 
 ## 📊 Diagnóstico Actual
 
-### Estado del directorio `css/` (ya modularizado parcialmente)
+### Estado del directorio `css/` (estructura de carpetas YA aplicada)
 
-| Archivo | Propósito |
-|---|---|
-| `style.css` | Master stylesheet (solo `@import`) |
-| `base.css` | Resets, tipografía, body |
-| `layout_components.css` | Cards, contenedores, paneles |
-| `forms_buttons.css` | Inputs, botones, badges |
-| `autocomplete.css` | Dropdowns de búsqueda |
-| `tables.css` | Tablas globales |
-| `modals_alerts.css` | Modales y alertas |
-| `sidebar.css` | Navegación lateral |
-| `topbar.css` | Barra superior |
-| `utilities.css` | Animaciones auxiliares |
-| `responsive.css` | Media queries globales |
-| `compras.css` | Estilos de compras |
-| `ticket_print.css` | Ticket de impresión |
-| `temptocketprint.css` | Ticket temporal (temp) |
-| `style_login.css` | Página de login |
-| `cee_temp.css` | Temporal CEE |
+```
+css/
+├── style.css                  ← Master stylesheet (solo @import) ✅
+├── cee_temp.css               ← Temporal CEE (pendiente eliminar/unificar, FASE 6)
+├── base/
+│   └── variables.css          ← [HECHO] CSS custom properties (:root) — importado en style.css
+├── layout/
+│   ├── base.css
+│   ├── layout_components.css
+│   └── responsive.css
+├── components/
+│   ├── forms_buttons.css
+│   ├── autocomplete.css
+│   ├── tables.css
+│   ├── modals_alerts.css
+│   ├── sidebar.css
+│   ├── topbar.css
+│   └── utilities.css
+├── pages/
+│   ├── dashboard.css           ← [HECHO] Extraído de dashboard.php (2 bloques) — cargo en dashboard.php
+│   ├── ventas.css              ← [HECHO] Extraído de ventas.php — cargo en ventas.php
+│   ├── abm_clientes.css        ← [creado] PHP aún sin refactorizar
+│   ├── abm_base.css            ← [creado] helper ABM (fuera del roadmap)
+│   ├── compras.css
+│   └── ctacte_proveedores.css  ← [creado] PHP aún sin refactorizar
+├── print/
+│   ├── ticket_print.css
+│   └── temptocketprint.css     ← (pendiente renombrar / temporal)
+└── login/
+    └── style_login.css
+```
 
 ### Problema detectado
 
@@ -108,27 +121,27 @@ css/
 ## 📋 Fases de Implementación
 
 ### ✅ FASE 0 — Preparación (Prerequisitos)
-> Duración estimada: **1 hora**
+> Duración estimada: **1 hora** — ✅ **COMPLETADA**
 
-- [ ] Hacer commit/backup del estado actual del repositorio
-- [ ] Crear la estructura de carpetas dentro de `css/`:
+- [x] Hacer commit/backup del estado actual del repositorio
+- [x] Crear la estructura de carpetas dentro de `css/`:
   - `css/base/`, `css/layout/`, `css/components/`, `css/pages/`, `css/print/`, `css/login/`
-- [ ] Mover archivos existentes a las subcarpetas correspondientes (sin modificar contenido)
-- [ ] Actualizar `style.css` con los nuevos paths de `@import` para los archivos movidos
-- [ ] Verificar que el sitio carga correctamente tras la reorganización
+- [x] Mover archivos existentes a las subcarpetas correspondientes (sin modificar contenido)
+- [x] Actualizar `style.css` con los nuevos paths de `@import` para los archivos movidos
+- [x] Verificar que el sitio carga correctamente tras la reorganización
 
 ---
 
 ### 🔵 FASE 1 — Extracción de Variables CSS Globales
-> Duración estimada: **2 horas**
+> Duración estimada: **2 horas** — 🟡 **EN PROGRESO**
 
 **Problema:** Cada archivo PHP repite las mismas variables de color/tema oscuro (ej: `#121212`, `#1e1e1e`, `#00bcd4`, `#e0e0e0`).
 
 **Tareas:**
-- [ ] Crear `css/base/variables.css` con todas las CSS custom properties
-- [ ] Reemplazar colores hardcodeados en archivos CSS existentes por las variables
-- [ ] Importar `variables.css` como primera línea en `style.css`
-- [ ] Documentar cada variable con un comentario de propósito
+- [x] Crear `css/base/variables.css` con todas las CSS custom properties
+- [ ] Reemplazar colores hardcodeados en archivos CSS existentes por las variables  ⏳ Pendiente (los CSS nuevos ya usan `var()`, los módulos globales aún hardcodean `#121212`, `#1e1e1e`, etc.)
+- [x] Importar `variables.css` como primera línea en `style.css`
+- [x] Documentar cada variable con un comentario de propósito
 
 **Resultado esperado:**
 ```css
@@ -152,13 +165,14 @@ css/
 ---
 
 ### 🔵 FASE 2 — Extracción de Páginas de Alta Densidad
-> Duración estimada: **1–2 días**
+> Duración estimada: **1–2 días** — 🟠 **EN PROGRESO** (2/6 páginas)
 
 Archivos con más de 50 usos de `style=` o bloques `<style>` grandes:
 
-#### 2.1 `pages/ventas.php` → `css/pages/ventas.css`
-- Bloque `<style>` en línea 377 (~150 líneas)
-- 86 atributos `style=` inline
+#### 2.1 `pages/ventas.php` → `css/pages/ventas.css` ✅ HECHO
+- Bloque `<style>` en línea 377 (~150 líneas): extraído a `css/pages/ventas.css`
+- 86 atributos `style=` inline: ⏳ aún pendiente (FASE 5)
+- `<link>` a `css/pages/ventas.css` agregado en `ventas.php`
 - Clases objetivo: `.venta-grid`, `.total-box`, `.vuelto-box`, `.table-full`, `.input-field` (dark)
 
 #### 2.2 `pages/abm_productos.php` → `css/pages/abm_productos.css`
@@ -185,12 +199,12 @@ Archivos con más de 50 usos de `style=` o bloques `<style>` grandes:
 ---
 
 ### 🔵 FASE 3 — Extracción de Páginas de Media Densidad
-> Duración estimada: **2–3 días**
+> Duración estimada: **2–3 días** — 🟠 **EN PROGRESO** (1/~25 páginas)
 
-| Archivo fuente | CSS destino | `style=` count |
-|---|---|---|
-| `dashboard.php` (¡2 bloques!) | `css/pages/dashboard.css` | 40 |
-| `ventarapida.php` | `css/pages/ventarapida.css` | 14 |
+| Archivo fuente | CSS destino | `style=` count | Estado |
+|---|---|---|---|
+| `dashboard.php` (¡2 bloques!) | `css/pages/dashboard.css` | 40 | ✅ HECHO (2 bloques extraídos + `<link>` en dashboard.php) |
+| `ventarapida.php` | `css/pages/ventarapida.css` | 14 | ⏳ |
 | `backup.php` | `css/pages/backup.css` | 46 |
 | `cobro_cuotas.php` | `css/pages/cobro_cuotas.css` | 37 |
 | `anulaciones.php` | `css/pages/anulaciones.css` | 37 |
@@ -355,16 +369,29 @@ Clases como `.card`, `.btn`, `.table-full` aparecen redefinidas en múltiples ar
 
 ## 📈 Métricas de Progreso
 
+> ⏰ **Última actualización:** 2026-08-25 — Estado a este punto del refactor de modularización.
+
 | Fase | Estado | Archivos impactados |
 |---|---|---|
-| FASE 0 — Preparación | ⬜ Pendiente | — |
-| FASE 1 — Variables CSS | ⬜ Pendiente | 16 CSS + todos los PHP |
-| FASE 2 — Alta densidad | ⬜ Pendiente | 6 PHP → 6 CSS nuevos |
-| FASE 3 — Media densidad | ⬜ Pendiente | ~25 PHP → ~12 CSS nuevos |
+| FASE 0 — Preparación | ✅ Completada | Estructura `css/` + `style.css` + move |
+| FASE 1 — Variables CSS | 🟡 En progreso | `variables.css` creado e importado; falta reemplazar hardcoded en CSS globales |
+| FASE 2 — Alta densidad | 🟠 2/6 | `ventas.php` + `dashboard.php` → CSS extraídos y conectados; `abm_clientes.css` y `ctacte_proveedores.css` creados (PHP pendiente) |
+| FASE 3 — Media densidad | 🟠 1/~25 | `dashboard.php` ✅ |
 | FASE 4 — Baja densidad | ⬜ Pendiente | ~16 PHP → 5 CSS nuevos |
-| FASE 5 — Inline `style=` | ⬜ Pendiente | 53 PHP |
+| FASE 5 — Inline `style=` | ⬜ Pendiente | 53 PHP (1.189 `style=` restantes en `pages/`) |
 | FASE 6 — Consolidación | ⬜ Pendiente | 16 CSS existentes |
 | FASE 7 — Carga condicional | ⬜ Pendiente | Todos los PHP |
 | FASE 8 — Auditoría | ⬜ Pendiente | Proyecto completo |
 
 **Total estimado:** ~10–12 días de trabajo (refactoring puro, sin regresiones)
+
+---
+
+## ✅ Registro de avances
+
+### 2026-08-25 — Modularización inicial
+- **FASE 0 completada:** estructura de carpetas en `css/` creada y archivos movidos; `style.css` actualizado con los nuevos `@import`.
+- **FASE 1 parcial:** `css/base/variables.css` creado e importado como primera línea.
+- **FASE 2 y 3:** `dashboard.php` y `ventas.php` refactorizados (bloques `<style>` extraídos a `css/pages/dashboard.css` y `css/pages/ventas.css`).
+- **Fix:** se agregó el `<link>` de `css/pages/ventas.css` en `ventas.php` para corregir la página Ventas que había quedado sin estilos tras la extracción.
+- **Nota:** `css/pages/abm_base.css` fue creado como helper ABM (no contemplado en el roadmap).
