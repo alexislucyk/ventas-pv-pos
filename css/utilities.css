@@ -1,0 +1,24 @@
+/* ==================== PROGRESS BARS & UTILITIES ==================== */
+.progress-bar-container {
+    width: 100%;
+    background-color: #000;
+    border-radius: 5px;
+    height: 15px;
+    border: 1px solid #444;
+    overflow: hidden;
+    position: relative;
+}
+
+.progress-bar-indeterminate {
+    background-color: #00bcd4; /* Color de tu tema */
+    height: 100%;
+    width: 30%; /* Ancho inicial */
+    position: absolute;
+    animation: indeterminate-progress 1.5s infinite linear;
+}
+
+@keyframes indeterminate-progress {
+    0% { left: -30%; }
+    100% { left: 100%; }
+}
+

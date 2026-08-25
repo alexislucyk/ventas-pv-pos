@@ -1,0 +1,45 @@
+/* ==================== 5. AUTOCOMPLETADO ==================== */
+
+/* Contenedor relativo para posicionar la lista */
+/* Forzamos que los contenedores de búsqueda sean el punto de anclaje */
+.contenedor-busqueda, 
+.contenedor-busqueda-cliente,
+.header-clientes { 
+    position: relative !important; 
+}
+
+/* Estilo unificado para las dos listas de resultados */
+#resultadosBusqueda, 
+#resultadosBusquedaClientes {
+    position: absolute !important;
+    top: 100%; /* Se pega al borde inferior del input */
+    left: 0;
+    width: 100%; /* Mismo ancho que el input */
+    background-color: #2c2c2c !important;
+    border: 1px solid #00bcd4 !important;
+    z-index: 10000 !important; /* Valor muy alto para que nada lo tape */
+    max-height: 200px;
+    overflow-y: auto;
+    margin: 0;
+    padding: 0;
+    box-shadow: 0px 8px 16px rgba(0,0,0,0.6);
+    /* No usamos display: none aquí para que el JS controle la visibilidad al insertar HTML */
+}
+
+/* Estilo para los items de ambas listas */
+.resultado-item, 
+.resultado-cliente-item {
+    padding: 10px 15px !important;
+    border-bottom: 1px solid #383838;
+    color: #f0f0f0 !important;
+    background-color: #2c2c2c;
+    cursor: pointer;
+    display: block;
+}
+
+.resultado-item:hover, 
+.resultado-cliente-item:hover {
+    background-color: #383838 !important;
+    color: #00bcd4 !important;
+}
+

@@ -1,0 +1,23 @@
+/* ==================== RESPONSIVE ==================== */
+@media (max-width: 1100px) {
+    .content { 
+        margin-left: 0; 
+        width: 100%; 
+        padding-top: 70px; 
+    }
+    .topbar { 
+        left: 0; 
+    }
+    #menuToggle { 
+        display: block; 
+    }
+}
+
+@media (min-width: 1101px) {
+    .venta-grid, .compra-grid, .presupuesto-grid {
+        display: grid;
+        grid-template-columns: 2.5fr 1fr; 
+        gap: 20px;
+    }
+}
+
