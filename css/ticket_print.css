@@ -58,6 +58,11 @@
     padding-left: 10px;
 }
 
+/* Descuento (texto resaltado, normalmente en otro color) */
+#ticket-vista-previa .discount-text {
+    color: #8a6d3b;
+}
+
 /* ==================================== */
 /* ESTILOS DE IMPRESIÓN (@media print) */
 /* ==================================== */

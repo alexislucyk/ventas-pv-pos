@@ -1,0 +1,106 @@
+/*
+ * Archivo: css/temptocketprint.css
+ * ESTILOS PARA IMPRESIÓN DE TICKETS TÉRMICOS (80mm / 58mm)
+ * ------------------------------------------------------------------
+ * Este archivo se restaura porque las vistas previas de ticket lo
+ * referencian (css/temptocketprint.css). Incluye el set completo de
+ * clases usadas por los generadores de ticket (ticket_generator.php,
+ * vista_previa_ticket*.php, vista_recibo.php).
+ */
+
+/* ==================================== */
+/* ESTILOS DE PANTALLA (Modal/Vista Previa) */
+/* ==================================== */
+
+#ticket-vista-previa {
+    background-color: white !important;
+    color: black !important;
+    font-family: 'Courier New', monospace;
+    font-size: 13px; /* TAMAÑO BASE PARA LA VISTA PREVIA */
+    padding: 10px; /* Espaciado interno */
+}
+
+/* Alineaciones y Reset de márgenes */
+#ticket-vista-previa .center-text,
+#ticket-vista-previa .center {
+    text-align: center;
+}
+#ticket-vista-previa .right-text,
+#ticket-vista-previa .right {
+    text-align: right;
+}
+
+/* Reset de margen para el contenido del ticket */
+#ticket-vista-previa p,
+#ticket-vista-previa h3 {
+    color: black !important;
+    margin: 0;
+}
+
+/* Espaciado del encabezado */
+#ticket-vista-previa h3 {
+    margin: 5px 0 0 0;
+}
+
+/* Separadores */
+#ticket-vista-previa .sep {
+    border-top: 1px dashed black;
+    margin: 5px 0;
+    height: 1px;
+}
+
+/* Líneas de Totales y Productos */
+#ticket-vista-previa .line {
+    display: flex;
+    justify-content: space-between;
+    margin: 1px 0;
+    width: 100%;
+    padding-left: 0;
+}
+#ticket-vista-previa .detail-line {
+    padding-left: 10px;
+}
+
+/* Descuento (texto resaltado, normalmente en otro color) */
+#ticket-vista-previa .discount-text {
+    color: #8a6d3b;
+}
+
+/* Tablas simétricas usadas por el generador */
+#ticket-vista-previa table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+#ticket-vista-previa td {
+    vertical-align: top;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+/* ============================================================ */
+/* ESTILOS DE IMPRESIÓN (@media print) — ancho de papel térmico   */
+/* ============================================================ */
+@media print {
+    @page {
+        margin: 0; /* Elimina los márgenes del navegador */
+        size: auto;
+    }
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        background-color: white !important;
+    }
+    #ticket-vista-previa {
+        width: 100% !important;
+        max-width: none !important;
+        padding: 1mm 2mm 1mm 1mm !important; /* Borde der. aumentado 1mm para evitar cortes */
+        box-sizing: border-box !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+    }
+    .no-print {
+        display: none !important;
+    }
+}
