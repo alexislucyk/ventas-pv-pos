@@ -6,10 +6,46 @@ if (session_status() === PHP_SESSION_NONE) {
 date_default_timezone_set('America/Argentina/Buenos_Aires'); 
 
 /**
+ * Contenido que codifica el QR al final del ticket de venta (solo 80mm).
+ */
+define('TICKET_QR_CONTENIDO', 'https://www.instagram.com/electricidadlucyk');
+
+/**
+ * Genera un QR (con phpqrcode) y lo devuelve como data URI de imagen PNG.
+ * Devuelve '' si la librería no está disponible.
+ */
+function generar_qr_data_uri(string $contenido): string {
+    $qrlib = dirname(__DIR__) . '/libs/phpqrcode/lib/qrlib.php';
+    if (!is_file($qrlib)) {
+        return '';
+    }
+    require_once $qrlib;
+    if (!class_exists('QRcode')) {
+        return '';
+    }
+    // Se genera a un archivo temporal (patrón usado por generar_pdf_ticket.php)
+    // y se lee para convertirlo en data URI; evita capturar warnings en el buffer.
+    $temp = tempnam(sys_get_temp_dir(), 'ticketqr');
+    @QRcode::png($contenido, $temp, 'L', 6, 2);
+    if (!is_file($temp)) {
+        return '';
+    }
+    $png = file_get_contents($temp);
+    @unlink($temp);
+    if (!$png) {
+        return '';
+    }
+    return 'data:image/png;base64,' . base64_encode($png);
+}
+
+/**
  * Genera el HTML del ticket de venta.
  * Corregido para alineación simétrica y compatibilidad con PHP 5.
+ *
+ * @param bool $ancho_papel Indica el ancho configurado ('80mm'|'58mm').
+ *                          El QR al pie solo se agrega en tickets de 80mm.
  */
-function generar_html_ticket_contenido(PDO $pdo, int|string $n_documento, int $empresa_id): string { 
+function generar_html_ticket_contenido(PDO $pdo, int|string $n_documento, int $empresa_id, string $ancho_papel = '80mm'): string { 
     
     $n_documento = (int)$n_documento;
     
@@ -86,7 +122,7 @@ function generar_html_ticket_contenido(PDO $pdo, int|string $n_documento, int $e
         
         // Logo de la empresa (arriba de todo, si tiene imagen cargada)
         if ($logo_url) {
-            $html .= '<img src="' . htmlspecialchars($logo_url) . '" alt="logo" style="max-width:45mm; max-height:25mm; display:block; margin:0 auto 2px auto;" />';
+            $html .= '<img src="' . htmlspecialchars($logo_url) . '" alt="logo" style="max-width:54mm; max-height:30mm; display:block; margin:0 auto 2px auto;" />';
         }
         
         $html .= '<h3><b>' . htmlspecialchars($nombre) . '</b></h3>'; 
@@ -240,6 +276,17 @@ function generar_html_ticket_contenido(PDO $pdo, int|string $n_documento, int $e
         $html .= '<p>Gracias por su compra!</p>';
         $html .= '<p>*** DOCUMENTO NO FISCAL ***</p>';
         $html .= '</div>';
+        
+        // --- QR AL FINAL DEL TICKET (solo en tickets de venta de 80mm) ---
+        if ($ancho_papel === '80mm') {
+            $qr_uri = generar_qr_data_uri(TICKET_QR_CONTENIDO);
+            if ($qr_uri !== '') {
+                $html .= '<div class="sep"></div>';
+                $html .= '<div class="center">';
+                $html .= '<img src="' . $qr_uri . '" alt="QR" style="width:70%; max-width:50mm; height:auto; display:block; margin:0 auto;" />';
+                $html .= '</div>';
+            }
+        }
         
         $html .= '</font>';
 

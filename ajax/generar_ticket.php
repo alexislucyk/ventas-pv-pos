@@ -25,7 +25,11 @@ if (!isset($_GET['n_documento']) || empty($_GET['n_documento'])) {
 
 $n_documento = (int)$_GET['n_documento'];
 
-$html_ticket = generar_html_ticket_contenido($pdo, $n_documento, $empresa_id); 
+// Ancho de papel configurado (80mm / 58mm). El QR al pie solo se agrega en 80mm.
+$stmt_cfg = $pdo->query("SELECT valor FROM configuracion WHERE clave = 'ticket_ancho'");
+$ancho_papel = $stmt_cfg->fetchColumn() ?: '80mm';
+
+$html_ticket = generar_html_ticket_contenido($pdo, $n_documento, $empresa_id, $ancho_papel); 
 
 echo $html_ticket;
 
