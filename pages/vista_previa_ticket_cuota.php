@@ -21,7 +21,7 @@ $ancho_papel = $stmt_cfg->fetchColumn() ?: '80mm';
 <head>
     <meta charset="UTF-8">
     <title>Ticket de Pago #<?php echo $id_pago; ?></title>
-    <link rel="stylesheet" href="<?php echo url('css/temptocketprint.css'); ?>">
+    <link rel="stylesheet" href="<?php echo url('css/print/temptocketprint.css'); ?>">
     <style>
         @media print {
             @page { 

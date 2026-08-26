@@ -22,7 +22,7 @@ $n_documento = (int)$_GET['n_documento'];
 $stmt_cfg = $pdo->query("SELECT valor FROM configuracion WHERE clave = 'ticket_ancho'");
 $ancho_papel = $stmt_cfg->fetchColumn() ?: '80mm';
 
-$html_ticket_content = generar_html_ticket_contenido($pdo, $n_documento, $empresa_id);
+$html_ticket_content = generar_html_ticket_contenido($pdo, $n_documento, $empresa_id, $ancho_papel);
 
 // 4. Envolver el contenido del ticket en una página completa, cargando los estilos.
 $html = '<!DOCTYPE html>
@@ -30,7 +30,7 @@ $html = '<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <title>Vista Previa Ticket #' . $n_documento . '</title>
-    <link rel="stylesheet" href="' . url('css/temptocketprint.css') . '">
+    <link rel="stylesheet" href="' . url('css/print/temptocketprint.css') . '">
     <style>
         @media print {
             @page { 

@@ -273,7 +273,7 @@ $condiciones_iva = [
 <head>
     <meta charset="UTF-8">
     <title>Gestión de Empresas | <?php echo htmlspecialchars($nombre_empresa_sistema ?? 'POS'); ?></title>
-    <link rel="stylesheet" href="<?php echo url('css/style.css?v=' . time()); ?>">
+    <link rel="stylesheet" href="<?php echo url('css/style.css?v=' . (file_exists(__DIR__ . '/../css/style.css') ? filemtime(__DIR__ . '/../css/style.css') : '1')); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         body { background-color: #121212; color: #e0e0e0; }

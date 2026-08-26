@@ -22,7 +22,7 @@ $version_app = obtener_version_app($pdo);
 
 ?>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-<link rel="stylesheet" href="<?php echo function_exists('url') ? url('css/sidebar.css') : (defined('URL_BASE') ? URL_BASE . 'css/sidebar.css' : '../css/sidebar.css'); ?>">
+<link rel="stylesheet" href="<?php echo function_exists('url') ? url('css/components/sidebar.css') : (defined('URL_BASE') ? URL_BASE . 'css/components/sidebar.css' : '../css/components/sidebar.css'); ?>">
 
 <div class="sidebar" id="sidebar">
     <?php if (defined('URL_BASE') && strpos(URL_BASE, 'dev') !== false): ?>

@@ -204,14 +204,15 @@ try {
 <head>
     <meta charset="UTF-8">
     <title>Resumen de Ventas | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="<?php echo url('css/style.css?v=' . time()); ?>"> 
-    <link rel="stylesheet" href="<?php echo url('css/ticket_print.css'); ?>">
+    <link rel="stylesheet" href="<?php echo url('css/style.css?v=' . (file_exists(__DIR__ . '/../css/style.css') ? filemtime(__DIR__ . '/../css/style.css') : '1')); ?>">
+    <link rel="stylesheet" href="<?php echo url('css/print/ticket_print.css?v=' . (file_exists(__DIR__ . '/../css/print/ticket_print.css') ? filemtime(__DIR__ . '/../css/print/ticket_print.css') : '1')); ?>">
     <style>
         .btn-action { margin-right: 5px; padding: 5px 10px; cursor: pointer; border-radius: 4px; border: none; }
         .text-right { text-align: right; }
         .badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
         .badge-warning { background: #f1c40f; color: #000; }
         .badge-success { background: #2ecc71; color: #fff; }
+        .badge-info { background: #3498db; color: #fff; }
 
         .modal {
             display: none; 
@@ -372,10 +373,15 @@ try {
                                 </td>
                                 <td>
                                     <?php 
-                                    if ($venta['cond_pago'] == 'CUENTA CORRIENTE') {
-                                        echo '<span class="badge badge-warning">⏳ Cta. Cte.</span>';
-                                    } else {
-                                        echo '<span class="badge badge-success">💵 Contado</span>';
+                                    switch ($venta['cond_pago']) {
+                                        case 'CUENTA CORRIENTE':
+                                            echo '<span class="badge badge-warning">⏳ Cta. Cte.</span>';
+                                            break;
+                                        case 'FINANCIADO':
+                                            echo '<span class="badge badge-info">💳 Financiado</span>';
+                                            break;
+                                        default:
+                                            echo '<span class="badge badge-success">💵 Contado</span>';
                                     }
                                     ?>
                                 </td>

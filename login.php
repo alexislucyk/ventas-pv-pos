@@ -95,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <title>Login | Sistema de Gestión</title>
-    <link rel="stylesheet" href="<?php echo url('css/style_login.css'); ?>">
+    <link rel="stylesheet" href="<?php echo url('css/login/style_login.css'); ?>">
 </head>
 <body>
     <div class="login-box">

@@ -50,7 +50,7 @@ $ancho_papel = $stmt_cfg->fetchColumn() ?: '80mm';
 <head>
     <meta charset="UTF-8">
     <title>Ticket Devolución OP#<?php echo $id; ?></title>
-    <link rel="stylesheet" href="<?php echo url('css/temptocketprint.css'); ?>">
+    <link rel="stylesheet" href="<?php echo url('css/print/temptocketprint.css'); ?>">
     <style>
         @media print { body { width: <?php echo $ancho_papel; ?> !important; } }
     </style>

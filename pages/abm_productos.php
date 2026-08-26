@@ -189,7 +189,7 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
 <head>
     <meta charset="UTF-8">
     <title>Productos | <?php echo $nombre_empresa_sistema; ?></title>
-    <link rel="stylesheet" href="<?php echo url('css/style.css?v=' . time()); ?>">
+    <link rel="stylesheet" href="<?php echo url('css/style.css?v=' . (file_exists(__DIR__ . '/../css/style.css') ? filemtime(__DIR__ . '/../css/style.css') : '1')); ?>">
 <style>
      :root { --accent: #00bcd4; --success: #2ecc71; --warning: #f1c40f; --danger: #e74c3c; }
      

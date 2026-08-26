@@ -57,7 +57,7 @@ if (file_exists($cache_file) && (time() - filemtime($cache_file)) < $cache_tiemp
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
-<link rel="stylesheet" href="<?php echo function_exists('url') ? url('css/topbar.css') : (defined('URL_BASE') ? URL_BASE . 'css/topbar.css' : '../css/topbar.css'); ?>">
+<link rel="stylesheet" href="<?php echo function_exists('url') ? url('css/components/topbar.css') : (defined('URL_BASE') ? URL_BASE . 'css/components/topbar.css' : '../css/components/topbar.css'); ?>">
 
 <div class="topbar">
     <!-- Botón menú hamburguesa para mobile -->
