@@ -590,6 +590,11 @@ if (!function_exists('aplicar_actualizacion')) {
      */
     function actualizaciones_hacer_backup($pdo, &$log) {
         try {
+            // Guardar el estado ORIGINAL antes de forzarlo, para poder restaurarlo
+            $stmt = $pdo->prepare("SELECT valor FROM configuracion WHERE clave = 'backup_habilitado'");
+            $stmt->execute();
+            $estado_original = $stmt->fetchColumn();
+
             // Habilitar temporalmente el backup
             $stmt = $pdo->prepare(
                 "INSERT INTO configuracion (clave, valor) VALUES ('backup_habilitado', '1')
@@ -597,16 +602,20 @@ if (!function_exists('aplicar_actualizacion')) {
             );
             $stmt->execute();
 
+            // Una actualización SIEMPRE exige un respaldo fresco: forzar la
+            // ejecución ignorando la frecuencia configurada (ej. backup diario
+            // hecho hace 0.7h no debe abortar la actualización)
+            if (!defined('BACKUP_FORZAR')) {
+                define('BACKUP_FORZAR', true);
+            }
+
             // Ejecutar el script de backup capturando su salida
             ob_start();
             include PATH_BASE . 'procesos/backup_database.php';
             $output = ob_get_clean();
 
-            // Restaurar configuración original salvo que la tuviera activa
-            $stmt = $pdo->prepare("SELECT valor FROM configuracion WHERE clave = 'backup_habilitado'");
-            $stmt->execute();
-            $estado_original = $stmt->fetchColumn();
-            if ($estado_original === false || $estado_original === '0') {
+            // Restaurar configuración original salvo que ya estuviera activa
+            if ($estado_original !== '1') {
                 $stmt = $pdo->prepare("UPDATE configuracion SET valor = '0' WHERE clave = 'backup_habilitado'");
                 $stmt->execute();
             }

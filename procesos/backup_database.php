@@ -103,10 +103,18 @@ function debe_ejecutar_backup($frecuencia) {
     }
 }
 
+// Forzar ejecución ignorando la frecuencia: constante BACKUP_FORZAR=true
+// (include interno, ej. actualizador) o ?forzar=1 (acceso web/CLI manual)
+$backup_forzar = (defined('BACKUP_FORZAR') && BACKUP_FORZAR)
+    || (isset($_GET['forzar']) && $_GET['forzar'] === '1');
+
 // Si no debe ejecutarse, salir
-if (!debe_ejecutar_backup($config['frecuencia'])) {
+if (!$backup_forzar && !debe_ejecutar_backup($config['frecuencia'])) {
     if (php_sapi_name() !== 'cli') {
-        die("Backup no necesario según frecuencia configurada.");
+        // return en vez de die(): si este archivo es incluido por otro script
+        // (ej. el actualizador), die() mata el render completo de la página
+        echo "Backup no necesario según frecuencia configurada.\n";
+        return;
     } else {
         exit(0);
     }
@@ -118,9 +126,13 @@ if (empty($ruta_backup)) {
     $ruta_backup = PATH_BASE . 'backups/';
 }
 
-// Normalizar ruta (convertir / a \ en Windows)
-$ruta_backup = str_replace('/', '\\', $ruta_backup);
-$ruta_backup = rtrim($ruta_backup, '\\') . '\\';
+// Normalizar ruta SOLO en Windows (en Linux los backslashes rompen el path)
+if (stripos(PHP_OS, 'WIN') === 0) {
+    $ruta_backup = str_replace('/', '\\', $ruta_backup);
+    $ruta_backup = rtrim($ruta_backup, '\\') . '\\';
+} else {
+    $ruta_backup = rtrim($ruta_backup, '/') . '/';
+}
 
 echo "📁 Ruta de backup: $ruta_backup\n";
 
