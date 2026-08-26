@@ -70,6 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (isset($_POST['guardar_sucursal'])) {
             $id_suc = !empty($_POST['id_sucursal']) ? $_POST['id_sucursal'] : null;
+            $nombre_suc = trim($_POST['nombre_sucursal']);
 
             // Validaciones
             $email = trim($_POST['email']);
@@ -80,6 +81,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $telefono = trim($_POST['telefono']);
             if (!empty($telefono) && !preg_match('/^[\d\s\+\-\(\)]+$/', $telefono)) {
                 throw new Exception("El teléfono contiene caracteres inválidos");
+            }
+
+            // Validar duplicado de nombre para la misma empresa ANTES de guardar.
+            // La tabla tiene UNIQUE KEY unique_sucursal_empresa (nombre_sucursal, empresa_id),
+            // y sin esta verificación el INSERT ... ON DUPLICATE KEY UPDATE pisaba
+            // silenciosamente los datos de una sucursal existente en lugar de agregarla.
+            $sql_dup = "SELECT COUNT(*) FROM sucursales 
+                        WHERE empresa_id = :empresa_id 
+                          AND nombre_sucursal = :nombre" .
+                        ($id_suc !== null ? " AND id != :id" : "");
+            $stmt_dup = $pdo->prepare($sql_dup);
+            $params_dup = [':empresa_id' => $empresa_id, ':nombre' => $nombre_suc];
+            if ($id_suc !== null) {
+                $params_dup[':id'] = $id_suc;
+            }
+            $stmt_dup->execute($params_dup);
+            if ($stmt_dup->fetchColumn() > 0) {
+                throw new Exception("Ya existe una sucursal llamada \"{$nombre_suc}\" en esta empresa." .
+                    ($id_suc !== null ? " No podés renombrar otra sucursal con ese nombre." : " Elegí otro nombre."));
             }
 
             // Iniciar transacción para evitar race conditions
@@ -105,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([
                     $id_suc, 
                     $empresa_id,
-                    $_POST['nombre_sucursal'], 
+                    $nombre_suc, 
                     $_POST['direccion'], 
                     $telefono, 
                     $email, 
@@ -477,6 +497,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <h3 style="color: #fff; margin-top:0;"><i class="fas fa-edit"></i> Editar Información General</h3>
                 <form method="POST" enctype="multipart/form-data" id="formEmpresa">
                     <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                    <!-- Bandera fija: el botón submit se envía vía requestSubmit(), que NO incluye
+                         el name/value del botón; sin este input isset($_POST['guardar_empresa']) sería false -->
+                    <input type="hidden" name="guardar_empresa" value="1">
                     
                     <label>Nombre de Fantasía (Sale en Ticket) *</label>
                     <input type="text" name="nombre_fantasia" class="input-field" value="<?php echo htmlspecialchars(isset($empresa['nombre_fantasia']) ? $empresa['nombre_fantasia'] : ''); ?>" required>
@@ -570,6 +593,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <form method="POST" id="formSucursal">
                     <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
                     <input type="hidden" name="id_sucursal" id="id_sucursal">
+                    <!-- Bandera fija: el botón submit se envía vía requestSubmit() desde el modal de
+                         confirmación, que NO incluye el name/value del botón; sin este input
+                         isset($_POST['guardar_sucursal']) sería false y no se guardaría nada -->
+                    <input type="hidden" name="guardar_sucursal" value="1">
                     
                     <label>Nombre Sucursal *</label>
                     <input type="text" name="nombre_sucursal" id="nombre_sucursal" class="input-field" required placeholder="Ej: Casa Central">
