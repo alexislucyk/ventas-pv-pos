@@ -1,4 +1,7 @@
 <?php
+// Bloqueo de acceso directo (compatibilidad Apache/Nginx): si este archivo es el script solicitado por HTTP, responder 404.
+if (realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) { http_response_code(404); exit('Not Found'); }
+
 /**
  * core/env.php - Cargador ligero de variables de entorno (.env)
  * ──────────────────────────────────────────────────────────────

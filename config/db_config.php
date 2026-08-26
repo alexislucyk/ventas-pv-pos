@@ -1,4 +1,7 @@
 <?php
+// Bloqueo de acceso directo (compatibilidad Apache/Nginx): si este archivo es el script solicitado por HTTP, responder 404.
+if (realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) { http_response_code(404); exit('Not Found'); }
+
 // config/db_config.php - CONFIGURACIÓN DINÁMICA POS_DEV / POS_PROD
 
 if (session_status() === PHP_SESSION_NONE) {
@@ -34,11 +37,11 @@ if (substr($app_folder, -4) === '_dev') {
         $ambiente = "PRODUCCIÓN";
 }
 
-// Permitir override del nombre de BD vía .env (prioridad absoluta)
-$_nombre_bd_env = env('DB_NAME');
-if (!empty($_nombre_bd_env)) {
-    $db_name = $_nombre_bd_env;
-}
+// NOTA: el nombre de la base NO se sobrescribe desde .env. Se determina
+// únicamente por la carpeta real de instalación (_dev => pos_dev, resto =>
+// pos_prod). Esto evita que un .env copiado/espejado entre entornos apunte
+// producción a la base de desarrollo. Las credenciales (host/user/pass)
+// sí siguen leyéndose del .env.
 
 // --- 1b. Configuración global de errores PHP ---
 // Centraliza el reporte de errores: en desarrollo se muestran en pantalla,
