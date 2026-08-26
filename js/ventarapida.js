@@ -511,11 +511,11 @@ window.quitarItem = quitarItem;
 
 function vaciarCarrito() {
     if (carrito.length === 0) return;
-    if (confirm('¿Vaciar el carrito?')) {
+    confirmarAccion('Vaciar Carrito', '¿Seguro que deseas vaciar el carrito?', 'VACIAR', 'btn-danger', function() {
         carrito = [];
         renderCarrito();
         document.getElementById('producto_input').focus();
-    }
+    });
 }
 
 window.vaciarCarrito = vaciarCarrito;
@@ -703,22 +703,27 @@ function confirmarVenta() {
     }
 
     const sinStock = carrito.filter(i => i.cant > (i.stock_actual || 0));
+
+    const finalizarEnvio = function() {
+        document.getElementById('detalle_productos_input').value = JSON.stringify(carrito);
+        document.getElementById('cond_pago').value = cond;
+        document.getElementById('id_cliente_hidden').value = clienteSeleccionado ? clienteSeleccionado.id_cliente : 0;
+        document.getElementById('pago_efectivo_hidden').value = pe.toFixed(2);
+        document.getElementById('pago_transf_hidden').value = pt.toFixed(2);
+        document.getElementById('observaciones_hidden').value = document.getElementById('obsInput').value.trim();
+
+        const btn = document.getElementById('btnFinalizarVenta');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Procesando...';
+        document.getElementById('formVenta').submit();
+    };
+
     if (sinStock.length > 0) {
         const nombres = sinStock.map(i => i.descripcion).join(', ');
-        if (!confirm('El stock es insuficiente en: ' + nombres + '\n\n¿Continuar de todos modos?')) return;
+        confirmarAccion('Stock Insuficiente', 'El stock es insuficiente en: ' + nombres + '\n\n¿Continuar de todos modos?', 'CONTINUAR', 'btn-primary', finalizarEnvio);
+        return;
     }
-
-    document.getElementById('detalle_productos_input').value = JSON.stringify(carrito);
-    document.getElementById('cond_pago').value = cond;
-    document.getElementById('id_cliente_hidden').value = clienteSeleccionado ? clienteSeleccionado.id_cliente : 0;
-    document.getElementById('pago_efectivo_hidden').value = pe.toFixed(2);
-    document.getElementById('pago_transf_hidden').value = pt.toFixed(2);
-    document.getElementById('observaciones_hidden').value = document.getElementById('obsInput').value.trim();
-
-    const btn = document.getElementById('btnFinalizarVenta');
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Procesando...';
-    document.getElementById('formVenta').submit();
+    finalizarEnvio();
 }
 
 // ================= UI =================

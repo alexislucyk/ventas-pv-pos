@@ -272,10 +272,10 @@ $no_autorizados = array_values(array_diff($todos_proveedores, $proveedores_autor
                     <?php foreach ($proveedores_autorizados as $prov): ?>
                     <span class="proveedor-tag">
                         <?php echo htmlspecialchars($prov); ?>
-                        <form method="POST" style="display: inline;" onsubmit="return confirm('¿Desautorizar este proveedor?')">
+                        <form method="POST" style="display: inline;">
                             <input type="hidden" name="proveedor" value="<?php echo htmlspecialchars($prov); ?>">
                             <input type="hidden" name="accion" value="eliminar">
-                            <span class="eliminar" onclick="this.parentElement.submit()">×</span>
+                            <span class="eliminar" onclick="var f=this.parentElement; var go=function(){ f.submit(); }; if (window.confirmarAccion) { window.confirmarAccion('Desautorizar Proveedor', '¿Desautorizar este proveedor?', 'DESAUTORIZAR', 'btn-danger', go); } else if (confirm('¿Desautorizar este proveedor?')) { go(); }">×</span>
                         </form>
                     </span>
                     <?php endforeach; ?>

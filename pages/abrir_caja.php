@@ -183,7 +183,7 @@ $fondo_ayer = $fondo_ayer ? (float)$fondo_ayer : 0;
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('❌ Error al procesar la solicitud');
+                mostrarMensaje('Error', '❌ Error al procesar la solicitud.', 'error');
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = originalText;
             });

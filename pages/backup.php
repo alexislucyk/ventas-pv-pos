@@ -496,8 +496,8 @@ $ultimo_backup = file_exists($ultimo_backup_file) ? date('Y-m-d H:i:s', (int)fil
                     Ejecuta un backup inmediato de la base de datos. El archivo se guardará en la ruta configurada.
                 </p>
                 <form method="POST" style="display: inline;">
-                    <button type="submit" name="ejecutar_backup" class="btn btn-success" 
-                            onclick="return confirm('¿Desea ejecutar un backup manual ahora?')">
+                    <button type="submit" name="ejecutar_backup" class="btn btn-success"
+                            onclick="return confirmarSubmit(this.form, 'Backup Manual', '¿Desea ejecutar un backup manual ahora?', 'EJECUTAR')">
                         <i class="fas fa-play"></i> Ejecutar Backup Ahora
                     </button>
                 </form>
@@ -528,8 +528,8 @@ $ultimo_backup = file_exists($ultimo_backup_file) ? date('Y-m-d H:i:s', (int)fil
                                            class="btn btn-primary btn-sm">
                                             <i class="fas fa-download"></i> Descargar
                                         </a>
-                                        <form method="POST" style="display: inline;" 
-                                              onsubmit="return confirm('¿Desea eliminar este backup?')">
+                                        <form method="POST" style="display: inline;"
+                                              onsubmit="return confirmarSubmit(this, 'Eliminar Backup', '¿Desea eliminar este backup?', 'ELIMINAR')">
                                             <input type="hidden" name="ruta_backup" value="<?php echo htmlspecialchars($ruta_backup); ?>">
                                             <button type="submit" name="eliminar_backup" value="<?php echo htmlspecialchars($backup['nombre']); ?>" 
                                                     class="btn btn-danger btn-sm">
@@ -789,7 +789,7 @@ $ultimo_backup = file_exists($ultimo_backup_file) ? date('Y-m-d H:i:s', (int)fil
         const nombre = document.getElementById('nombreNuevoDirectorio').value.trim();
         
         if (!nombre) {
-            alert('Ingrese un nombre para el directorio');
+            mostrarMensaje('Atención', 'Ingrese un nombre para el directorio.', 'error');
             return;
         }
         
@@ -799,15 +799,15 @@ $ultimo_backup = file_exists($ultimo_backup_file) ? date('Y-m-d H:i:s', (int)fil
             .then(response => response.json())
             .then(data => {
                 if (data.error) {
-                    alert('Error: ' + data.error);
+                    mostrarMensaje('Error', data.error, 'error');
                 } else if (data.success) {
-                    alert('✅ ' + data.mensaje);
+                    mostrarMensaje('Éxito', '✅ ' + data.mensaje, 'success');
                     ocultarFormularioNuevoDirectorio();
                     cargarDirectorio(directorioActual);
                 }
             })
             .catch(error => {
-                alert('Error al crear directorio: ' + error.message);
+                mostrarMensaje('Error', 'Error al crear directorio: ' + error.message, 'error');
             });
     }
     </script>

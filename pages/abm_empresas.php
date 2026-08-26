@@ -793,7 +793,7 @@ $condiciones_iva = [
                         <option value="0" <?php echo (isset($_GET['activa']) && $_GET['activa'] === '0') ? 'selected' : ''; ?>>Inactivas</option>
                     </select>
                     <button type="submit" class="btn-filtro"><i class="fas fa-filter"></i> Filtrar</button>
-                    <a href="abm_empresas.php" class="btn-filtro"><i class="fas fa-undo"></i> Limpiar</a>
+                    <a href="<?php echo url('abm-empresas'); ?>" class="btn-filtro"><i class="fas fa-undo"></i> Limpiar</a>
                 </form>
             </div>
 
@@ -915,7 +915,7 @@ $condiciones_iva = [
                             <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                                 <?php if (!$es_actual): ?>
                                 <a href="?accion=cambiar&id=<?php echo $emp['id']; ?>" class="btn-accion cambiar" 
-                                   onclick="return confirm('¿Cambiar a la empresa \"<?php echo htmlspecialchars($emp['nombre_fantasia'], ENT_QUOTES); ?>\"?')">
+                                   onclick="return confirmarNavegacion(this, 'Cambiar Empresa', '¿Cambiar a la empresa &quot;<?php echo htmlspecialchars($emp['nombre_fantasia'], ENT_QUOTES); ?>&quot;?', 'ACCEDER')">
                                     <i class="fas fa-exchange-alt"></i> Acceder
                                 </a>
                                 <?php endif; ?>
@@ -924,7 +924,7 @@ $condiciones_iva = [
                                 </a>
                                 <?php if (!$es_actual): ?>
                                 <a href="?accion=eliminar&id=<?php echo $emp['id']; ?>" class="btn-accion eliminar"
-                                   onclick="return confirm('¿Eliminar la empresa \"<?php echo htmlspecialchars($emp['nombre_fantasia'], ENT_QUOTES); ?>\"?\n\nSe eliminarán todos los datos asociados (clientes, productos, ventas, etc.).\nEsta acción no se puede deshacer.')">
+                                   onclick="return confirmarNavegacion(this, 'Eliminar Empresa', '¿Eliminar la empresa &quot;<?php echo htmlspecialchars($emp['nombre_fantasia'], ENT_QUOTES); ?>&quot;? Se eliminarán todos los datos asociados (clientes, productos, ventas, etc.). Esta acción no se puede deshacer.', 'ELIMINAR')">
                                     <i class="fas fa-trash"></i> Eliminar
                                 </a>
                                 <?php endif; ?>
@@ -942,7 +942,7 @@ $condiciones_iva = [
             $editando = ($accion === 'editar' && !empty($empresa_editar));
             $emp = $editando ? $empresa_editar : [];
         ?>
-            <a href="abm_empresas.php" class="back-link"><i class="fas fa-arrow-left"></i> Volver al listado</a>
+            <a href="<?php echo url('abm-empresas'); ?>" class="back-link"><i class="fas fa-arrow-left"></i> Volver al listado</a>
             <div class="form-container">
                 <h2><i class="fas fa-<?php echo $editando ? 'edit' : 'plus-circle'; ?>"></i> 
                     <?php echo $editando ? 'Editar Empresa: ' . htmlspecialchars($emp['nombre_fantasia']) : 'Nueva Empresa'; ?>
@@ -1054,7 +1054,7 @@ $condiciones_iva = [
                             <i class="fas fa-<?php echo $editando ? 'save' : 'plus'; ?>"></i>
                             <?php echo $editando ? 'GUARDAR CAMBIOS' : 'CREAR EMPRESA'; ?>
                         </button>
-                        <a href="abm_empresas.php" class="btn btn-secondary">
+                        <a href="<?php echo url('abm-empresas'); ?>" class="btn btn-secondary">
                             <i class="fas fa-times"></i> CANCELAR
                         </a>
                     </div>

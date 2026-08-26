@@ -268,11 +268,20 @@ async function cambiarSucursalTop(sucursal_id) {
         if (data.success) {
             window.location.href = window.location.pathname + '?sucursal_cambiada=' + Date.now();
         } else {
-            alert('❌ ' + (data.error || 'Error al cambiar sucursal'));
+            notificarGlobal('Error', '❌ ' + (data.error || 'Error al cambiar sucursal'));
         }
     } catch (err) {
         console.error('Error:', err);
-        alert('❌ Error de conexión al cambiar sucursal');
+        notificarGlobal('Error', '❌ Error de conexión al cambiar sucursal');
+    }
+}
+
+// Notificación con modal estilizado (con fallback si el sidebar no está presente)
+function notificarGlobal(titulo, mensaje) {
+    if (typeof mostrarMensaje === 'function') {
+        mostrarMensaje(titulo, mensaje, 'error');
+    } else {
+        alert(mensaje);
     }
 }
 </script>

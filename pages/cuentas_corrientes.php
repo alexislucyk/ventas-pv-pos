@@ -617,19 +617,19 @@ try {
 
     window.imprimirTicket = function(nDocumento) {
         const doc = String(nDocumento).replace(/[^\d]/g, '');
-        if (!doc) { alert("Número de documento inválido."); return; }
+        if (!doc) { mostrarMensaje("Atención", "Número de documento inválido.", "error"); return; }
         window.open('vista_previa_ticket.php?n_documento=' + doc, '_blank', 'width=400,height=700');
     }
 
     window.descargarPDFVenta = function(nDocumento) {
         const doc = String(nDocumento).replace(/[^\d]/g, '');
-        if (!doc) { alert("Número de documento inválido."); return; }
+        if (!doc) { mostrarMensaje("Atención", "Número de documento inválido.", "error"); return; }
         window.location.href = 'generar_pdf_ticket.php?n_documento=' + doc + '&download=1';
     }
 
     window.imprimirRecibo = function(idMovimiento, esDevolucion = false) {
         const id = String(idMovimiento).replace(/[^\d]/g, '');
-        if (!id) { alert("ID de movimiento inválido."); return; }
+        if (!id) { mostrarMensaje("Atención", "ID de movimiento inválido.", "error"); return; }
         const url = esDevolucion 
             ? 'vista_previa_ticket_devolucion.php?id=' + id + '&tipo=CUENTA CORRIENTE'
             : 'vista_recibo.php?id_mov=' + id + '&formato=ticket';
@@ -638,7 +638,7 @@ try {
 
     window.imprimirReciboPDF = function(idMovimiento, esDevolucion = false) {
         const id = String(idMovimiento).replace(/[^\d]/g, '');
-        if (!id) { alert("ID de movimiento inválido."); return; }
+        if (!id) { mostrarMensaje("Atención", "ID de movimiento inválido.", "error"); return; }
         const url = esDevolucion 
             ? 'generar_pdf_devolucion.php?id=' + id + '&tipo=CUENTA CORRIENTE&download=1'
             : 'generar_pdf_recibo.php?id_mov=' + id + '&download=1';
@@ -650,7 +650,7 @@ try {
         const cleanId = String(modalActualId).replace(/[^\d]/g, '');
         
         if (!cleanId) {
-            alert("No se pudo obtener un ID de documento válido para imprimir.");
+            mostrarMensaje("Error", "No se pudo obtener un ID de documento válido para imprimir.", "error");
             return;
         }
 
@@ -870,10 +870,7 @@ try {
             const idCliente = this.dataset.idCliente;
             const nombreCliente = this.dataset.nombreCliente;
             
-            if (!confirm(`¿Aplicar intereses por mora a ${nombreCliente}?\n\nSe calcularán los intereses según la configuración de la empresa y se agregarán como un nuevo movimiento en la cuenta corriente.`)) {
-                return;
-            }
-            
+            const aplicarAhora = () => {
             this.disabled = true;
             this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
             
@@ -900,6 +897,9 @@ try {
                 this.disabled = false;
                 this.innerHTML = '<i class="fas fa-percentage"></i> Intereses';
             });
+            };
+
+            confirmarAccion('Aplicar Intereses', '¿Aplicar intereses por mora a ' + nombreCliente + '?\n\nSe calcularán los intereses según la configuración de la empresa y se agregarán como un nuevo movimiento en la cuenta corriente.', 'APLICAR', 'btn-primary', aplicarAhora);
         });
     });
 </script>

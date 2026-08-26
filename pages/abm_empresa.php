@@ -152,6 +152,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        // Quitar logo actual
+        if (isset($_POST['quitar_logo'])) {
+            $stmt_logo = $pdo->prepare("SELECT logo_path FROM empresas WHERE id = :empresa_id LIMIT 1");
+            $stmt_logo->execute([':empresa_id' => $empresa_id]);
+            $empresa_actual = $stmt_logo->fetch(PDO::FETCH_ASSOC);
+
+            if ($empresa_actual && !empty($empresa_actual['logo_path'])) {
+                // Eliminar archivo físico si existe
+                if (file_exists('../' . $empresa_actual['logo_path'])) {
+                    unlink('../' . $empresa_actual['logo_path']);
+                }
+                // Limpiar ruta en BD
+                $stmt = $pdo->prepare("UPDATE empresas SET logo_path = NULL WHERE id = :empresa_id");
+                $stmt->execute([':empresa_id' => $empresa_id]);
+                $mensaje = "✅ Logo eliminado correctamente.";
+            } else {
+                $mensaje = "⚠️ La empresa no tiene un logo cargado.";
+                $tipo_mensaje = 'warning';
+            }
+        }
+
         // Manejo de upload de logo
         if (isset($_POST['guardar_empresa']) && isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
             $upload_dir = '../img/logos/';
@@ -375,6 +396,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             margin-top: 10px;
         }
 
+        .btn-quitar-logo {
+            margin-top: 8px;
+            width: 100%;
+            padding: 8px 12px;
+            background: #b71c1c;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: background 0.2s;
+        }
+
+        .btn-quitar-logo:hover {
+            background: #d32f2f;
+        }
+
         .help-text {
             font-size: 0.75rem;
             color: #888;
@@ -405,7 +447,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <div class="preview-header" style="position: relative;">
             <div style="position: absolute; top: 20px; right: 20px; z-index: 9999;">
-                <a href="abm_empresas.php" style="background: #28a745; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: inline-block;">
+                <a href="<?php echo route('abm.empresas'); ?>" style="background: #28a745; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: inline-block;" title="Gestionar Empresas">
                     <i class="fas fa-plus"></i>
                 </a>
             </div>
@@ -491,6 +533,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                     <div class="logo-upload">
                         <input type="file" name="logo" id="logo" class="input-field" accept="image/jpeg,image/png,image/gif,image/webp">
+                        <?php if (!empty($empresa['logo_path']) && file_exists('../' . $empresa['logo_path'])): ?>
+                            <button type="button" class="btn-quitar-logo" onclick="quitarLogo()">
+                                <i class="fas fa-trash"></i> Quitar Logo
+                            </button>
+                        <?php endif; ?>
                         <div class="help-text">Formatos: JPG, PNG, GIF, WebP. Tamaño máximo: 2MB</div>
                     </div>
 
@@ -506,7 +553,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </div>
 
-                    <button type="submit" name="guardar_empresa" class="btn-save" onclick="return confirm('¿Guardar cambios en datos de empresa?')">
+                    <button type="submit" name="guardar_empresa" class="btn-save" onclick="var f=this.form; var go=function(){ f.requestSubmit(); }; if(window.confirmarAccion){ window.confirmarAccion('Guardar Cambios', '¿Guardar cambios en datos de empresa?', 'GUARDAR', 'btn-primary', go); return false; } else { return true; }">
                         <i class="fas fa-sync-alt"></i> ACTUALIZAR FICHA
                     </button>
                 </form>
@@ -551,7 +598,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <label>Sitio Web</label>
                     <input type="url" name="web" id="web" class="input-field" placeholder="https://www.empresa.com">
 
-                    <button type="submit" name="guardar_sucursal" class="btn-save" style="background: #4caf50;" onclick="return confirm('¿Guardar sucursal?')">
+                    <button type="submit" name="guardar_sucursal" class="btn-save" style="background: #4caf50;" onclick="var f=this.form; var go=function(){ f.requestSubmit(); }; if(window.confirmarAccion){ window.confirmarAccion('Guardar Sucursal', '¿Guardar sucursal?', 'GUARDAR', 'btn-primary', go); return false; } else { return true; }">
                         <i class="fas fa-plus"></i> GUARDAR / EDITAR SUCURSAL
                     </button>
                 </form>
@@ -684,9 +731,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             return true;
         });
 
+        // Quitar logo actual
+        function quitarLogo() {
+            const enviarQuitar = function() {
+
+            // Crear formulario dinámico (mismo patrón que eliminarSucursal)
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '';
+
+            const csrf = document.createElement('input');
+            csrf.type = 'hidden';
+            csrf.name = 'csrf_token';
+            csrf.value = '<?php echo $_SESSION['csrf_token']; ?>';
+            form.appendChild(csrf);
+
+            const quitar = document.createElement('input');
+            quitar.type = 'hidden';
+            quitar.name = 'quitar_logo';
+            quitar.value = '1';
+            form.appendChild(quitar);
+
+            document.body.appendChild(form);
+            form.submit();
+            };
+
+            confirmarAccion('Quitar Logo', '¿Seguro que deseas quitar el logo actual? Esta acción no se puede deshacer.', 'QUITAR', 'btn-danger', enviarQuitar);
+        }
+
         // Eliminar sucursal
         function eliminarSucursal(id, nombre) {
-            if (confirm('¿Está seguro de eliminar la sucursal "' + nombre + '"?\n\nEsta acción no se puede deshacer.')) {
+            const enviarEliminar = function() {
                 // Crear formulario dinámicamente
                 const form = document.createElement('form');
                 form.method = 'POST';
@@ -712,7 +787,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 document.body.appendChild(form);
                 form.submit();
-            }
+            };
+
+            confirmarAccion('Eliminar Sucursal', '¿Está seguro de eliminar la sucursal "' + nombre + '"? Esta acción no se puede deshacer.', 'ELIMINAR', 'btn-danger', enviarEliminar);
         }
     </script>
 </body>

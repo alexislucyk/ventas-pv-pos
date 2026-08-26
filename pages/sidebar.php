@@ -372,6 +372,32 @@ window.cerrarConfirmacionGlobal = function() {
     document.getElementById('modalConfirmacionGlobal').style.display = 'none';
 };
 
+// Helper: pide confirmación estilizada antes de enviar un formulario.
+// Uso: <form onsubmit="return confirmarSubmit(this, 'Título', '¿Mensaje?', 'TEXTO_BOTON')">
+// o desde un botón onclick="return confirmarSubmit(this.form, ...)".
+// Nota: form.submit() nativo no vuelve a disparar onsubmit, por lo que no hay loops.
+window.confirmarSubmit = function(form, titulo, mensaje, btnTexto) {
+    if (!form || typeof window.confirmarAccion !== 'function') { return true; // fallback seguro
+    }
+    window.confirmarAccion(titulo, mensaje, btnTexto || 'CONFIRMAR', 'btn-danger', function() {
+        form.submit();
+    });
+    return false;
+};
+
+// Helper: pide confirmación estilizada antes de navegar a la URL de un enlace.
+// Uso: <a href="..." onclick="return confirmarNavegacion(this, 'Título', '¿Mensaje?', 'TEXTO_BOTON')">
+window.confirmarNavegacion = function(link, titulo, mensaje, btnTexto) {
+    if (!link) { return false; }
+    if (typeof window.confirmarAccion !== 'function') { return true; // fallback seguro
+    }
+    window.confirmarAccion(titulo, mensaje, btnTexto || 'CONFIRMAR', 'btn-danger', function() {
+        window.location.href = link.getAttribute('href');
+    });
+    return false;
+};
+
+
 // Alertas Estilizadas
 window.mostrarMensaje = function(titulo, mensaje, tipo = 'success', callback = null) {
     const modal = document.getElementById('modalMensajeGlobal');

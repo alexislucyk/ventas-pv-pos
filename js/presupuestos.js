@@ -282,13 +282,8 @@ window.copiarPresupuesto = function() {
     }
 
     // Si ya hay productos cargados, pedimos confirmación
-    if (items.length > 0) {
-        if (!confirm("⚠️ Esto reemplazará los productos actualmente cargados. ¿Deseas continuar?")) {
-            return;
-        }
-    }
-
-    fetch(`${APP_BASE}ajax/obtener_detalle_presupuesto_json.php?id=${id}`)
+    const ejecutarCopia = function() {
+        fetch(`${APP_BASE}ajax/obtener_detalle_presupuesto_json.php?id=${id}`)
         .then(res => res.json())
         .then(data => {
             if (!data.success) {
@@ -349,6 +344,13 @@ window.copiarPresupuesto = function() {
             console.error("Error al copiar presupuesto:", error);
             mostrarMensaje("Error", "❌ Error al conectar con el servidor.", "error");
         });
+    };
+
+    if (items.length > 0) {
+        confirmarAccion("Copiar Presupuesto", "⚠️ Esto reemplazará los productos actualmente cargados. ¿Deseas continuar?", "SÍ, CONTINUAR", "btn-primary", ejecutarCopia);
+    } else {
+        ejecutarCopia();
+    }
 };
 
 });

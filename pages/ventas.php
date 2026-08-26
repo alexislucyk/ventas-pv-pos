@@ -885,14 +885,9 @@ unset($_SESSION['ticket_a_imprimir_id']);
                 return;
             }
 
-            if (carrito.length > 0) {
-                if (!confirm("⚠️ Esto reemplazará los productos actualmente en el carrito. ¿Deseas continuar?")) {
-                    return;
-                }
-            }
-
-            fetch('<?php echo URL_BASE; ?>ajax/obtener_detalle_presupuesto_json.php?id=' + id)
-                .then(res => res.json())
+            const cargarPresupuesto = function() {
+                fetch('<?php echo URL_BASE; ?>ajax/obtener_detalle_presupuesto_json.php?id=' + id)
+                    .then(res => res.json())
                 .then(data => {
                     if (!data.success) {
                         mostrarToast("❌ " + (data.error || "No se pudo copiar el presupuesto."), "error");
@@ -930,6 +925,13 @@ unset($_SESSION['ticket_a_imprimir_id']);
                     console.error("Error al copiar presupuesto:", err);
                     mostrarToast("❌ Error al conectar con el servidor.", "error");
                 });
+            };
+
+            if (carrito.length > 0) {
+                confirmarAccion("Copiar Presupuesto", "⚠️ Esto reemplazará los productos actualmente en el carrito. ¿Deseas continuar?", "SÍ, CONTINUAR", "btn-primary", cargarPresupuesto);
+                return;
+            }
+            cargarPresupuesto();
         };
 
         // Función para calcular precio de venta sugerido (60% de ganancia)

@@ -153,7 +153,7 @@ $info = obtenerEstadoLicencia();
             
             // Efecto visual de copiado al portapapeles
             navigator.clipboard.writeText(hwid).then(() => {
-                alert("Identificador generado y copiado al portapapeles.\nEnvíe este código al administrador para activar su licencia.");
+                mostrarMensaje("Identificador Copiado", "Identificador generado y copiado al portapapeles. Envíe este código al administrador para activar su licencia.", "success");
             });
         }
 

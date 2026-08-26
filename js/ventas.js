@@ -501,7 +501,7 @@ function abrirModalImporte(idx) {
         }
     }
     if (idx === undefined || idx === null || !carrito[idx] || !esGranel(carrito[idx])) {
-        alert('No hay productos a granel (Kg/Mt/Lt) en el carrito.');
+        mostrarMensaje("Atención", "No hay productos a granel (Kg/Mt/Lt) en el carrito.", "error");
         return;
     }
     importeModalIdx = idx;
@@ -645,7 +645,7 @@ window.actualizarPrecioCarrito = function(index) {
     const item = carrito[index];
     if (!item) return;
     if (item.precio_actual === null || item.precio_actual === undefined) {
-        alert("No hay precio actual disponible para este producto.");
+        mostrarMensaje("Error", "No hay precio actual disponible para este producto.", "error");
         return;
     }
     item.p_unit = parseFloat(item.precio_actual);

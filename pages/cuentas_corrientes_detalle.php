@@ -602,19 +602,19 @@ $id_cliente = (int)$_GET['id_cliente'];
 
         window.imprimirTicket = function(nDocumento) {
             const doc = String(nDocumento).replace(/[^\d]/g, '');
-            if (!doc) { alert("Número de documento inválido."); return; }
+            if (!doc) { mostrarMensaje("Atención", "Número de documento inválido.", "error"); return; }
             window.open('vista_previa_ticket.php?n_documento=' + doc, '_blank', 'width=400,height=700');
         }
 
         window.descargarPDFVenta = function(nDocumento) {
             const doc = String(nDocumento).replace(/[^\d]/g, '');
-            if (!doc) { alert("Número de documento inválido."); return; }
+            if (!doc) { mostrarMensaje("Atención", "Número de documento inválido.", "error"); return; }
             window.location.href = 'generar_pdf_ticket.php?n_documento=' + doc + '&download=1';
         }
 
         window.imprimirRecibo = function(idMovimiento, esDevolucion = false) {
             const id = String(idMovimiento).replace(/[^\d]/g, '');
-            if (!id) { alert("ID de movimiento inválido."); return; }
+            if (!id) { mostrarMensaje("Atención", "ID de movimiento inválido.", "error"); return; }
             const url = esDevolucion 
                 ? 'vista_previa_ticket_devolucion.php?id=' + id + '&tipo=CUENTA CORRIENTE'
                 : 'vista_recibo.php?id_mov=' + id + '&formato=ticket';
@@ -623,7 +623,7 @@ $id_cliente = (int)$_GET['id_cliente'];
 
         window.imprimirReciboPDF = function(idMovimiento, esDevolucion = false) {
             const id = String(idMovimiento).replace(/[^\d]/g, '');
-            if (!id) { alert("ID de movimiento inválido."); return; }
+            if (!id) { mostrarMensaje("Atención", "ID de movimiento inválido.", "error"); return; }
             const url = esDevolucion 
                 ? 'generar_pdf_devolucion.php?id=' + id + '&tipo=CUENTA CORRIENTE&download=1'
                 : 'generar_pdf_recibo.php?id_mov=' + id + '&download=1';
@@ -634,7 +634,7 @@ $id_cliente = (int)$_GET['id_cliente'];
             const cleanId = String(modalActualId).replace(/[^\d]/g, '');
             
             if (!cleanId) {
-                alert("No se pudo obtener un ID de documento válido para imprimir.");
+                mostrarMensaje("Error", "No se pudo obtener un ID de documento válido para imprimir.", "error");
                 return;
             }
 
@@ -702,13 +702,12 @@ $id_cliente = (int)$_GET['id_cliente'];
         // --- LÓGICA DE INTERESES POR MORA ---
 
         window.aplicarIntereses = function(idCliente) {
-            if (!confirm('¿Aplicar intereses por mora a este cliente?\n\nSe calcularán los intereses según la configuración y se agregarán como un nuevo movimiento en la cuenta corriente.')) {
-                return;
-            }
-            
-            const btn = event.target.closest('button');
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Aplicando...';
+            const btn = (window.event && window.event.target) ? window.event.target.closest('button') : null;
+
+            const aplicarAhora = function() {
+                if (!btn) { return; }
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Aplicando...';
             
             const formData = new FormData();
             formData.append('id_cliente', idCliente);
@@ -733,6 +732,9 @@ $id_cliente = (int)$_GET['id_cliente'];
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fas fa-check"></i> Aplicar Intereses';
             });
+            };
+
+            confirmarAccion('Aplicar Intereses', '¿Aplicar intereses por mora a este cliente?\n\nSe calcularán los intereses según la configuración y se agregarán como un nuevo movimiento en la cuenta corriente.', 'APLICAR', 'btn-primary', aplicarAhora);
         }
     </script>
 </body>

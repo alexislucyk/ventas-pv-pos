@@ -363,7 +363,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
                     <h2>1b. Buscar Venta por Número</h2>
                     <div style="display: flex; gap: 10px;">
                         <input type="number" id="input_busqueda_directa" class="input-field" placeholder="N° de Venta / Documento" style="margin-bottom:0 !important;">
-                        <button type="button" class="btn btn-primary" onclick="const n = document.getElementById('input_busqueda_directa').value; if(n) verDetalleParaAnular(n); else alert('Ingrese un número de venta.');">BUSCAR</button>
+                        <button type="button" class="btn btn-primary" onclick="const n = document.getElementById('input_busqueda_directa').value; if(n) verDetalleParaAnular(n); else mostrarMensaje('Atención', 'Ingrese un número de venta.', 'error');">BUSCAR</button>
                     </div>
                 </div>
             </div>
@@ -521,7 +521,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
         const nDocLimpio = String(nDoc).trim();
         
         if (!nDocLimpio) {
-            alert('Ingrese un número de venta válido.');
+            mostrarMensaje('Atención', 'Ingrese un número de venta válido.', 'error');
             return;
         }
 
@@ -536,7 +536,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
             })
             .then(data => {
                 if (data.error) { 
-                    alert(data.error); 
+                    mostrarMensaje('Error', data.error, 'error');
                 } else {
                     document.getElementById('span_n_doc').textContent = data.cabecera.n_documento;
                     document.getElementById('hidden_n_doc').value = data.cabecera.n_documento;
@@ -570,7 +570,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
             })
             .catch(err => {
                 console.error('Error al buscar venta:', err);
-                alert('Error al conectar con el servidor. Por favor, intente nuevamente.');
+                mostrarMensaje('Error', 'Error al conectar con el servidor. Por favor, intente nuevamente.', 'error');
             });
     }
 
@@ -626,7 +626,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
         const tieneAlgo = inputs.some(i => parseFloat(i.value) > 0);
 
         if (!isTotal && !tieneAlgo) {
-            alert("Debe seleccionar al menos un producto para devolver o marcar la anulación total.");
+            mostrarMensaje("Atención", "Debe seleccionar al menos un producto para devolver o marcar la anulación total.", "error");
             return false;
         }
 

@@ -924,7 +924,7 @@ function cerrarModalMultiples() {
          const moneda = document.getElementById('moneda_multiple').value;
 
          if (!proveedor || !rubro) {
-             alert('Complete proveedor y rubro');
+             mostrarMensaje('Datos Incompletos', 'Complete proveedor y rubro.', 'error');
              return;
          }
 
@@ -944,7 +944,7 @@ function cerrarModalMultiples() {
          });
 
          if (productos.length === 0) {
-             alert('Ingrese al menos un producto válido');
+             mostrarMensaje('Datos Incompletos', 'Ingrese al menos un producto válido.', 'error');
              return;
          }
 
@@ -956,16 +956,14 @@ function cerrarModalMultiples() {
          .then(res => res.json())
          .then(data => {
              if (data.success) {
-                 alert('✅ ' + data.message);
-                 cerrarModalMultiples();
-                 location.reload();
+                 mostrarMensaje('Éxito', '✅ ' + data.message, 'success', function() { cerrarModalMultiples(); location.reload(); });
              } else {
-                 alert('❌ ' + data.error);
+                 mostrarMensaje('Error', '❌ ' + data.error, 'error');
              }
          })
          .catch(err => {
              console.error(err);
-             alert('❌ Error al guardar productos');
+             mostrarMensaje('Error', '❌ Error al guardar productos.', 'error');
          });
 }
       </script>
@@ -1052,21 +1050,21 @@ function cerrarModalMultiples() {
         if (seleccion === 'rubro') {
             const rubro = document.getElementById('select_rubro_pdf').value;
             if (!rubro) {
-                alert('Seleccione un rubro.');
+                mostrarMensaje('Atención', 'Seleccione un rubro.', 'error');
                 return;
             }
             url += '&valor=' + encodeURIComponent(rubro);
         } else if (seleccion === 'proveedor') {
             const proveedor = document.getElementById('select_proveedor_pdf').value;
             if (!proveedor) {
-                alert('Seleccione un proveedor.');
+                mostrarMensaje('Atención', 'Seleccione un proveedor.', 'error');
                 return;
             }
             url += '&valor=' + encodeURIComponent(proveedor);
         } else if (seleccion === 'busqueda') {
             const q = document.getElementById('filtroProductos').value.trim();
             if (q.length < 2) {
-                alert('Ingrese al menos 2 caracteres en la búsqueda.');
+                mostrarMensaje('Atención', 'Ingrese al menos 2 caracteres en la búsqueda.', 'error');
                 document.getElementById('filtroProductos').focus();
                 cerrarModalPdfPrecios();
                 return;
