@@ -14,6 +14,20 @@ let inputBuscarProd, resultadosProd, inputBuscarCli, resultadosCli;
 let productosSugeridos = [];
 let resultadoIdx = -1;
 
+// --- RELOJ CON FECHA (igual que en venta-rapida) ---
+function reloj() {
+    const ahora = new Date();
+    const h = document.getElementById('relojHora');
+    const f = document.getElementById('relojFecha');
+    if (h) h.textContent = ahora.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    if (f) f.textContent = ahora.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+if (document.getElementById('relojHora')) {
+    setInterval(reloj, 1000);
+    reloj();
+}
+
 // --- 0. COTIZACIÓN DÓLAR OPERATIVO (para mostrar productos en USD en pesos) ---
 (function initDolarOperativo() {
     try {
@@ -50,6 +64,48 @@ function esc(t) {
     d.textContent = t == null ? '' : String(t);
     return d.innerHTML;
 }
+
+// --- PERSISTENCIA DEL CARRITO ---
+// El carrito se guarda en localStorage para que al navegar a otra página y
+// volver a Ventas (recarga completa de PHP) siga cargado.
+const CARRITO_STORAGE_KEY = 'pos_carrito_ventas';
+
+function guardarCarritoStorage() {
+    try {
+        if (!carrito || carrito.length === 0) {
+            localStorage.removeItem(CARRITO_STORAGE_KEY);
+        } else {
+            localStorage.setItem(CARRITO_STORAGE_KEY, JSON.stringify(carrito));
+        }
+    } catch (e) { /* almacenamiento no disponible */ }
+}
+
+function restaurarCarritoStorage() {
+    try {
+        const raw = localStorage.getItem(CARRITO_STORAGE_KEY);
+        if (!raw) return;
+        const data = JSON.parse(raw);
+        if (Array.isArray(data)) {
+            carrito = data.filter(i => i && i.cod_prod);
+            if (carrito.length > 0) renderizarCarrito();
+            else localStorage.removeItem(CARRITO_STORAGE_KEY);
+        }
+    } catch (e) {
+        // JSON corrupto o storage inaccesible: descartamos lo guardado
+        try { localStorage.removeItem(CARRITO_STORAGE_KEY); } catch (x) {}
+    }
+}
+
+// Si el backend marcó que la venta se procesó correctamente
+// (window.LIMPIAR_CARRITO), el carrito ya quedó registrado como venta y debe
+// arrancar vacío. En cualquier otro caso se restaura el último carrito guardado.
+document.addEventListener('DOMContentLoaded', function () {
+    if (window.LIMPIAR_CARRITO === true) {
+        try { localStorage.removeItem(CARRITO_STORAGE_KEY); } catch (e) {}
+    } else {
+        restaurarCarritoStorage();
+    }
+});
 
 function agregarAlCarrito(prod) {
     const existe = carrito.find(item => item.cod_prod === prod.cod_prod);
@@ -443,6 +499,7 @@ function renderizarCarrito() {
         tbody.appendChild(tr);
     });
     actualizarTotal();
+    guardarCarritoStorage();
 }
 
 window.cambiarCant = function(index, valor) {

@@ -193,6 +193,8 @@ if (isset($pdo) && ($pdo instanceof PDO)) {
                 $_SESSION['ticket_a_imprimir_doc'] = $n_documento;
                 $_SESSION['ticket_a_imprimir_id'] = $id_venta_actual;
                 $_SESSION['status_msj'] = "✅ Venta N° $n_documento procesada correctamente.";
+                // Marca para que ventarapida.js limpie el carrito persistido en localStorage
+                $_SESSION['pos_limpiar_carrito'] = true;
 
                 if (!empty($productos_sin_stock)) {
                     $_SESSION['status_msj_warning'] = "⚠️ Venta cerrada con stock insuficiente en: " . implode(", ", $productos_sin_stock);
@@ -239,6 +241,9 @@ if (isset($_SESSION['status_msj_warning'])) {
     $mensaje_warning = $_SESSION['status_msj_warning'];
     unset($_SESSION['status_msj_warning']);
 }
+// Flag para que ventarapida.js borre el carrito persistido tras una venta exitosa
+$pos_limpiar_carrito_js = false;
+if (isset($_SESSION['pos_limpiar_carrito'])) { $pos_limpiar_carrito_js = true; unset($_SESSION['pos_limpiar_carrito']); }
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -1079,6 +1084,7 @@ if (isset($_SESSION['status_msj_warning'])) {
         const APP_BASE = '<?php echo url(''); ?>';
         const clientesData = <?php echo json_encode($clientes); ?>;
     </script>
+<script>window.LIMPIAR_CARRITO = <?php echo !empty($pos_limpiar_carrito_js) ? 'true' : 'false'; ?>;</script>
     <script src="<?php echo url('js/ventarapida.js?v=' . time()); ?>"></script>
 </body>
 </html>

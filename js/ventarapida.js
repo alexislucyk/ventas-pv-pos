@@ -268,6 +268,48 @@ function limpiarBusqueda() {
     input.focus();
 }
 
+// --- PERSISTENCIA DEL CARRITO ---
+// El carrito se guarda en localStorage para que al navegar a otra página y
+// volver a Venta Rápida (recarga completa de PHP) siga cargado.
+const CARRITO_STORAGE_KEY = 'pos_carrito_ventarapida';
+
+function guardarCarritoStorage() {
+    try {
+        if (!carrito || carrito.length === 0) {
+            localStorage.removeItem(CARRITO_STORAGE_KEY);
+        } else {
+            localStorage.setItem(CARRITO_STORAGE_KEY, JSON.stringify(carrito));
+        }
+    } catch (e) { /* almacenamiento no disponible */ }
+}
+
+function restaurarCarritoStorage() {
+    try {
+        const raw = localStorage.getItem(CARRITO_STORAGE_KEY);
+        if (!raw) return;
+        const data = JSON.parse(raw);
+        if (Array.isArray(data)) {
+            carrito = data.filter(i => i && i.cod_prod);
+            if (carrito.length > 0) renderCarrito();
+            else localStorage.removeItem(CARRITO_STORAGE_KEY);
+        }
+    } catch (e) {
+        // JSON corrupto o storage inaccesible: descartamos lo guardado
+        try { localStorage.removeItem(CARRITO_STORAGE_KEY); } catch (x) {}
+    }
+}
+
+// Se registra después del listener principal (iniciar), así la restauración
+// ocurre con toda la UI inicializada. Si el backend marcó que la venta se
+// procesó correctamente (window.LIMPIAR_CARRITO), el carrito arranca vacío.
+document.addEventListener('DOMContentLoaded', function () {
+    if (window.LIMPIAR_CARRITO === true) {
+        try { localStorage.removeItem(CARRITO_STORAGE_KEY); } catch (e) {}
+    } else {
+        restaurarCarritoStorage();
+    }
+});
+
 // ================= CARRITO =================
 function agregarProducto(prod, cantidad) {
     const cant = (cantidad !== undefined && !isNaN(cantidad) && cantidad > 0) ? cantidad : 1;
@@ -332,6 +374,7 @@ function renderCarrito() {
         });
     }
     renderTotales();
+    guardarCarritoStorage();
 }
 
 function setCantidad(idx, valor) {

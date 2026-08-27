@@ -331,7 +331,9 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                 $_SESSION['ticket_a_imprimir_doc'] = $n_documento;
                 $_SESSION['ticket_a_imprimir_id'] = $id_venta_actual;
                 $_SESSION['status_msj'] = "✅ Venta N° $n_documento procesada correctamente.";
-                
+                // Marca para que ventas.js limpie el carrito persistido en localStorage
+                $_SESSION['pos_limpiar_carrito'] = true;
+
                 if (!empty($productos_sin_stock)) {
                     $_SESSION['status_msj_warning'] = "⚠️ Venta cerrada con stock insuficiente en: " . implode(", ", $productos_sin_stock);
                 }
@@ -346,6 +348,10 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
         }
     }
 }
+
+// Flag para que ventas.js borre el carrito persistido tras una venta exitosa
+$pos_limpiar_carrito_js = false;
+if (isset($_SESSION['pos_limpiar_carrito'])) { $pos_limpiar_carrito_js = true; unset($_SESSION['pos_limpiar_carrito']); }
 
 if (isset($_SESSION['status_msj'])) { $mensaje = $_SESSION['status_msj']; unset($_SESSION['status_msj']); }
 $mensaje_warning = '';
@@ -381,7 +387,13 @@ unset($_SESSION['ticket_a_imprimir_id']);
     <?php include 'sidebar.php'; ?>
     <div class="content" style="padding-top: 70px;">
         <?php include 'topbar.php'; ?>
-        <h1>Nueva Venta</h1>
+        <div class="ventas-header">
+            <h1>Nueva Venta</h1>
+            <div class="pos-clock">
+                <span id="relojHora">--:--</span>
+                <span id="relojFecha">--</span>
+            </div>
+        </div>
         
 
         <?php if ($mensaje): ?>
@@ -703,6 +715,7 @@ unset($_SESSION['ticket_a_imprimir_id']);
         </div>
     </div>
 
+<script>window.LIMPIAR_CARRITO = <?php echo !empty($pos_limpiar_carrito_js) ? 'true' : 'false'; ?>;</script>
     <script src="<?php echo url('js/ventas.js?v=' . time()); ?>"></script>
     <script>
         var clientesData = <?php echo json_encode($clientes); ?>;
