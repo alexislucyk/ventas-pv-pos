@@ -168,7 +168,7 @@ if ($prov_sel) {
 
             <div style="margin-top: 20px; text-align: right; display: flex; gap: 10px; justify-content: flex-end;">
                 <a href="generar_pdf_consignacion.php?proveedor=<?php echo urlencode($prov_sel); ?>&desde=<?php echo urlencode($desde); ?>&hasta=<?php echo urlencode($hasta); ?>" class="btn btn-danger" target="_blank"><i class="fas fa-file-pdf"></i> Generar PDF</a>
-                <button class="btn btn-secondary" onclick="window.print()"><i class="fas fa-print"></i> Imprimir Liquidación</button>
+                <button class="btn btn-secondary" onclick="window.open('generar_pdf_consignacion.php?proveedor=<?php echo urlencode($prov_sel); ?>&desde=<?php echo urlencode($desde); ?>&hasta=<?php echo urlencode($hasta); ?>', '_blank')"><i class="fas fa-print"></i> Imprimir Liquidación</button>
             </div>
         <?php else: ?>
             <div class="card" style="text-align: center; padding: 50px; color: #666;">

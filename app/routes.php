@@ -115,6 +115,7 @@ $router->get('/generar_pdf_presupuesto.php', 'pages/generar_pdf_presupuesto.php'
 $router->get('/generar_pdf_recibo.php', 'pages/generar_pdf_recibo.php', 'recibo.pdf');
 $router->get('/generar_pdf_cc_seleccion.php', 'pages/generar_pdf_cc_seleccion.php', 'cc.seleccion.pdf');
 $router->any('/generar_pdf_cc_seleccion', 'pages/generar_pdf_cc_seleccion.php', 'cc.seleccion');
+$router->get('/generar_pdf_consignacion.php', 'pages/generar_pdf_consignacion.php', 'consignacion.pdf');
 
 // Compatibilidad: nombres físicos .php referenciados por redirects/JS
 // (header Location relativo y window.location.href a su nombre físico).
