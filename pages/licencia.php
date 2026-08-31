@@ -29,15 +29,7 @@ $info = obtenerEstadoLicencia();
     <meta charset="UTF-8">
     <title>Gestión de Licencia | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
-    <style>
-        .licencia-card { border-left: 5px solid #00bcd4; }
-        .status-badge { padding: 5px 10px; border-radius: 4px; font-weight: bold; }
-        .status-active { background: #28a745; color: white; }
-        .status-blocked { background: #e74c3c; color: white; } /* Nuevo estilo para licencia bloqueada */
-        .status-expired { background: #dc3545; color: white; }
-        .info-grid { display: grid; grid-template-columns: 200px 1fr; gap: 10px; margin-top: 20px; }
-        .grace-period { margin-top: 20px; padding: 15px; background: rgba(0, 188, 212, 0.1); border-radius: 8px; border: 1px solid #00bcd4; }
-    </style>
+    <link rel="stylesheet" href="<?php echo url('css/pages/licencia.css'); ?>">
 </head>
 <body>
     <?php include 'sidebar.php'; ?>

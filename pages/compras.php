@@ -246,7 +246,7 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nueva Compra | <?php echo $nombre_empresa_sistema; ?></title>
 <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>"> 
-    <link rel="stylesheet" href="<?php echo url('css/compras.css'); ?>"> 
+    <link rel="stylesheet" href="<?php echo url('css/pages/compras.css'); ?>"> 
 </head>
 <body>
 

@@ -22,16 +22,9 @@ set_exception_handler(function (Throwable $e) {
     <head>
         <meta charset="UTF-8">
         <title>Error del Sistema</title>
-        <style>
-            body { background: #121212; color: #eee; font-family: 'Segoe UI', sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-            .error-card { background: #1e1e1e; padding: 40px; border-radius: 12px; border: 1px solid #333; max-width: 500px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
-            h2 { color: #e74c3c; margin-top: 0; }
-            .details { text-align: left; background: #000; padding: 15px; border-radius: 6px; font-family: monospace; font-size: 0.85em; color: #00bcd4; margin-top: 20px; overflow-x: auto; border-left: 4px solid #00bcd4; }
-            .btn-back { display: inline-block; margin-top: 25px; padding: 12px 25px; background: #00bcd4; color: #000; text-decoration: none; border-radius: 6px; font-weight: bold; transition: 0.3s; }
-            .btn-back:hover { background: #008ba3; transform: scale(1.05); }
-        </style>
+        <link rel="stylesheet" href="<?php echo url('css/pages/misc.css'); ?>">
     </head>
-    <body>
+    <body class="sys-error">
         <div class="error-card">
             <div style="font-size: 3rem; margin-bottom: 15px;">🛠️</div>
             <h2>¡Lo sentimos!</h2>

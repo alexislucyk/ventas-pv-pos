@@ -47,30 +47,7 @@ $fondo_ayer = $fondo_ayer ? (float)$fondo_ayer : 0;
     <meta charset="UTF-8">
     <title>Abrir Caja | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
-    <style>
-        .apertura-container {
-            max-width: 600px;
-            margin: 50px auto;
-        }
-        .fondo-info {
-            background: #004a54;
-            border-left: 4px solid #00bcd4;
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 5px;
-        }
-        
-        @keyframes slideInRight {
-            from {
-                transform: translateX(100%);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="<?php echo url('css/pages/misc.css'); ?>">
 </head>
 <body>
     <?php include 'sidebar.php'; ?>

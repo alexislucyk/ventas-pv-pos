@@ -490,11 +490,11 @@ function renderizarCarrito() {
             <td>${item.descripcion}${esGranel(item) ? ` <span style="color:#f1c40f; font-size:.8em;">(${abrevUnidad(item)})</span>` : ''}</td>
             <td>${precioHTML}</td>
 
-            <td><input type="number" value="${item.cant}" min="1" step="any" style="width: 60px !important; padding: 6px !important; margin: 0 !important; text-align: center;" onchange="cambiarCant(${index}, this.value)" ${esGranel(item) ? 'ondblclick="abrirModalImporte(' + index + ')" title="F2 o doble clic para vender por importe"' : ''}></td>
+            <td><input type="number" class="input-cantidad" value="${item.cant}" min="1" step="any" onchange="cambiarCant(${index}, this.value)" ${esGranel(item) ? 'ondblclick="abrirModalImporte(' + index + ')" title="F2 o doble clic para vender por importe"' : ''}></td>
             <td>$${item.total.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
 
-            <td><input type="number" value="${item.desc || 0}" min="0" max="100" step="1" style="width: 45px !important; padding: 6px !important; margin: 0 !important; text-align: center;" onchange="cambiarDesc(${index}, this.value)"></td>
-            <td><button type="button" class="btn btn-danger btn-sm" onclick="eliminarItem(${index})">X</button></td>
+            <td><input type="number" class="input-descuento" value="${item.desc || 0}" min="0" max="100" step="1" onchange="cambiarDesc(${index}, this.value)"></td>
+            <td><button type="button" class="btn btn-danger btn-sm" onclick="eliminarItem(${index})"><i class="fas fa-times"></i></button></td>
         `;
         tbody.appendChild(tr);
     });

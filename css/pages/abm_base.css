@@ -17,9 +17,9 @@
 
 /* ── CARD ── */
 .card {
-    background: var(--bg-card);
+    background: #1e1e1e;
     border-radius: var(--radius-lg);
-    border: 1px solid var(--border-strong);
+    border: 1px solid #333333;
     padding: 20px;
 }
 
@@ -27,7 +27,7 @@
 label {
     display: block;
     margin-bottom: 5px;
-    color: var(--info);
+    color: #3498db;
     font-weight: bold;
     font-size: 0.9em;
 }
@@ -37,25 +37,25 @@ select {
     width: 100%;
     padding: 10px;
     border-radius: 6px;
-    border: 1px solid var(--border-medium);
-    background: var(--bg-elevated);
-    color: var(--text-white);
+    border: 1px solid #444444;
+    background: #222222;
+    color: #ffffff;
     box-sizing: border-box;
 }
 
-input:focus { border-color: var(--info); outline: none; }
+input:focus { border-color: #3498db; outline: none; }
 
 .input-auto {
-    border-color: var(--success-dark) !important;
-    color: var(--success) !important;
+    border-color: #27ae60 !important;
+    color: #2ecc71 !important;
     font-weight: bold;
 }
 
 .input-readonly {
-    background: var(--bg-dark);
-    color: var(--success);
+    background: #1a1a1a;
+    color: #2ecc71;
     font-weight: bold;
-    border: 1px dashed var(--success-dark);
+    border: 1px dashed #27ae60;
     font-size: 0.82em;
 }
 
@@ -64,8 +64,8 @@ input:focus { border-color: var(--info); outline: none; }
 
 /* ── ALERTAS ABM ── */
 .alert { padding: 15px; border-radius: var(--radius-md); margin-bottom: 20px; }
-.alert-success { background: rgba(46, 204, 113, 0.2); border: 1px solid var(--success); color: var(--success); }
-.alert-error   { background: rgba(231, 76, 60, 0.2);  border: 1px solid var(--danger);  color: var(--danger); }
+.alert-success { background: rgba(46, 204, 113, 0.2); border: 1px solid #2ecc71; color: #2ecc71; }
+.alert-error   { background: rgba(231, 76, 60, 0.2);  border: 1px solid #e74c3c;  color: #e74c3c; }
 
 /* ── TABLA CONTENEDOR ── */
 .table-container { overflow-x: auto; }
@@ -74,7 +74,7 @@ input:focus { border-color: var(--info); outline: none; }
 table { border-collapse: separate; border-spacing: 0 6px; width: 100%; }
 
 table thead th {
-    color: var(--accent);
+    color: #00bcd4;
     text-transform: uppercase;
     font-size: 0.75em;
     letter-spacing: 1px;
@@ -85,35 +85,35 @@ table thead th {
 }
 
 table tbody tr {
-    background: var(--bg-hover);
+    background: #252525;
     transition: var(--transition);
 }
 
-table tbody tr:hover { background: var(--bg-input); }
+table tbody tr:hover { background: #2a2a2a; }
 
 table tbody td {
     padding: 10px 8px;
-    border-top: 1px solid var(--border-strong);
-    border-bottom: 1px solid var(--border-strong);
-    color: var(--text-faint);
+    border-top: 1px solid #333333;
+    border-bottom: 1px solid #333333;
+    color: #aaaaaa;
     font-size: 0.9em;
 }
 
-table tbody td:first-child { border-left: 1px solid var(--border-strong); border-radius: var(--radius-md) 0 0 var(--radius-md); }
-table tbody td:last-child  { border-right: 1px solid var(--border-strong); border-radius: 0 var(--radius-md) var(--radius-md) 0; }
+table tbody td:first-child { border-left: 1px solid #333333; border-radius: var(--radius-md) 0 0 var(--radius-md); }
+table tbody td:last-child  { border-right: 1px solid #333333; border-radius: 0 var(--radius-md) var(--radius-md) 0; }
 
 /* ── UTILITARIOS DE TEXTO ── */
 .text-right   { text-align: right; }
-.text-bold    { font-weight: bold; color: var(--text-white); }
-.text-success { color: var(--success); }
-.text-danger  { color: var(--danger); }
-.text-warning { color: var(--warning); }
-.text-accent  { color: var(--accent); }
+.text-bold    { font-weight: bold; color: #ffffff; }
+.text-success { color: #2ecc71; }
+.text-danger  { color: #e74c3c; }
+.text-warning { color: #f1c40f; }
+.text-accent  { color: #00bcd4; }
 
 /* ── BADGES ── */
 .badge         { padding: 3px 8px; border-radius: var(--radius-sm); font-size: 0.75em; font-weight: bold; display: inline-block; }
-.badge-warning { background: rgba(241, 196, 15, 0.15); color: var(--warning); border: 1px solid var(--warning); }
-.badge-cta     { background: var(--warning); color: var(--text-dark); padding: 3px 8px; border-radius: var(--radius-sm); font-size: 0.8em; font-weight: bold; }
+.badge-warning { background: rgba(241, 196, 15, 0.15); color: #f1c40f; border: 1px solid #f1c40f; }
+.badge-cta     { background: #f1c40f; color: var(--text-dark); padding: 3px 8px; border-radius: var(--radius-sm); font-size: 0.8em; font-weight: bold; }
 
 /* ── FILTRO DE BÚSQUEDA ── */
 #filtroProductos,
@@ -121,10 +121,10 @@ table tbody td:last-child  { border-right: 1px solid var(--border-strong); borde
     width: 100%;
     max-width: 450px;
     margin-bottom: 20px;
-    background: var(--bg-dark);
-    border: 1px solid var(--border-strong);
+    background: #1a1a1a;
+    border: 1px solid #333333;
     height: 40px;
-    color: var(--text-white);
+    color: #ffffff;
     padding-left: 10px;
     border-radius: var(--radius-sm);
 }

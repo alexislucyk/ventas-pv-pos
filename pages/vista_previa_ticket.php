@@ -31,28 +31,7 @@ $html = '<!DOCTYPE html>
     <meta charset="UTF-8">
     <title>Vista Previa Ticket #' . $n_documento . '</title>
     <link rel="stylesheet" href="' . url('css/print/temptocketprint.css') . '">
-    <style>
-        @media print {
-            @page { 
-                margin: 0; 
-                size: auto; 
-            }
-            body { 
-                margin: 0 !important; 
-                padding: 0 !important; 
-                width: ' . $ancho_papel . ' !important;
-            }
-            .no-print { 
-                display: none !important; 
-            }
-            #ticket-vista-previa {
-                width: 100% !important;
-                padding: 1mm 2mm 1mm 1mm !important;
-                box-sizing: border-box !important;
-                margin: 0 !important;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="' . url('css/print/vista_recibo.css') . '">
 </head>
 <body onload="window.print()">
     <div id="ticket-vista-previa">

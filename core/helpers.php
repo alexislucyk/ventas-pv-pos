@@ -225,11 +225,19 @@ function csrf_verify(): bool
  * Generar una URL absoluta basada en una ruta relativa.
  * Útil para assets y enlaces que no usan route().
  */
-function url(string $path = ''): string
+function url(string $path = '', bool $cacheBust = true): string
 {
     $base = defined('URL_BASE') ? rtrim(URL_BASE, '/') : '';
     if ($path === '' || $path === '/') {
         return $base . '/';
     }
-    return $base . '/' . ltrim($path, '/');
+    $url = $base . '/' . ltrim($path, '/');
+    // Cache-busting: agrega ?v=<filemtime> a assets estaticos existentes.
+    if ($cacheBust && preg_match('/\.(css|js|png|jpe?g|gif|svg|ico|woff2?)$/i', $url)) {
+        $real = defined('BASE_PATH') ? BASE_PATH . '/' . ltrim($path, '/') : null;
+        if ($real && file_exists($real)) {
+            $url .= '?v=' . filemtime($real);
+        }
+    }
+    return $url;
 }

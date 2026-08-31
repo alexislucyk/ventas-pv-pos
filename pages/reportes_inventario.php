@@ -68,37 +68,7 @@ if (isset($_GET['buscar_prod']) && !empty($_GET['cod_prod_historial'])) {
     <title>Reportes | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>"> 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        :root { --accent: #00bcd4; --success: #2ecc71; --warning: #f1c40f; --danger: #e74c3c; }
-        
-        /* Dashboard Cards */
-        .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
-        .stat-card { background: #1e1e1e; border: 1px solid #333; border-radius: 12px; padding: 20px; display: flex; align-items: center; gap: 15px; }
-        .stat-icon { background: rgba(0, 188, 212, 0.1); color: var(--accent); padding: 15px; border-radius: 10px; font-size: 1.5em; }
-        .stat-info h3 { margin: 0; font-size: 0.9em; color: #888; text-transform: uppercase; }
-        .stat-info p { margin: 5px 0 0; font-size: 1.6em; font-weight: bold; color: #fff; }
-
-        /* Estilo de Tablas */
-        .reporte-container { background: #1e1e1e; border-radius: 12px; border: 1px solid #333; padding: 20px; margin-bottom: 30px; }
-        table { border-collapse: separate; border-spacing: 0 8px; width: 100%; }
-        th { color: var(--accent); text-transform: uppercase; font-size: 0.8em; letter-spacing: 1px; padding: 12px; text-align: left; }
-        tr { background: #252525; transition: 0.3s; }
-        tr:hover { background: #2a2a2a; transform: translateX(5px); }
-        td { padding: 12px; border-top: 1px solid #333; border-bottom: 1px solid #333; color: #ccc; }
-        td:first-child { border-left: 1px solid #333; border-radius: 8px 0 0 8px; }
-        td:last-child { border-right: 1px solid #333; border-radius: 0 8px 8px 0; }
-
-        /* Badges de Stock */
-        .stock-tag { padding: 4px 10px; border-radius: 6px; font-size: 0.85em; font-weight: bold; }
-        .stock-low { background: rgba(231, 76, 60, 0.1); color: var(--danger); border: 1px solid var(--danger); }
-        .stock-ok { background: rgba(46, 204, 113, 0.1); color: var(--success); }
-
-        .search-bar { background: #2a2a2a; border: 1px solid #444; color: #fff; padding: 12px 20px; border-radius: 8px; width: 100%; margin-bottom: 20px; outline: none; }
-        .search-bar:focus { border-color: var(--accent); }
-        
-        .text-right { text-align: right; }
-        .text-bold { font-weight: bold; color: #fff; }
-    </style>
+    <link rel="stylesheet" href="<?php echo url('css/pages/reportes.css'); ?>">
 </head>
 <body>
     <?php include 'sidebar.php'; ?> 

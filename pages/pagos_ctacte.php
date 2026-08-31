@@ -35,36 +35,7 @@ try {
     <title>Pagos Cta. Cte. | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        .form-pagos { max-width: 600px; margin: 20px auto; }
-        .client-info-box {
-            background: #1a1a1a;
-            padding: 15px;
-            border-radius: 8px;
-            border-left: 4px solid #00bcd4;
-            margin-bottom: 20px;
-            display: none;
-        }
-        .input-monto {
-            font-size: 1.5rem !important;
-            color: #2ecc71 !important;
-            font-weight: bold !important;
-            text-align: center;
-            height: 60px !important;
-        }
-        #resultadosBusquedaCC {
-            position: absolute;
-            z-index: 1000;
-            width: 100%;
-            background: #2a2a2a;
-            border: 1px solid #444;
-            max-height: 250px;
-            overflow-y: auto;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.5);
-            border-radius: 0 0 8px 8px;
-            display: none;
-        }
-    </style>
+    <link rel="stylesheet" href="<?php echo url('css/pages/cuentas_corrientes.css'); ?>">
 </head>
 <body>
     <?php include 'sidebar.php'; ?>

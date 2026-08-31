@@ -97,75 +97,7 @@ try {
     <title>Verificar Cajas Históricas | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        .info-box {
-            background: #1e3a5f;
-            border-left: 4px solid #17a2b8;
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 4px;
-        }
-        .warning-box {
-            background: #3d2e0f;
-            border-left: 4px solid #ffc107;
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 4px;
-        }
-        .success-box {
-            background: #1e3d2e;
-            border-left: 4px solid #28a745;
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 4px;
-        }
-        .error-box {
-            background: #3d1e1e;
-            border-left: 4px solid #dc3545;
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 4px;
-        }
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 25px;
-        }
-        .stat-box {
-            background: #2c2c2c;
-            padding: 15px;
-            border-radius: 8px;
-            border-left: 4px solid #00bcd4;
-        }
-        .stat-box .label {
-            color: #aaa;
-            font-size: 0.85rem;
-            text-transform: uppercase;
-            margin-bottom: 5px;
-        }
-        .stat-box .value {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #00bcd4;
-        }
-        .table-container {
-            background: #2c2c2c;
-            border-radius: 8px;
-            padding: 20px;
-            overflow-x: auto;
-        }
-        .badge {
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 0.8rem;
-            font-weight: bold;
-            display: inline-block;
-        }
-        .badge-success { background-color: #27ae60; color: white; }
-        .badge-warning { background-color: #f39c12; color: white; }
-        .badge-info { background-color: #17a2b8; color: white; }
-    </style>
+    <link rel="stylesheet" href="<?php echo url('css/pages/verificar_modulos.css'); ?>">
 </head>
 <body>
     <?php include 'sidebar.php'; ?>

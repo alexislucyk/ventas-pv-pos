@@ -71,12 +71,11 @@ $label_total = $es_devolucion ? "TOTAL REINTEGRADO:" : "TOTAL ABONADO:";
     <title>Recibo N° <?php echo $recibo['n_documento'] ?: $recibo['id']; ?></title>
     <link rel="stylesheet" href="<?php echo url('css/print/temptocketprint.css'); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="<?php echo url('css/print/vista_recibo.css'); ?>">
     <style>
-        body { background: #525659; margin: 0; padding: 0; }
-        #ticket-vista-previa { background: white; color: black; margin: 20px auto; padding: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+        /* Reglas con valores dinamicos calculados por PHP (se conservan inline) */
         .recibo-container.ticket { width: <?php echo $ancho_px; ?>; }
-        .recibo-container.a5 { width: 148mm; }
-        @media print { body { background: none; width: <?php echo $ancho_papel; ?> !important; } .no-print { display: none; } #ticket-vista-previa { margin: 0; box-shadow: none; border: none; width: 100% !important; } }
+        @media print { body { width: <?php echo $ancho_papel; ?> !important; } }
     </style>
 </head>
 <body onload="window.print()">

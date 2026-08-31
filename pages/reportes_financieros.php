@@ -88,16 +88,7 @@ try {
     <meta charset="UTF-8">
     <title>Reportes | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
-    <style>
-        .reporte-container { display: flex; flex-wrap: wrap; gap: 20px; }
-        .col-main { flex: 2; min-width: 600px; }
-        .col-side { flex: 1; min-width: 300px; }
-        .card-stats { padding: 20px; border-radius: 10px; background: #1a1a1a; border-left: 5px solid #007bff; margin-bottom: 15px; }
-        .text-success { color: #2ecc71; }
-        .text-danger { color: #e74c3c; }
-        .text-info { color: #3498db; }
-        .big-number { font-size: 1.8em; font-weight: bold; display: block; margin-top: 10px; }
-    </style>
+    <link rel="stylesheet" href="<?php echo url('css/pages/reportes.css'); ?>">
 </head>
 <body>
     <?php include 'sidebar.php'; ?>

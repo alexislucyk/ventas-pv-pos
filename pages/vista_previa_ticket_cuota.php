@@ -22,28 +22,8 @@ $ancho_papel = $stmt_cfg->fetchColumn() ?: '80mm';
     <meta charset="UTF-8">
     <title>Ticket de Pago #<?php echo $id_pago; ?></title>
     <link rel="stylesheet" href="<?php echo url('css/print/temptocketprint.css'); ?>">
-    <style>
-        @media print {
-            @page { 
-                margin: 0; 
-                size: auto; 
-            }
-            body { 
-                margin: 0 !important; 
-                padding: 0 !important; 
-                width: <?php echo $ancho_papel; ?> !important;
-            }
-            .no-print { 
-                display: none !important; 
-            }
-            #ticket-vista-previa {
-                width: 100% !important;
-                padding: 1mm 2mm 1mm 1mm !important;
-                box-sizing: border-box !important;
-                margin: 0 !important;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="<?php echo url('css/print/vista_recibo.css'); ?>">
+    <style>/* Dinamico: ancho calculado por PHP */ @media print { body { width: <?php echo $ancho_papel; ?> !important; } }</style>
 </head>
 <body onload="window.print()">
     <div id="ticket-vista-previa">

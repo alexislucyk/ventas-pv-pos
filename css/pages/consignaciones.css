@@ -1,0 +1,363 @@
+/*
+ * ============================================================
+ * consignacion_reporte.php - Estilos especificos (FASE 4 - baja densidad)
+ * Extraido de: pages/consignacion_reporte.php
+ * ============================================================
+ */
+
+.resumen-consignacion { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .mini-card { background: #252525; padding: 15px; border-radius: 8px; border-top: 3px solid #00bcd4; text-align: center; }
+        .mini-card h4 { margin: 0; color: #888; font-size: 0.8rem; text-transform: uppercase; }
+        .mini-card .monto { font-size: 1.4rem; font-weight: bold; margin-top: 10px; display: block; }
+        .reparto-box { background: #1a1a1a; padding: 20px; border-radius: 8px; border: 1px dashed #444; margin-top: 20px; display: flex; justify-content: space-around; }
+        .reparto-item { text-align: center; }
+        .reparto-item span { font-size: 1.8rem; color: #2ecc71; font-weight: bold; }
+
+/* ----------------------------------------------------------
+ * Desde: pages/consulta_consignaciones_remota.php
+ * ---------------------------------------------------------- */
+
+body {
+            background: #1a1a1a;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .header {
+            background: #252525;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #00bcd4;
+        }
+        .header h1 {
+            margin: 0;
+            color: #00bcd4;
+            font-size: 1.8rem;
+        }
+        .btn-volver {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            background: #252525;
+            color: #00bcd4;
+            border: 1px solid #444;
+            border-radius: 6px;
+            padding: 8px 16px;
+            text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-volver:hover {
+            background: #00bcd4;
+            color: #000;
+            border-color: #00bcd4;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            color: #888;
+            font-size: 0.9rem;
+        }
+        .config-box {
+            background: #252525;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #444;
+        }
+        .config-box label {
+            display: block;
+            margin-bottom: 5px;
+            color: #aaa;
+            font-size: 0.9rem;
+        }
+        .config-box input {
+            width: 100%;
+            padding: 10px;
+            background: #1a1a1a;
+            border: 1px solid #444;
+            color: #fff;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        .filtros {
+            background: #252525;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr auto;
+            grid-template-rows: auto auto;
+            gap: 10px 15px;
+            align-items: end;
+        }
+        .filtros .filtro-group input,
+        .filtros .filtro-group select,
+        .filtros > .btn {
+            min-height: 42px;
+            box-sizing: border-box;
+        }
+        .filtros .filtro-group input,
+        .filtros .filtro-group select {
+            /* Anula el margin-bottom: 15px !important de css/style.css
+               para que los inputs queden alineados con el botón Consultar */
+            margin-bottom: 0 !important;
+        }
+        .filtros .filtro-group {
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            min-height: 56px;
+        }
+        .filtros .filtro-group label {
+            margin-bottom: 5px;
+        }
+        .filtros .filtro-group:first-child {
+            grid-column: 1;
+            grid-row: 1;
+        }
+        .filtros .btn-reload-wrapper {
+            grid-column: 1;
+            grid-row: 2;
+            align-self: start;
+        }
+        .filtros .filtro-group:nth-child(3) {
+            grid-column: 2;
+            grid-row: 1;
+        }
+        .filtros .filtro-group:nth-child(4) {
+            grid-column: 3;
+            grid-row: 1;
+        }
+        .filtros > .btn {
+            grid-column: 4;
+            grid-row: 1;
+            margin-bottom: 0;
+            height: 42px;
+        }
+        .filtro-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #aaa;
+            font-size: 0.9rem;
+        }
+        .filtro-group input, .filtro-group select {
+            width: 100%;
+            padding: 10px;
+            background: #1a1a1a;
+            border: 1px solid #444;
+            color: #fff;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        .btn {
+            padding: 10px 20px;
+            background: #00bcd4;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: bold;
+        }
+        .btn:hover {
+            background: #00acc1;
+        }
+        .btn:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+        .resumen {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .mini-card {
+            background: #252525;
+            padding: 15px;
+            border-radius: 8px;
+            border-top: 3px solid #00bcd4;
+            text-align: center;
+        }
+        .mini-card h4 {
+            margin: 0;
+            color: #888;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+        }
+        .mini-card .monto {
+            font-size: 1.4rem;
+            font-weight: bold;
+            margin-top: 10px;
+            display: block;
+            color: #fff;
+        }
+        .reparto-box {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px dashed #444;
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .reparto-item {
+            text-align: center;
+            flex: 1;
+            min-width: 200px;
+        }
+        .reparto-item span {
+            font-size: 1.8rem;
+            color: #2ecc71;
+            font-weight: bold;
+            display: block;
+            margin-top: 10px;
+        }
+        .tabla-container {
+            background: #252525;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #444;
+        }
+        th {
+            background: #1a1a1a;
+            color: #00bcd4;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+        }
+        td {
+            color: #fff;
+        }
+        .text-right {
+            text-align: right;
+        }
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .alert-error {
+            background: #e74c3c;
+            color: #fff;
+        }
+        .alert-success {
+            background: #2ecc71;
+            color: #fff;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+        .no-data {
+            text-align: center;
+            padding: 50px;
+            color: #666;
+        }
+        .no-data i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            display: block;
+        }
+        /* Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+        .modal-content {
+            background: #252525;
+            padding: 25px;
+            border-radius: 8px;
+            max-width: 500px;
+            width: 90%;
+            border-left: 4px solid #00bcd4;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+        .modal-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .modal-icon {
+            font-size: 2rem;
+            margin-right: 15px;
+        }
+        .modal-icon.error {
+            color: #e74c3c;
+        }
+        .modal-icon.success {
+            color: #2ecc71;
+        }
+        .modal-icon.info {
+            color: #00bcd4;
+        }
+        .modal-title {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: #fff;
+            margin: 0;
+        }
+        .modal-message {
+            color: #aaa;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        .modal-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .modal-btn-primary {
+            background: #00bcd4;
+            color: #fff;
+        }
+        .modal-btn-primary:hover {
+            background: #00acc1;
+        }
+        .modal-btn-secondary {
+            background: #555;
+            color: #fff;
+        }
+        .modal-btn-secondary:hover {
+            background: #666;
+        }

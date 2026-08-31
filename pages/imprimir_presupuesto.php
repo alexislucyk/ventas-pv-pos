@@ -10,19 +10,7 @@ require '../config/db_config.php';
     <meta charset="UTF-8">
     <title>Generar Presupuesto</title>
     <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
-    <style>
-        .search-container { position: relative; }
-        .results-list { 
-            position: absolute; z-index: 1000; width: 100%; 
-            background: #444; color: white; border: 1px solid #666; 
-            max-height: 200px; overflow-y: auto; display: none;
-        }
-        .results-list div { padding: 10px; cursor: pointer; border-bottom: 1px solid #555; }
-        .results-list div:hover { background: #555; }
-        .presupuesto-header { display: flex; gap: 20px; margin-bottom: 20px; }
-        .cliente-info { flex: 1; background: #333; padding: 15px; border-radius: 8px; }
-        .producto-search { flex: 2; background: #333; padding: 15px; border-radius: 8px; }
-    </style>
+    <link rel="stylesheet" href="<?php echo url('css/print/imprimir_presupuesto.css'); ?>">
 </head>
 <body>
     <?php include 'sidebar.php'; ?>

@@ -15,8 +15,8 @@
 
 /* ── CARD OVERRIDE (dark) ── */
 .card {
-    background-color: var(--bg-card) !important;
-    border: 1px solid var(--border-strong) !important;
+    background-color: #1e1e1e !important;
+    border: 1px solid #333333 !important;
     border-radius: var(--radius-md) !important;
     box-shadow: var(--shadow-md) !important;
     padding: 20px;
@@ -24,9 +24,9 @@
 
 /* ── ENCABEZADO DE SECCIÓN ── */
 .content h1 {
-    color: var(--accent);
+    color: #00bcd4;
     font-weight: 700;
-    border-bottom: 1px solid var(--border-strong);
+    border-bottom: 1px solid #333333;
     padding-bottom: 10px;
     margin-bottom: 25px;
     display: flex;
@@ -46,74 +46,102 @@ input[type="text"],
 input[type="number"],
 select,
 textarea {
-    background-color: var(--bg-input) !important;
+    background-color: #2a2a2a !important;
     border: 1px solid var(--border-input) !important;
-    color: var(--text-white) !important;
+    color: #ffffff !important;
     border-radius: var(--radius-sm);
     padding: 10px;
 }
 
 .input-field:focus {
-    border-color: var(--accent) !important;
+    border-color: #00bcd4 !important;
     outline: none;
 }
 
 /* ── TABLAS DE CARRITO ── */
 .table-full {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 15px;
+    width: 100% !important;
+    border-collapse: collapse !important;
+    margin-top: 0 !important;
 }
 
 .table-full th {
-    background-color: var(--bg-secondary);
-    color: var(--accent);
-    text-transform: uppercase;
-    font-size: 0.85rem;
-    padding: 12px;
-    text-align: left;
-    border-bottom: 2px solid var(--border-strong);
+    background-color: #181818 !important;
+    color: #00bcd4 !important;
+    text-transform: uppercase !important;
+    font-size: 0.85rem !important;
+    padding: 12px !important;
+    text-align: left !important;
+    border-bottom: 2px solid #333333 !important;
 }
 
 .table-full td {
-    padding: 12px;
-    border-bottom: 1px solid var(--bg-elevated);
+    padding: 10px 12px !important;
+    border-bottom: 1px solid #222222 !important;
+    vertical-align: middle !important;
 }
 
 .table-full tr:hover {
-    background-color: var(--bg-hover);
+    background-color: #252525 !important;
+}
+
+/* Asegurar que los inputs dentro de la tabla no tengan márgenes extra */
+.table-full input[type="number"] {
+    margin-bottom: 0 !important;
+    width: 70px !important;
+    padding: 6px !important;
+    text-align: center !important;
 }
 
 /* ── CAJAS DE TOTALES ── */
 .total-box {
-    background: var(--bg-secondary);
+    background: #181818;
     padding: 20px;
     text-align: center;
     margin: 15px 0;
     border-radius: var(--radius-lg);
-    border: 1px solid var(--border-strong);
+    border: 1px solid #333333;
 }
 
 #total_venta_display {
     font-size: 2.2rem;
-    color: var(--success-alt);
+    color: #4caf50;
     font-weight: bold;
 }
 
 .vuelto-box {
-    background: var(--bg-secondary);
+    background: #181818;
     padding: 15px;
     text-align: center;
     margin-bottom: 15px;
     border-radius: var(--radius-lg);
-    border: 1px solid var(--warning);
+    border: 1px solid #f1c40f;
     display: none;
 }
 
 #vuelto_display {
     font-size: 1.8rem;
-    color: var(--warning);
+    color: #f1c40f;
     font-weight: bold;
+}
+
+/* ── PANEL DESCUENTO Y FINANCIACIÓN ── */
+#panel_descuento_global {
+    margin-top: 15px;
+    padding: 10px;
+    background: #252525;
+    border-radius: 6px;
+    border: 1px solid #444;
+}
+
+#panel_descuento_global select,
+#panel_descuento_global input {
+    margin-bottom: 0 !important;
+}
+
+#panel_financiacion label {
+    font-size: 0.8rem;
+    color: #00bcd4;
 }
 
 /* ── BÚSQUEDA DE PRODUCTOS / CLIENTES ── */
@@ -121,37 +149,37 @@ textarea {
 #resultadosBusquedaClientes {
     position: absolute;
     z-index: 1000;
-    background: var(--bg-input);
+    background: #2a2a2a;
     width: 100%;
     max-height: 300px;
     overflow-y: auto;
-    border: 1px solid var(--border-medium);
-    color: var(--text-white);
+    border: 1px solid #444444;
+    color: #ffffff;
     border-radius: 0 0 var(--radius-md) var(--radius-md);
 }
 
 .resultado-item {
     padding: 12px;
     cursor: pointer;
-    border-bottom: 1px solid var(--border-strong);
+    border-bottom: 1px solid #333333;
 }
 
 .resultado-item:hover {
-    background-color: var(--accent);
+    background-color: #00bcd4;
     color: var(--text-dark);
 }
 
 .resultado-item.resaltado {
-    background-color: var(--bg-deep);
-    color: var(--text-white);
-    box-shadow: inset 3px 0 0 var(--accent);
+    background-color: #3a3a3a;
+    color: #ffffff;
+    box-shadow: inset 3px 0 0 #00bcd4;
 }
 
 /* ── ALERTA INFO ── */
 .alert-info {
-    background-color: var(--bg-secondary);
-    border-left: 4px solid var(--accent);
-    color: var(--text-secondary);
+    background-color: #181818;
+    border-left: 4px solid #00bcd4;
+    color: #e0e0e0;
     padding: 15px;
 }
 
@@ -163,7 +191,7 @@ textarea {
 
 /* ── LABELS ── */
 label {
-    color: var(--text-faint);
+    color: #aaaaaa;
     font-size: 0.9rem;
     margin-bottom: 5px;
     display: block;
@@ -171,7 +199,7 @@ label {
 
 hr {
     border: 0;
-    border-top: 1px solid var(--border-strong);
+    border-top: 1px solid #333333;
     margin: 20px 0;
 }
 
@@ -180,7 +208,7 @@ hr {
     position: fixed;
     top: 20px;
     right: 20px;
-    background: var(--success);
+    background: #2ecc71;
     color: white;
     padding: 15px 25px;
     border-radius: var(--radius-md);
@@ -223,7 +251,7 @@ hr {
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 15px;
-    border-bottom: 1px solid var(--border-strong);
+    border-bottom: 1px solid #333333;
     padding-bottom: 10px;
     margin-bottom: 25px;
 }
@@ -240,8 +268,8 @@ hr {
     flex-direction: column;
     gap: 3px;
     flex-shrink: 0;
-    background-color: var(--bg-card);
-    border: 1px solid var(--border-strong);
+    background-color: #1e1e1e;
+    border: 1px solid #333333;
     border-radius: var(--radius-md);
     padding: 8px 16px;
 }
@@ -249,14 +277,14 @@ hr {
 #relojHora {
     font-size: 1.35rem;
     font-weight: 700;
-    color: var(--text-primary);
+    color: #f0f0f0;
     line-height: 1.1;
     font-variant-numeric: tabular-nums; /* evita saltos de dígitos al actualizar */
 }
 
 #relojFecha {
     font-size: 0.72rem;
-    color: var(--text-dim);
+    color: #666666;
     text-transform: capitalize; /* "Jueves, 27 de agosto..." */
 }
 

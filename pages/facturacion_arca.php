@@ -43,10 +43,7 @@ try {
     <title>Comprobantes ARCA | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        .badge-cae { background: #1a1a1a; border: 1px solid #00bcd4; color: #00bcd4; padding: 4px 8px; border-radius: 4px; font-family: monospace; display: inline-block; margin-bottom: 6px; }
-        .text-muted { color: #888; font-size: 0.85em; }
-    </style>
+    <link rel="stylesheet" href="<?php echo url('css/pages/misc.css'); ?>">
 </head>
 <body>
     <?php include 'sidebar.php'; ?>

@@ -23,7 +23,9 @@
  *  10. topbar.css             - Barra superior, selector de sucursal, cotización dólar y usuario
  *  11. utilities.css          - Barras de progreso indeterminadas y animaciones auxiliares
  *
- * pages/      - Estilos específicos por página (cargados condicionalmente)
+ * pages/      - Estilos específicos por página (NO importar aquí: cada PHP
+ *               enlaza su módulo con <link> para evitar colisiones de clases
+ *               entre páginas; ver FASE 7 del roadmap)
  * print/      - Estilos de impresión (ticket, presupuesto, recibo)
  * login/      - Estilos de la página de login
  *
@@ -46,3 +48,4 @@
 @import url('components/sidebar.css');
 @import url('components/topbar.css');
 @import url('components/utilities.css');
+

@@ -206,68 +206,7 @@ try {
     <title>Resumen de Ventas | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="<?php echo url('css/style.css?v=' . (file_exists(__DIR__ . '/../css/style.css') ? filemtime(__DIR__ . '/../css/style.css') : '1')); ?>">
     <link rel="stylesheet" href="<?php echo url('css/print/ticket_print.css?v=' . (file_exists(__DIR__ . '/../css/print/ticket_print.css') ? filemtime(__DIR__ . '/../css/print/ticket_print.css') : '1')); ?>">
-    <style>
-        .btn-action { margin-right: 5px; padding: 5px 10px; cursor: pointer; border-radius: 4px; border: none; }
-        .text-right { text-align: right; }
-        .badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
-        .badge-warning { background: #f1c40f; color: #000; }
-        .badge-success { background: #2ecc71; color: #fff; }
-        .badge-info { background: #3498db; color: #fff; }
-
-        .modal {
-            display: none; 
-            position: fixed; 
-            z-index: 99999 !important;
-            left: 0; 
-            top: 0; 
-            width: 100%; 
-            height: 100%; 
-            overflow: auto; 
-            background-color: rgba(0, 0, 0, 0.95) !important;
-            backdrop-filter: blur(10px);
-        }
-
-        .modal-content-lg {
-            background-color: #1a1a1a !important;
-            margin: 5% auto; 
-            padding: 25px; 
-            border: 1px solid #3498db; 
-            border-radius: 12px;
-            width: 85%; 
-            max-width: 900px; 
-            color: white;
-            position: relative;
-            box-shadow: 0 10px 50px rgba(0,0,0,1);
-        }
-
-        .close-button { color: #f1c40f; float: right; font-size: 30px; font-weight: bold; cursor: pointer; line-height: 20px; }
-        .close-button:hover { color: #fff; }
-        
-        .tipo-dev { color: #ff7675; font-weight: bold; font-size: 0.85em; }
-        #detalleBody { min-height: 150px; padding-top: 20px; color: #eee; }
-
-        .form-control { padding: 10px; border-radius: 5px; border: 1px solid #555; background: #444; color: white; height: 42px; box-sizing: border-box; }
-        
-        .btn-filter-action {
-            height: 42px;
-            min-width: 120px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0 20px;
-            border-radius: 5px;
-            font-size: 0.9rem;
-            font-weight: bold;
-            border: none;
-            cursor: pointer;
-            text-decoration: none;
-            margin-bottom: 15px;
-            transition: 0.2s;
-        }
-        .btn-filter-action:hover { opacity: 0.85; transform: translateY(-1px); }
-        .btn-filter-primary { background-color: #005cd4; color: white; }
-        .btn-filter-secondary { background-color: #c2ca56; color: white !important; }
-    </style>
+    <link rel="stylesheet" href="<?php echo url('css/pages/resumen_ventas.css'); ?>">
 </head>
 <body>
     <?php include 'sidebar.php'; ?>
@@ -275,19 +214,19 @@ try {
         <?php include 'topbar.php'; ?>
         <h1>📊 Resumen Histórico de Ventas</h1>
 
-        <div class="card" style="margin-bottom: 20px; padding: 15px;">
-            <form method="GET" style="display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap;">
+        <div class="filter-card">
+            <form method="GET" class="filter-grid">
                 <div>
                     <label>Desde:</label>
-                    <input type="date" name="fecha_inicio" value="<?php echo $fecha_inicio; ?>" class="form-control">
+                    <input type="date" name="fecha_inicio" value="<?php echo $fecha_inicio; ?>" class="input-field" style="margin-bottom:0 !important;">
                 </div>
                 <div>
                     <label>Hasta:</label>
-                    <input type="date" name="fecha_fin" value="<?php echo $fecha_fin; ?>" class="form-control">
+                    <input type="date" name="fecha_fin" value="<?php echo $fecha_fin; ?>" class="input-field" style="margin-bottom:0 !important;">
                 </div>
-                <div style="flex-grow: 1; min-width: 200px;">
+                <div>
                     <label>Cliente:</label>
-                    <select name="id_cliente" class="form-control" style="width: 100%;">
+                    <select name="id_cliente" class="input-field" style="margin-bottom:0 !important;">
                         <option value="0">-- Todos los Clientes --</option>
                         <?php foreach ($clientes as $c): ?>
                             <option value="<?php echo $c['id']; ?>" <?php echo ($id_cliente_filtro == $c['id']) ? 'selected' : ''; ?>>
@@ -296,8 +235,10 @@ try {
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <button type="submit" class="btn-filter-action btn-filter-primary">🔍 Filtrar</button>
-                <a href="resumen_ventas.php" class="btn-filter-action btn-filter-secondary">🔄 Limpiar</a>
+                <div style="display: flex; gap: 5px;">
+                    <button type="submit" class="btn btn-primary" style="padding: 10px 20px;"><i class="fas fa-filter"></i> Filtrar</button>
+                    <a href="resumen_ventas.php" class="btn btn-secondary" style="padding: 10px 15px; background: #444;" title="Limpiar Filtros"><i class="fas fa-sync"> Limpiar</i></a>
+                </div>
             </form>
         </div>
 
@@ -332,13 +273,13 @@ try {
             <span>Total: <?php echo $total_ventas_count; ?> ventas — Página <?php echo $pagina; ?> de <?php echo $total_paginas; ?></span>
             <div style="display: flex; gap: 5px;">
                 <?php if ($pagina > 1): ?>
-                    <a href="?fecha_inicio=<?php echo urlencode($fecha_inicio); ?>&fecha_fin=<?php echo urlencode($fecha_fin); ?>&id_cliente=<?php echo $id_cliente_filtro; ?>&pagina=<?php echo ($pagina - 1); ?>" class="btn-filter-action btn-filter-secondary" style="height: 32px; min-width: auto; padding: 0 12px; font-size: 0.8rem;">⬅ Anterior</a>
+                    <a href="?fecha_inicio=<?php echo urlencode($fecha_inicio); ?>&fecha_fin=<?php echo urlencode($fecha_fin); ?>&id_cliente=<?php echo $id_cliente_filtro; ?>&pagina=<?php echo ($pagina - 1); ?>" class="btn btn-secondary" style="background: #444;" style="height: 32px; min-width: auto; padding: 0 12px; font-size: 0.8rem;">⬅ Anterior</a>
                 <?php endif; ?>
                 <?php for ($i = max(1, $pagina - 2); $i <= min($total_paginas, $pagina + 2); $i++): ?>
                     <a href="?fecha_inicio=<?php echo urlencode($fecha_inicio); ?>&fecha_fin=<?php echo urlencode($fecha_fin); ?>&id_cliente=<?php echo $id_cliente_filtro; ?>&pagina=<?php echo $i; ?>" class="btn-filter-action <?php echo ($i == $pagina) ? 'btn-filter-primary' : 'btn-filter-secondary'; ?>" style="height: 32px; min-width: 36px; padding: 0 8px; font-size: 0.8rem;"><?php echo $i; ?></a>
                 <?php endfor; ?>
                 <?php if ($pagina < $total_paginas): ?>
-                    <a href="?fecha_inicio=<?php echo urlencode($fecha_inicio); ?>&fecha_fin=<?php echo urlencode($fecha_fin); ?>&id_cliente=<?php echo $id_cliente_filtro; ?>&pagina=<?php echo ($pagina + 1); ?>" class="btn-filter-action btn-filter-secondary" style="height: 32px; min-width: auto; padding: 0 12px; font-size: 0.8rem;">Siguiente ➡</a>
+                    <a href="?fecha_inicio=<?php echo urlencode($fecha_inicio); ?>&fecha_fin=<?php echo urlencode($fecha_fin); ?>&id_cliente=<?php echo $id_cliente_filtro; ?>&pagina=<?php echo ($pagina + 1); ?>" class="btn btn-secondary" style="background: #444;" style="height: 32px; min-width: auto; padding: 0 12px; font-size: 0.8rem;">Siguiente ➡</a>
                 <?php endif; ?>
             </div>
         </div>

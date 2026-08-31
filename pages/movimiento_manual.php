@@ -40,28 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <title>Movimiento Manual | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
-    <style>
-        .form-movimiento { max-width: 500px; margin: 20px auto; }
-        .radio-group { display: flex; gap: 20px; margin-bottom: 20px; }
-        .radio-option {
-            flex: 1;
-            padding: 15px;
-            border: 2px solid #333;
-            border-radius: 8px;
-            text-align: center;
-            cursor: pointer;
-            transition: 0.3s;
-        }
-        .radio-option input { display: none; }
-        .radio-option:hover { border-color: #007bff; }
-        
-        /* Estilos para el tipo de movimiento */
-        input[value="INGRESO"]:checked + span { color: #28a745; font-weight: bold; }
-        input[value="EGRESO"]:checked + span { color: #dc3545; font-weight: bold; }
-        input:checked + span { font-size: 1.1rem; }
-        .selected-ingreso { border-color: #28a745 !important; background: rgba(40, 167, 69, 0.1); }
-        .selected-egreso { border-color: #dc3545 !important; background: rgba(220, 53, 69, 0.1); }
-    </style>
+    <link rel="stylesheet" href="<?php echo url('css/pages/misc.css'); ?>">
 </head>
 <body>
     <?php include 'sidebar.php'; ?>

@@ -67,15 +67,7 @@ if ($prov_sel) {
     <meta charset="UTF-8">
     <title>Reporte de Consignación | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
-    <style>
-        .resumen-consignacion { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
-        .mini-card { background: #252525; padding: 15px; border-radius: 8px; border-top: 3px solid #00bcd4; text-align: center; }
-        .mini-card h4 { margin: 0; color: #888; font-size: 0.8rem; text-transform: uppercase; }
-        .mini-card .monto { font-size: 1.4rem; font-weight: bold; margin-top: 10px; display: block; }
-        .reparto-box { background: #1a1a1a; padding: 20px; border-radius: 8px; border: 1px dashed #444; margin-top: 20px; display: flex; justify-content: space-around; }
-        .reparto-item { text-align: center; }
-        .reparto-item span { font-size: 1.8rem; color: #2ecc71; font-weight: bold; }
-    </style>
+    <link rel="stylesheet" href="<?php echo url('css/pages/consignaciones.css'); ?>">
 </head>
 <body>
     <?php include 'sidebar.php'; ?>

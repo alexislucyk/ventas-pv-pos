@@ -48,72 +48,7 @@ $pendientes = $estado['migraciones_pendientes'];
     <title>Actualizar Sistema | <?php echo htmlspecialchars($nombre_empresa_sistema); ?></title>
     <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        .up-container { max-width: 1100px; margin: 0 auto; }
-        .up-card { background: #1e1e1e; border: 1px solid #333; border-radius: 12px; padding: 25px 30px; margin-bottom: 22px; }
-        .up-card h3 { color: #00bcd4; margin-top: 0; text-transform: uppercase; font-size: 1rem; letter-spacing: .5px; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 15px; }
-        .stat-card { background: #252525; border: 1px solid #333; border-radius: 8px; padding: 18px; text-align: center; }
-        .stat-card i { font-size: 1.8rem; margin-bottom: 8px; display: block; }
-        .stat-card .stat-value { font-size: 1.4rem; font-weight: bold; color: #f0f0f0; }
-        .stat-card .stat-label { font-size: .78em; color: #888; text-transform: uppercase; letter-spacing: .5px; margin-top: 4px; }
-        .upd-display { border-left: 5px solid #4caf50; background: rgba(76,175,80,.08); padding: 18px 22px; border-radius: 8px; margin-bottom: 20px; }
-        .upd-none { border-left: 5px solid #00bcd4; background: rgba(0,188,212,.06); padding: 18px 22px; border-radius: 8px; margin-bottom: 20px; }
-        .upd-error { border-left: 5px solid #f39c12; background: rgba(243,156,18,.08); padding: 18px 22px; border-radius: 8px; margin-bottom: 20px; }
-        .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: .95rem; transition: .25s; text-decoration: none; }
-        .btn-update { background: linear-gradient(135deg, #4caf50, #2e7d32); color: #fff; }
-        .btn-update:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(76,175,80,.35); }
-        .btn-update:disabled { background: #333; color: #888; cursor: not-allowed; transform: none; box-shadow: none; }
-        .btn-check { background: linear-gradient(135deg, #00bcd4, #008ba3); color: #fff !important; }
-        .btn-check:hover { transform: translateY(-2px); }
-        .alert { padding: 14px 18px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 10px; align-items: center; }
-        .alert-success { background: rgba(76,175,80,.1); border: 1px solid #4caf50; color: #4caf50; }
-        .alert-error { background: rgba(244,67,54,.1); border: 1px solid #f44336; color: #f44336; }
-        .log-box { background: #0d0d0d; color: #9ce9a1; font-family: Consolas, monospace; font-size: .82em; padding: 16px; border-radius: 8px; white-space: pre-wrap; max-height: 360px; overflow-y: auto; border: 1px solid #2a2a2a; }
-        .var-table { width: 100%; border-collapse: collapse; margin-top: 14px; }
-        .var-table td { padding: 8px 12px; border-bottom: 1px solid #2a2a2a; font-size: .9em; }
-        .var-table td:first-child { color: #888; width: 40%; }
-        .var-table td:last-child { color: #eee; }
-        .buena { color: #4caf50; } .mala { color: #f44336; } .nula { color: #f1c40f; }
-        .badge-env { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: .75em; font-weight: bold; text-transform: uppercase; margin-bottom: 16px; }
-        .badge-prod { background: rgba(244,67,54,.15); color: #f44336; border: 1px solid #f44336; }
-        .badge-dev { background: rgba(243,156,18,.15); color: #f1c40f; border: 1px solid #f1c40f; }
-        /* --- Overlay y barra de progreso de la consulta --- */
-        #overlayConsulta {
-            position: fixed; inset: 0; z-index: 1200;
-            background: rgba(0,0,0,.72);
-            display: flex; align-items: center; justify-content: center;
-            backdrop-filter: blur(2px);
-        }
-        #overlayConsulta .prog-box {
-            width: 420px; max-width: 90%;
-            background: #1e1e1e; border: 1px solid #333;
-            border-radius: 14px; padding: 28px 30px; text-align: center;
-            box-shadow: 0 20px 60px rgba(0,0,0,.6);
-        }
-        #overlayConsulta .prog-title {
-            font-size: 1.05rem; font-weight: 700; color: #f0f0f0; margin-bottom: 4px;
-        }
-        #overlayConsulta .prog-fase {
-            font-size: .85rem; color: #00bcd4; margin-bottom: 18px; min-height: 1.2em;
-        }
-        #overlayConsulta .prog-track {
-            height: 10px; background: #2a2a2a; border-radius: 20px; overflow: hidden;
-        }
-        #overlayConsulta .prog-fill {
-            height: 100%; width: 35%; border-radius: 20px;
-            background: linear-gradient(90deg, #00bcd4, #008ba3);
-            animation: prog-avance 1.1s ease-in-out infinite;
-        }
-        @keyframes prog-avance {
-            0%   { transform: translateX(-110%); }
-            100% { transform: translateX(320%); }
-        }
-        #overlayConsulta .prog-spin {
-            display: inline-block; margin-right: 8px;
-            animation: fa-spin 1.1s infinite linear;
-        }
-    </style>
+    <link rel="stylesheet" href="<?php echo url('css/pages/misc.css'); ?>">
 </head>
 <body>
     <?php include 'sidebar.php'; ?>

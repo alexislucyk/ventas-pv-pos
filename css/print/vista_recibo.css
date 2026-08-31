@@ -1,0 +1,66 @@
+/*
+ * ============================================================
+ * VISTA PREVIA RECIBO - Estilos de vista_recibo.php (FASE 3)
+ * Extraido de: pages/vista_recibo.php
+ * Nota: las 2 reglas con valores dinamicos (PHP) quedaron
+ * inline en el PHP por contener variables calculadas.
+ * ============================================================
+ */
+
+body { background: #525659; margin: 0; padding: 0; }
+#ticket-vista-previa { background: white; color: black; margin: 20px auto; padding: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+.recibo-container.a5 { width: 148mm; }
+@media print {
+    body { background: none; }
+    .no-print { display: none; }
+    #ticket-vista-previa { margin: 0; box-shadow: none; border: none; width: 100% !important; }
+}
+/* ----------------------------------------------------------
+ * Desde: pages/vista_previa_ticket.php
+ * ---------------------------------------------------------- */
+
+@media print {
+            @page { 
+                margin: 0; 
+                size: auto; 
+            }
+            body { 
+                margin: 0 !important; 
+                padding: 0 !important; 
+                width: ' . $ancho_papel . ' !important;
+            }
+            .no-print { 
+                display: none !important; 
+            }
+            #ticket-vista-previa {
+                width: 100% !important;
+                padding: 1mm 2mm 1mm 1mm !important;
+                box-sizing: border-box !important;
+                margin: 0 !important;
+            }
+        }
+
+/* ----------------------------------------------------------
+ * Desde: pages/vista_previa_ticket_cuota.php
+ * ---------------------------------------------------------- */
+
+@media print {
+            @page { 
+                margin: 0; 
+                size: auto; 
+            }
+            body { 
+                margin: 0 !important; 
+                padding: 0 !important; 
+                
+            }
+            .no-print { 
+                display: none !important; 
+            }
+            #ticket-vista-previa {
+                width: 100% !important;
+                padding: 1mm 2mm 1mm 1mm !important;
+                box-sizing: border-box !important;
+                margin: 0 !important;
+            }
+        }

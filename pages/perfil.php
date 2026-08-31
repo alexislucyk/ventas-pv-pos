@@ -33,12 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cambiar_clave'])) {
     <meta charset="UTF-8">
     <title>Mi Perfil | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
-    <style>
-        .profile-card { max-width: 500px; margin: 50px auto; padding: 30px; }
-        .profile-header { text-align: center; margin-bottom: 25px; }
-        .profile-header i { font-size: 4rem; color: #00bcd4; }
-        label { color: #aaa; margin-top: 15px; }
-    </style>
+    <link rel="stylesheet" href="<?php echo url('css/pages/misc.css'); ?>">
 </head>
 <body>
     <?php include 'sidebar.php'; ?>

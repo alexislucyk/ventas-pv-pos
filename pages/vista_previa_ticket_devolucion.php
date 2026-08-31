@@ -51,9 +51,8 @@ $ancho_papel = $stmt_cfg->fetchColumn() ?: '80mm';
     <meta charset="UTF-8">
     <title>Ticket Devolución OP#<?php echo $id; ?></title>
     <link rel="stylesheet" href="<?php echo url('css/print/temptocketprint.css'); ?>">
-    <style>
-        @media print { body { width: <?php echo $ancho_papel; ?> !important; } }
-    </style>
+    <link rel="stylesheet" href="<?php echo url('css/print/vista_recibo.css'); ?>">
+    <style>/* Dinamico: ancho calculado por PHP */ @media print { body { width: <?php echo $ancho_papel; ?> !important; } }</style>
 </head>
 <body onload="window.print()">
     <div id="ticket-vista-previa">

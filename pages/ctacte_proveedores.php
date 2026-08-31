@@ -38,62 +38,7 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cuentas Corrientes Proveedores</title>
     <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>"> 
-    <style>
-        /* --- ESTILOS DE DASHBOARD --- */
-        .card-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-        .stat-card {
-            background: #2c2c2c;
-            padding: 15px;
-            border-radius: 8px;
-            border-left: 4px solid #00bcd4;
-            color: #fff;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-        }
-        .stat-card h3 { margin: 0; font-size: 0.7rem; color: #bbb; text-transform: uppercase; letter-spacing: 1px; }
-        .stat-card .value { font-size: 1.4rem; font-weight: bold; margin-top: 5px; }
-        
-        /* Fix para centrado de modales con flex */
-        .modal {
-            align-items: center;
-            justify-content: center;
-        }
-
-        /* Reducción de Escala General */
-        .content { padding: 20px 30px; }
-        .content h1 { font-size: 1.6rem; margin-bottom: 20px; padding-bottom: 8px; }
-        .card { padding: 12px 15px; margin-bottom: 15px; }
-        .card h2, .card h3 { font-size: 1.1rem; }
-        .input-field { padding: 8px !important; font-size: 0.9rem; margin-bottom: 10px !important; }
-        label { font-size: 0.85rem; margin-bottom: 4px; }
-        .btn { padding: 6px 12px; font-size: 0.85rem; }
-
-        .saldo-debe { color: #f44336 !important; } /* Rojo: Deuda pendiente */
-        .saldo-favor { color: #2ecc71 !important; } /* Verde: Saldo a favor */
-        .saldo-cero { color: #aaa; }
-        .fila-excedente { background-color: rgba(46, 204, 113, 0.08) !important; }
-
-        .movimiento-vencido {
-            color: #e74c3c; /* Rojo para movimientos vencidos */
-            font-weight: bold;
-        }
-        .observaciones-btn { background: none; border: none; color: #00bcd4; cursor: pointer; font-size: 0.8em; padding: 0; text-decoration: underline; text-align: left; }
-        .observaciones-btn:hover { color: #2980b9; }
-        
-        .table-full { font-size: 0.82rem; }
-        .table-full th, .table-full td { padding: 6px 10px !important; }
-        .table-full .text-right { font-size: 0.85rem !important; }
-        .table-full th { position: sticky; top: 0; z-index: 10; background: #181818; }
-        .badge-vencido { background: rgba(231, 76, 60, 0.2); color: #e74c3c; border: 1px solid #e74c3c; }
-        
-        /* Botones de filtro */
-        .filter-btn { opacity: 0.6; transition: 0.3s; }
-        .filter-btn.active { opacity: 1; border-bottom: 2px solid #00bcd4; }
-    </style>
+    <link rel="stylesheet" href="<?php echo url('css/pages/ctacte_proveedores.css'); ?>"> 
 </head>
 <body>
 

@@ -169,77 +169,7 @@ if (isset($_GET['exportar']) && $_GET['exportar'] === 'csv') {
     <title>Reporte de Cierres | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        .filtros-box {
-            background: #1e1e1e;
-            padding: 20px;
-            border-radius: 8px;
-            border: 1px solid #333;
-            margin-bottom: 20px;
-        }
-        .filtros-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            align-items: end;
-        }
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 25px;
-        }
-        .stat-box {
-            background: #2c2c2c;
-            padding: 15px;
-            border-radius: 8px;
-            border-left: 4px solid #00bcd4;
-        }
-        .stat-box .label {
-            color: #aaa;
-            font-size: 0.85rem;
-            text-transform: uppercase;
-            margin-bottom: 5px;
-        }
-        .stat-box .value {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #00bcd4;
-        }
-        .stat-box.positivo { border-color: #28a745; }
-        .stat-box.positivo .value { color: #28a745; }
-        .stat-box.negativo { border-color: #dc3545; }
-        .stat-box.negativo .value { color: #dc3545; }
-        .table-container {
-            background: #2c2c2c;
-            border-radius: 8px;
-            padding: 20px;
-            overflow-x: auto;
-        }
-        .badge {
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 0.8rem;
-            font-weight: bold;
-            display: inline-block;
-        }
-        .badge-success { background-color: #27ae60; color: white; }
-        .badge-warning { background-color: #f39c12; color: white; }
-        .badge-danger { background-color: #dc3545; color: white; }
-        .badge-info { background-color: #17a2b8; color: white; }
-        .btn-export {
-            background: #28a745;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 6px;
-            text-decoration: none;
-            font-weight: bold;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .btn-export:hover { background: #218838; }
-    </style>
+    <link rel="stylesheet" href="<?php echo url('css/pages/reportes.css'); ?>">
 </head>
 <body>
     <?php include 'sidebar.php'; ?>

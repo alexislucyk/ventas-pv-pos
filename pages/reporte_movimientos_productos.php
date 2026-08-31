@@ -138,59 +138,7 @@ try {
     <title>Movimientos de Productos | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="<?php echo url('css/style.css?v=' . (file_exists(__DIR__ . '/../css/style.css') ? filemtime(__DIR__ . '/../css/style.css') : '1')); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        :root { --accent: #00bcd4; --success: #2ecc71; --warning: #f1c40f; --danger: #e74c3c; }
-        
-        .reporte-container { background: #1e1e1e; border-radius: 12px; border: 1px solid #333; padding: 20px; margin-bottom: 30px; }
-        table { border-collapse: separate; border-spacing: 0 6px; width: 100%; }
-        th { color: var(--accent); text-transform: uppercase; font-size: 0.75em; letter-spacing: 1px; padding: 10px 8px; text-align: left; white-space: nowrap; }
-        tr { background: #252525; transition: 0.3s; }
-        tr:hover { background: #2a2a2a; }
-        td { padding: 10px 8px; border-top: 1px solid #333; border-bottom: 1px solid #333; color: #ccc; font-size: 0.9em; }
-        td:first-child { border-left: 1px solid #333; border-radius: 8px 0 0 8px; }
-        td:last-child { border-right: 1px solid #333; border-radius: 0 8px 8px 0; }
-
-        .text-right { text-align: right; }
-        .text-bold { font-weight: bold; color: #fff; }
-        .text-success { color: var(--success); }
-        .text-danger { color: var(--danger); }
-        .text-warning { color: var(--warning); }
-
-        .form-control { padding: 10px; border-radius: 5px; border: 1px solid #555; background: #444; color: white; height: 42px; box-sizing: border-box; }
-        .btn-filter-action {
-            height: 42px; min-width: 120px; display: inline-flex; align-items: center; justify-content: center;
-            padding: 0 20px; border-radius: 5px; font-size: 0.9rem; font-weight: bold;
-            border: none; cursor: pointer; text-decoration: none; transition: 0.2s;
-        }
-        .btn-filter-action:hover { opacity: 0.85; transform: translateY(-1px); }
-        .btn-filter-primary { background-color: #005cd4; color: white; }
-        .btn-filter-secondary { background-color: #c2ca56; color: white !important; }
-        .filter-form .btn-filter-action { margin-bottom: 0; }
-
-        .summary-bar { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
-        .summary-item { background: #252525; border: 1px solid #444; border-radius: 8px; padding: 12px 20px; flex: 1; min-width: 150px; }
-        .summary-item label { display: block; font-size: 0.75em; color: #888; text-transform: uppercase; letter-spacing: 1px; }
-        .summary-item .value { font-size: 1.3em; font-weight: bold; margin-top: 5px; }
-
-        .pagination-bar { display: flex; justify-content: space-between; align-items: center; margin: 10px 0; padding: 8px 15px; background: #2d2d2d; border-radius: 5px; color: white; }
-        
-        .badge-cond { padding: 3px 8px; border-radius: 4px; font-size: 0.75em; font-weight: bold; }
-        .badge-contado { background: rgba(46, 204, 113, 0.15); color: var(--success); border: 1px solid var(--success); }
-        .badge-ctacte { background: rgba(241, 196, 15, 0.15); color: var(--warning); border: 1px solid var(--warning); }
-
-        .filter-btn-group {
-            display: inline-flex;
-            flex-direction: column;
-            justify-content: flex-end;
-            min-height: 66px;
-        }
-        .filter-btn-group-inner {
-            display: flex;
-            gap: 8px;
-        }
-        .datalist-wrapper { position: relative; }
-        .datalist-wrapper input { width: 100%; box-sizing: border-box; }
-    </style>
+    <link rel="stylesheet" href="<?php echo url('css/pages/reportes.css'); ?>">
 </head>
 <body>
     <?php include 'sidebar.php'; ?>

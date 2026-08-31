@@ -83,4 +83,19 @@
 
     --transition:       all 0.3s ease;
     --transition-fast:  all 0.15s ease;
+
+    /* -- ALIAS / TOKENS SEMÃNTICOS (usados por mÃ³dulos de pÃ¡ginas) -- */
+    --bg:               #121212;   /* alias de --bg-primary */
+    --text:             #f0f0f0;   /* alias de --text-primary */
+    --muted:            #888888;   /* alias de --text-muted */
+    --border:           #333333;   /* alias de --border-strong */
+    --border-soft:      #222222;   /* alias de --border-subtle */
+    --panel:            #1e1e1e;   /* alias de --bg-card */
+    --panel-alt:        #222222;   /* alias de --bg-elevated */
+    --input-bg:         #2a2a2a;   /* alias de --bg-input */
+    --accent-soft:      rgba(0, 188, 212, 0.15);  /* alias de --accent-dim */
+    --success-soft:     rgba(46, 204, 113, 0.15);
+    --danger-soft:      rgba(231, 76, 60, 0.15);
+    --warn:             #f1c40f;   /* alias de --warning */
+    --warn-soft:        rgba(241, 196, 15, 0.15);
 }

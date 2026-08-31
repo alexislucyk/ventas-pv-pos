@@ -74,32 +74,7 @@ foreach ($cuotas as $c) {
     <title>Cuentas a Cobrar | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        body { background-color: #121212; color: #e0e0e0; }
-        .content h1 { color: #00bcd4; font-weight: 700; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 25px; display: flex; align-items: center; }
-        .content h1::before { content: "\f53d"; font-family: "Font Awesome 5 Free"; margin-right: 15px; font-size: 1.5rem; }
-        
-        .resumen-cuotas { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px; }
-        .widget-cuotas { padding: 20px; border-radius: 8px; border: 1px solid #333; background: #1e1e1e; }
-        .widget-cuotas h3 { margin: 0; font-size: 0.9rem; color: #aaa; text-transform: uppercase; }
-        .widget-cuotas p { margin: 10px 0 0; font-size: 1.8rem; font-weight: bold; }
-        
-        .cuota-vencida { color: #ff5252 !important; font-weight: bold; }
-        .cuota-al-dia { color: #4caf50 !important; }
-        
-        .table-full { width: 100%; border-collapse: collapse; background: #1e1e1e; border-radius: 8px; overflow: hidden; }
-        .table-full th { background-color: #181818; color: #00bcd4; padding: 15px; text-align: left; border-bottom: 2px solid #333; font-size: 0.85rem; }
-        .table-full td { padding: 15px; border-bottom: 1px solid #222; }
-        .table-full tr:hover { background-color: #252525; }
-        
-        .btn-whatsapp { background: #25d366; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 0.8rem; }
-        .mora-badge { background: rgba(255, 82, 82, 0.2); color: #ff5252; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; }
-
-        /* Estilos para el panel de filtros */
-        .filter-card { background: #1e1e1e; padding: 20px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px; }
-        .filter-grid { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 15px; align-items: flex-end; }
-        .filter-grid label { display: block; color: #aaa; font-size: 0.8rem; margin-bottom: 5px; }
-    </style>
+    <link rel="stylesheet" href="<?php echo url('css/pages/reportes.css'); ?>">
 </head>
 <body>
     <?php include 'sidebar.php'; ?>

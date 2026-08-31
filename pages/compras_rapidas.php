@@ -80,14 +80,7 @@ $proveedores = $stmt_p->fetchAll(PDO::FETCH_ASSOC);
     <meta charset="UTF-8">
     <title>Compra Rápida | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
-    <style>
-        .container-factura { max-width: 700px; margin: 20px auto; }
-        .grid-fechas { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        .input-monto-global { font-size: 1.5rem !important; color: #2ecc71 !important; font-weight: bold !important; text-align: center; }
-        #resBusquedaProv { position: absolute; z-index: 100; width: 100%; background: #2a2a2a; border: 1px solid #444; max-height: 200px; overflow-y: auto; display: none; border-radius: 0 0 8px 8px; }
-        .prov-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #333; }
-        .prov-item:hover { background: #3498db; color: #000; }
-    </style>
+    <link rel="stylesheet" href="<?php echo url('css/pages/compras_rapidas.css'); ?>">
 </head>
 <body>
     <?php include 'sidebar.php'; ?>

@@ -408,8 +408,8 @@ unset($_SESSION['ticket_a_imprimir_id']);
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <label><i class="fas fa-search"></i> Buscar Producto</label>
                         <div style="display: flex; gap: 6px; align-items: center;">
-                            <button type="button" class="btn" onclick="abrirModalCopiarPresupuesto()" title="Copiar productos de un presupuesto emitido" style="padding: 2px 8px; margin-bottom: 5px; font-size: 0.8rem; background: #6c3483; color: #fff; border: 1px solid #8e44ad; white-space: nowrap;">Copiar Presupuesto</button>
-                            <button type="button" class="btn btn-success" onclick="abrirModalNuevoProducto()" title="Agregar nuevo producto" style="padding: 2px 8px; margin-bottom: 5px; font-size: 0.8rem; background: #27ae60;">+ Nuevo</button>
+                            <button type="button" class="btn btn-secondary" onclick="abrirModalCopiarPresupuesto()" title="Copiar productos de un presupuesto emitido" style="padding: 2px 8px; margin-bottom: 5px; font-size: 0.8rem; white-space: nowrap;">Copiar Presupuesto</button>
+                            <button type="button" class="btn btn-success" onclick="abrirModalNuevoProducto()" title="Agregar nuevo producto" style="padding: 2px 8px; margin-bottom: 5px; font-size: 0.8rem;">+ Nuevo</button>
                         </div>
                     </div>
                     <input type="text" id="buscar_producto" class="input-field" autocomplete="off" placeholder="Escribe nombre o código...">
@@ -453,7 +453,7 @@ unset($_SESSION['ticket_a_imprimir_id']);
                     <div class="contenedor-busqueda-cliente" style="position:relative;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <label><i class="fas fa-user-tag"></i> Cliente</label>
-                            <button type="button" class="btn btn-success" onclick="abrirModalNuevoCliente()" title="Agregar nuevo cliente" style="padding: 2px 8px; margin-bottom: 5px; font-size: 0.8rem; background: #27ae60;">+ Nuevo</button>
+                            <button type="button" class="btn btn-success" onclick="abrirModalNuevoCliente()" title="Agregar nuevo cliente" style="padding: 2px 8px; margin-bottom: 5px; font-size: 0.8rem;">+ Nuevo</button>
                         </div>
                         <input type="text" id="buscar_cliente" class="input-field" autocomplete="off" placeholder="Buscar cliente...">
                         <div id="resultadosBusquedaClientes"></div>
@@ -516,7 +516,7 @@ unset($_SESSION['ticket_a_imprimir_id']);
 
                         <!-- Botón Ver Plan de Cuotas -->
                         <div style="margin-top: 15px;">
-                            <button type="button" class="btn btn-info btn-block" id="btnVerPlanCuotas" style="background: #17a2b8; color: white; padding: 10px; border: none; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold;">
+                            <button type="button" class="btn btn-info btn-block" id="btnVerPlanCuotas" style="padding: 10px; font-weight: bold;">
                                 <i class="fas fa-table"></i> Ver Plan de Cuotas Detallado
                             </button>
                         </div>
@@ -547,7 +547,7 @@ unset($_SESSION['ticket_a_imprimir_id']);
                         <button type="button" class="btn btn-success" id="btnGuardarPendiente" style="padding:10px;">
                             <i class="fas fa-save"></i> Guardar
                         </button>
-                        <button type="button" id="btnVerPendiente" class="btn btn-yellow" style="background: #f1c40f; color: #000; padding:10px;">
+                        <button type="button" id="btnVerPendiente" class="btn btn-warning" style="padding:10px;">
                             <i class="fas fa-clock"></i> Pendientes
                         </button>
                     </div>
@@ -638,8 +638,8 @@ unset($_SESSION['ticket_a_imprimir_id']);
             <small style="color:#888;">Los productos se cargan con el precio del presupuesto. Si un precio cambió, haz clic en la flechita junto al precio para actualizarlo al valor actual.</small>
 
             <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 25px; border-top: 1px solid #333; padding-top: 15px;">
-                <button type="button" onclick="cerrarModalCopiarPresupuesto()" class="btn btn-secondary" style="background:#444; color:#fff; padding:10px 20px; border:none; border-radius:5px; font-weight:bold; cursor:pointer;">Cancelar</button>
-                <button type="button" onclick="copiarPresupuestoVenta()" class="btn btn-success" style="background:#27ae60; color:#fff; padding:10px 20px; border:none; border-radius:5px; font-weight:bold; cursor:pointer;">
+                <button type="button" onclick="cerrarModalCopiarPresupuesto()" class="btn btn-secondary" style="padding:10px 20px;">Cancelar</button>
+                <button type="button" onclick="copiarPresupuestoVenta()" class="btn btn-success" style="padding:10px 20px;">
                     <i class="fas fa-copy"></i> Copiar Productos
                 </button>
             </div>
@@ -693,10 +693,10 @@ unset($_SESSION['ticket_a_imprimir_id']);
                     <i class="fas fa-print"></i> Imprimir
                 </button>
                 <?php $pdf_ref_ventas = ((int)($ticket_id_a_imprimir ?? 0)) > 0 ? ('id=' . (int)$ticket_id_a_imprimir) : ('n_documento=' . (int)$ticket_doc_a_imprimir); ?>
-                <button onclick="enviarTicketWA('', '', '<?php echo $pdf_ref_ventas; ?>', event)" class="btn" style="background: #e67e22; color: white; padding: 10px 20px;">
+                <button onclick="enviarTicketWA('', '', '<?php echo $pdf_ref_ventas; ?>', event)" class="btn btn-warning" style="padding: 10px 20px;">
                     <i class="fas fa-file-pdf"></i> Descargar PDF
                 </button>
-                <button onclick="this.parentElement.parentElement.parentElement.style.display='none';" class="btn btn-secondary" style="padding: 10px 20px; background:#444;">Cerrar</button>
+                <button onclick="this.parentElement.parentElement.parentElement.style.display='none';" class="btn btn-secondary" style="padding: 10px 20px;">Cerrar</button>
             </div>
         </div>
     </div>

@@ -42,13 +42,7 @@ try {
     <title>Cobro de Cuotas | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        .cuota-pendiente { border-left: 5px solid #f1c40f; }
-        .cuota-parcial { border-left: 5px solid #e67e22; }
-        .badge-pendiente { background: #f1c40f; color: #000; }
-        .badge-parcial { background: #e67e22; color: #fff; }
-        .saldo-destacado { color: #e74c3c; font-weight: bold; font-size: 1.1em; }
-    </style>
+    <link rel="stylesheet" href="<?php echo url('css/pages/cobro_cuotas.css'); ?>">
 </head>
 <body>
     <?php include 'sidebar.php'; ?>

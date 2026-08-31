@@ -15,18 +15,18 @@
 }
 
 .card-stats .stat-card {
-    background: var(--bg-subtle);
+    background: #2c2c2c;
     padding: 15px;
     border-radius: var(--radius-md);
-    border-left: 4px solid var(--accent);
-    color: var(--text-white);
+    border-left: 4px solid #00bcd4;
+    color: #ffffff;
     box-shadow: var(--shadow-sm);
 }
 
 .card-stats .stat-card h3 {
     margin: 0;
     font-size: 0.7rem;
-    color: var(--text-faint);
+    color: #aaaaaa;
     text-transform: uppercase;
     letter-spacing: 1px;
 }
@@ -53,14 +53,14 @@ label { font-size: 0.85rem; margin-bottom: 4px; }
 .btn { padding: 6px 12px; font-size: 0.85rem; }
 
 /* ── SALDOS ── */
-.saldo-debe    { color: var(--danger-alt) !important; }
-.saldo-favor   { color: var(--success) !important; }
-.saldo-cero    { color: var(--text-faint); }
+.saldo-debe    { color: #f44336 !important; }
+.saldo-favor   { color: #2ecc71 !important; }
+.saldo-cero    { color: #aaaaaa; }
 .fila-excedente { background-color: rgba(46, 204, 113, 0.08) !important; }
 
 /* ── MOVIMIENTO VENCIDO ── */
 .movimiento-vencido {
-    color: var(--danger);
+    color: #e74c3c;
     font-weight: bold;
 }
 
@@ -68,7 +68,7 @@ label { font-size: 0.85rem; margin-bottom: 4px; }
 .observaciones-btn {
     background: none;
     border: none;
-    color: var(--accent);
+    color: #00bcd4;
     cursor: pointer;
     font-size: 0.8em;
     padding: 0;
@@ -76,22 +76,22 @@ label { font-size: 0.85rem; margin-bottom: 4px; }
     text-align: left;
 }
 
-.observaciones-btn:hover { color: var(--info); }
+.observaciones-btn:hover { color: #3498db; }
 
 /* ── TABLA FULL COMPACTA ── */
 .table-full { font-size: 0.82rem; }
 .table-full th,
 .table-full td { padding: 6px 10px !important; }
 .table-full .text-right { font-size: 0.85rem !important; }
-.table-full th { position: sticky; top: 0; z-index: 10; background: var(--bg-secondary); }
+.table-full th { position: sticky; top: 0; z-index: 10; background: #181818; }
 
 /* ── BADGE VENCIDO ── */
 .badge-vencido {
     background: rgba(231, 76, 60, 0.2);
-    color: var(--danger);
-    border: 1px solid var(--danger);
+    color: #e74c3c;
+    border: 1px solid #e74c3c;
 }
 
 /* ── BOTONES DE FILTRO ── */
 .filter-btn { opacity: 0.6; transition: var(--transition); }
-.filter-btn.active { opacity: 1; border-bottom: 2px solid var(--accent); }
+.filter-btn.active { opacity: 1; border-bottom: 2px solid #00bcd4; }
