@@ -146,6 +146,34 @@ let pVenta = parseFloat(prod.p_venta) || 0;
         });
     }
     renderizarCarrito();
+    // El flujo de venta continúa en el input de cantidad del producto recién agregado
+    enfocarCantidadProductoAgregado();
+}
+
+// --- NAVEGACIÓN DE FOCO (buscador de producto ↔ cantidad del carrito) ---
+// Devuelve el índice en el carrito correspondiente a la fila (tr) de un input
+function obtenerIndiceFila(input) {
+    const tr = input.closest('tr');
+    if (!tr) return -1;
+    const tbody = tr.parentElement;
+    return Array.prototype.indexOf.call(tbody.rows, tr);
+}
+
+// Foco en el input de cantidad del producto recién agregado (primera fila del carrito)
+function enfocarCantidadProductoAgregado() {
+    const inp = document.querySelector('#carrito tbody tr .input-cantidad');
+    if (inp) {
+        inp.focus();
+        if (typeof inp.select === 'function') inp.select();
+    } else {
+        enfocarBuscadorProducto();
+    }
+}
+
+// Foco en el buscador de productos (fallback si el carrito no existe)
+function enfocarBuscadorProducto() {
+    const inp = document.getElementById('buscar_producto');
+    if (inp) inp.focus();
 }
 
 // Inicializar selectores cuando el DOM esté listo
@@ -261,6 +289,24 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // Enter en el input de cantidad de una fila del carrito → confirmar y volver al buscador
+    const tablaCarrito = document.getElementById('carrito');
+    if (tablaCarrito) {
+        tablaCarrito.addEventListener('keydown', function(e) {
+            if (e.key !== 'Enter') return;
+            const inp = e.target;
+            if (inp && inp.classList && inp.classList.contains('input-cantidad')) {
+                e.preventDefault();
+                const idx = obtenerIndiceFila(inp);
+                if (idx >= 0) window.cambiarCant(idx, inp.value);
+                enfocarBuscadorProducto();
+            }
+        });
+    }
+
+    // Foco inicial en el buscador de productos al abrir la página
+    if (inputBuscarProd) inputBuscarProd.focus();
 
     // --- 1b. HIGHLIGHT DE RESULTADOS (teclado) ---
     function resaltarResultadosVentas() {
