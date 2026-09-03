@@ -16,6 +16,20 @@ $rubro = trim($input['rubro'] ?? '');
 $moneda = trim($input['moneda'] ?? 'pesos');
 $productos = $input['productos'] ?? [];
 
+// Posesión de la mercadería: marca TODA la carga como consignación si se tilda
+$es_consignacion = !empty($input['es_consignacion']) ? 1 : 0;
+$comision_proveedor = null;
+if ($es_consignacion) {
+    $com_raw = $input['comision_proveedor'] ?? '';
+    if ($com_raw !== '' && $com_raw !== null) {
+        $comision_proveedor = (float)str_replace(',', '.', (string)$com_raw);
+    }
+    if ($comision_proveedor === null || $comision_proveedor <= 0 || $comision_proveedor >= 100) {
+        echo json_encode(['success' => false, 'error' => 'La comisión del proveedor debe estar entre 1 y 99 (%).']);
+        exit;
+    }
+}
+
 if (empty($proveedor) || empty($rubro)) {
     echo json_encode(['success' => false, 'error' => 'Faltan datos obligatorios (proveedor o rubro)']);
     exit;
@@ -122,24 +136,40 @@ foreach ($productos as $index => $prod) {
         
         if ($existe) {
             // ACTUALIZAR producto existente
-            $sql = "UPDATE productos 
-                    SET descripcion = ?, p_compra = ?, p_venta = ?, fecha_ult_compra = CURDATE(), 
-                        rubro = ?, proveedor = ?, moneda = ?, unidad_medida = ? 
-                    WHERE empresa_id = ? AND cod_prod = ?";
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([
-                $descripcion, $p_compra, $p_venta, $rubro, $proveedor, $moneda, ($prod['unidad'] ?? 'Unidad'),
-                $empresa_id, $cod_prod
-            ]);
+            // Si la carga viene marcada como consignación, también se marca el producto
+            // (si no viene marcada, no se toca la posesión ya existente).
+            if ($es_consignacion) {
+                $sql = "UPDATE productos 
+                        SET descripcion = ?, p_compra = ?, p_venta = ?, fecha_ult_compra = CURDATE(), 
+                            rubro = ?, proveedor = ?, moneda = ?, unidad_medida = ?,
+                            es_consignacion = 1, comision_proveedor = ? 
+                        WHERE empresa_id = ? AND cod_prod = ?";
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute([
+                    $descripcion, $p_compra, $p_venta, $rubro, $proveedor, $moneda, ($prod['unidad'] ?? 'Unidad'),
+                    $comision_proveedor, $empresa_id, $cod_prod
+                ]);
+            } else {
+                $sql = "UPDATE productos 
+                        SET descripcion = ?, p_compra = ?, p_venta = ?, fecha_ult_compra = CURDATE(), 
+                            rubro = ?, proveedor = ?, moneda = ?, unidad_medida = ? 
+                        WHERE empresa_id = ? AND cod_prod = ?";
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute([
+                    $descripcion, $p_compra, $p_venta, $rubro, $proveedor, $moneda, ($prod['unidad'] ?? 'Unidad'),
+                    $empresa_id, $cod_prod
+                ]);
+            }
             $actualizados++;
         } else {
             // INSERTAR nuevo producto
-            $sql = "INSERT INTO productos (cod_prod, descripcion, p_compra, p_venta, fecha_ult_compra, rubro, proveedor, moneda, empresa_id, stock, unidad_medida)
-                    VALUES (?, ?, ?, ?, CURDATE(), ?, ?, ?, ?, 0, ?)";
+            $sql = "INSERT INTO productos (cod_prod, descripcion, p_compra, p_venta, fecha_ult_compra, rubro, proveedor, moneda, empresa_id, stock, unidad_medida, es_consignacion, comision_proveedor)
+                    VALUES (?, ?, ?, ?, CURDATE(), ?, ?, ?, ?, 0, ?, ?, ?)";
             $stmt = $pdo->prepare($sql);
             $stmt->execute([
                 $cod_prod, $descripcion, $p_compra, $p_venta, 
-                $rubro, $proveedor, $moneda, $empresa_id, ($prod['unidad'] ?? 'Unidad')
+                $rubro, $proveedor, $moneda, $empresa_id, ($prod['unidad'] ?? 'Unidad'),
+                $es_consignacion, $comision_proveedor
             ]);
             $insertados++;
         }

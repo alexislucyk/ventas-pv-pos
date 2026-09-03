@@ -17,6 +17,16 @@ $stmt_emp = $pdo->prepare("SELECT * FROM empresas WHERE id = ? LIMIT 1");
 $stmt_emp->execute([$empresa_id]);
 $emp = $stmt_emp->fetch(PDO::FETCH_ASSOC);
 
+// LOGO DE LA EMPRESA: mismo criterio que el ticket de ventas
+// (ej. img/logos/logo_*.png guardado en "Perfil del Negocio")
+$logo_url = '';
+if (!empty($emp['logo_path'])) {
+    $ruta_logo_disco = dirname(__DIR__) . '/' . ltrim($emp['logo_path'], '/');
+    if (@is_file($ruta_logo_disco)) {
+        $logo_url = (defined('URL_BASE') ? URL_BASE : '/') . ltrim($emp['logo_path'], '/');
+    }
+}
+
 // Obtener configuración de ancho de papel
 $stmt_cfg = $pdo->query("SELECT valor FROM configuracion WHERE clave = 'ticket_ancho'");
 $ancho_papel = $stmt_cfg->fetchColumn() ?: '80mm';
@@ -85,6 +95,9 @@ $label_total = $es_devolucion ? "TOTAL REINTEGRADO:" : "TOTAL ABONADO:";
         <?php if ($formato === 'ticket'): ?>
                 <!-- DISEÑO TICKET 80mm -->
                 <div class="center">
+                    <?php if ($logo_url): ?>
+                        <img src="<?php echo htmlspecialchars($logo_url); ?>" alt="logo" style="max-width:54mm; max-height:30mm; display:block; margin:0 auto 2px auto;" />
+                    <?php endif; ?>
                     <h3><?php echo strtoupper($emp['nombre_fantasia']); ?></h3>
                     <p><?php echo htmlspecialchars($emp['direccion']); ?><br>Tel: <?php echo htmlspecialchars($emp['telefono']); ?></p>
                     <p><strong><?php echo $titulo_doc; ?></strong></p>
@@ -101,6 +114,9 @@ $label_total = $es_devolucion ? "TOTAL REINTEGRADO:" : "TOTAL ABONADO:";
                     <div class="box-x"><span>X</span></div>
                     <div class="box-x-text">DOC. NO VÁLIDO COMO FACTURA</div>
                     <div class="header-left">
+                        <?php if ($logo_url): ?>
+                            <img src="<?php echo htmlspecialchars($logo_url); ?>" alt="logo" style="max-width:25mm; max-height:20mm; display:block; margin-bottom:4px;" />
+                        <?php endif; ?>
                         <h2 style="margin: 0; font-size: 1.3em;"><?php echo strtoupper($emp['nombre_fantasia']); ?></h2>
                         <p style="font-size: 0.85em; margin: 8px 0; line-height: 1.4;">
                             <?php echo htmlspecialchars($emp['direccion']); ?><br>

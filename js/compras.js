@@ -228,8 +228,11 @@ document.addEventListener('DOMContentLoaded', function() {
             const stock = producto.stock || 0;
             const stockColor = stock > 0 ? '#2ecc71' : '#e74c3c';
             const costoProm = parseFloat(producto.costo_promedio || producto.p_compra || 0).toFixed(2);
+            const badgeConsigna = (parseInt(producto.es_consignacion) === 1)
+                ? ' <span style="background: rgba(241,196,15,0.15); color: #f1c40f; padding: 2px 6px; border-radius: 8px; font-size: 0.75em; font-weight: bold;">🤝 Consignación</span>'
+                : '';
             div.innerHTML = `<div>
-                <strong>[${producto.cod_prod}]</strong> ${producto.descripcion}
+                <strong>[${producto.cod_prod}]</strong> ${producto.descripcion}${badgeConsigna}
                 <div style="font-size: 0.85em; color: #aaa;">
                     Stock: <span style="color: ${stockColor};">${stock}</span> |
                     Costo: $${costoProm}
@@ -257,6 +260,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function seleccionarProducto(producto) {
+        // Aviso: producto en consignación recibido por remito, no por compra
+        if (parseInt(producto.es_consignacion) === 1 && !confirm('⚠️ "' + producto.descripcion + '" está marcado EN CONSIGNACIÓN.\n\nSi esta mercadería llegó como consignación, NO la registres como compra: cargala desde el módulo "Consignaciones: Ingreso de Mercadería".\n\n¿De todas formas querés registrarla como compra (se pagará al proveedor)?')) {
+            inputBuscar.value = '';
+            resultadosDiv.innerHTML = '';
+            resultadosDiv.style.display = 'none';
+            return;
+        }
         const index = carrito.findIndex(item => item.cod_prod === producto.cod_prod);
         const costo_inicial = parseFloat(producto.costo_promedio || producto.p_compra || 0);
 
@@ -470,6 +480,10 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('fecha_ult_compra', document.getElementById('np_fecha_ult_compra').value);
         formData.append('rubro', document.getElementById('np_rubro').value);
         formData.append('proveedor', document.getElementById('np_proveedor').value);
+        if (document.getElementById('np_es_consignacion') && document.getElementById('np_es_consignacion').checked) {
+            formData.append('es_consignacion', '1');
+            formData.append('comision_proveedor', document.getElementById('np_comision_proveedor').value);
+        }
 
         fetch(APP_BASE + 'ajax/agregar_producto_rapido.php', { method: 'POST', body: formData })
             .then(res => res.json())

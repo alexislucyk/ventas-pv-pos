@@ -123,6 +123,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $rubro = $_POST['rubro'];
         $proveedor = $_POST['proveedor'];
         $id_post = isset($_POST['id_producto']) ? $_POST['id_producto'] : null;
+        $es_consignacion = isset($_POST['es_consignacion']) ? 1 : 0;
+        $comision_proveedor = null;
+        if ($es_consignacion && isset($_POST['comision_proveedor']) && $_POST['comision_proveedor'] !== '') {
+            $comision_proveedor = (float)str_replace(',', '.', $_POST['comision_proveedor']);
+            if ($comision_proveedor <= 0 || $comision_proveedor >= 100) {
+                throw new Exception("La comisión del proveedor debe estar entre 1 y 99 (porcentaje).");
+            }
+        }
 
         if (empty($cod_prod) || empty($descripcion)) throw new Exception("Código y descripción son obligatorios.");
 
@@ -134,8 +142,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
             // Insertar producto (stock se maneja en tabla stocks, pero la tabla productos requiere el campo)
-            $sql = "INSERT INTO productos (cod_prod, descripcion, p_compra, p_venta, fecha_ult_compra, rubro, proveedor, moneda, empresa_id, stock, unidad_medida) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)";
-            $pdo->prepare($sql)->execute([$cod_prod, $descripcion, $p_compra, $p_venta, $fecha_ult_compra, $rubro, $proveedor, $_POST['moneda'] ?? 'pesos', $empresa_id, $_POST['unidad_medida'] ?? 'Unidad']);
+            $sql = "INSERT INTO productos (cod_prod, descripcion, p_compra, p_venta, fecha_ult_compra, rubro, proveedor, moneda, empresa_id, stock, unidad_medida, es_consignacion, comision_proveedor) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)";
+            $pdo->prepare($sql)->execute([$cod_prod, $descripcion, $p_compra, $p_venta, $fecha_ult_compra, $rubro, $proveedor, $_POST['moneda'] ?? 'pesos', $empresa_id, $_POST['unidad_medida'] ?? 'Unidad', $es_consignacion, $comision_proveedor]);
             
             // Guardar stock en tabla stocks (por sucursal)
             $sql_stock = "INSERT INTO stocks (empresa_id, sucursal_id, cod_prod, stock_actual) VALUES (?, ?, ?, ?) 
@@ -152,8 +160,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
             // Actualizar producto SIN el campo stock (se maneja en tabla stocks)
-            $sql = "UPDATE productos SET cod_prod=?, descripcion=?, p_compra=?, p_venta=?, fecha_ult_compra=?, rubro=?, proveedor=?, moneda=?, unidad_medida=? WHERE id=? AND empresa_id=?";
-            $pdo->prepare($sql)->execute([$cod_prod, $descripcion, $p_compra, $p_venta, $fecha_ult_compra, $rubro, $proveedor, $_POST['moneda'] ?? 'pesos', $_POST['unidad_medida'] ?? 'Unidad', $id_post, $empresa_id]);
+            $sql = "UPDATE productos SET cod_prod=?, descripcion=?, p_compra=?, p_venta=?, fecha_ult_compra=?, rubro=?, proveedor=?, moneda=?, unidad_medida=?, es_consignacion=?, comision_proveedor=? WHERE id=? AND empresa_id=?";
+            $pdo->prepare($sql)->execute([$cod_prod, $descripcion, $p_compra, $p_venta, $fecha_ult_compra, $rubro, $proveedor, $_POST['moneda'] ?? 'pesos', $_POST['unidad_medida'] ?? 'Unidad', $es_consignacion, $comision_proveedor, $id_post, $empresa_id]);
             
             // Guardar stock en tabla stocks (por sucursal)
             $sql_stock = "INSERT INTO stocks (empresa_id, sucursal_id, cod_prod, stock_actual) VALUES (?, ?, ?, ?) 
@@ -218,6 +226,11 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
         <?php if ($accion === 'listar'): ?>
             <div class="card">
                 <input type="text" id="filtroProductos" class="form-control" placeholder="Buscar por código o descripción...">
+                <div id="tabsPosesion" style="display: flex; gap: 8px; margin-top: 10px;">
+                    <button type="button" class="btn btn-sm tab-pos tab-pos-activa" data-tab="todos" onclick="filtrarPosesion(this)">Todos</button>
+                    <button type="button" class="btn btn-sm tab-pos" data-tab="propios" onclick="filtrarPosesion(this)" style="border-color: #2ecc71; color: #2ecc71;">Propios (<span id="cantPropios">0</span>)</button>
+                    <button type="button" class="btn btn-sm tab-pos" data-tab="consignacion" onclick="filtrarPosesion(this)" style="border-color: #f1c40f; color: #f1c40f;">🤝 Consignación (<span id="cantConsignacion">0</span>)</button>
+                </div>
                 
                 <div class="table-container">
                     <table id="tablaProductos">
@@ -229,6 +242,7 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
                                 <th>Rubro</th>
                                 <th>Moneda</th>
                                 <th>Unidad</th>
+                                <th id="thPosesion">Posesión</th>
                                 <th class="text-right">Stock</th>
                                 <th class="text-right">P. Venta</th>
                                 <th>Acciones</th>
@@ -236,13 +250,20 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
                         </thead>
                         <tbody>
                             <?php foreach ($productos as $p): ?>
-                            <tr>
+                            <tr class="fila-prod" data-pos="<?php echo !empty($p['es_consignacion']) ? 'consignacion' : 'propio'; ?>">
                                 <td><input type="checkbox" class="prod-check" value="<?php echo $p['id']; ?>"></td>
                                 <td><span class="badge badge-warning"><?php echo htmlspecialchars($p['cod_prod']); ?></span></td>
                                 <td><strong><?php echo htmlspecialchars($p['descripcion']); ?></strong></td>
                                 <td><?php echo htmlspecialchars($p['rubro']); ?></td>
                                 <td><?php echo $p['moneda'] == 'dolar' ? 'U$S' : '$'; ?></td>
                                 <td><?php echo htmlspecialchars($p['unidad_medida'] ?? 'Unidad'); ?></td>
+                                <td>
+                                    <?php if (!empty($p['es_consignacion'])): ?>
+                                        <span style="background: rgba(241, 196, 15, 0.15); color: #f1c40f; padding: 3px 8px; border-radius: 10px; font-size: 0.75em; font-weight: bold; white-space: nowrap;">🤝 Consignación<?php echo $p['comision_proveedor'] !== null ? ' ' . number_format($p['comision_proveedor'], 0) . '%' : ''; ?></span>
+                                    <?php else: ?>
+                                        <span style="background: rgba(46, 204, 113, 0.15); color: #2ecc71; padding: 3px 8px; border-radius: 10px; font-size: 0.75em; font-weight: bold;">Propio</span>
+                                    <?php endif; ?>
+                                </td>
                                 <td class="text-right"><?php echo number_format($p['stock'], 2, ',', '.'); ?></td>
                                 <td class="text-right text-bold text-success"><?php echo $p['moneda'] == 'dolar' ? 'U$S' : '$'; ?><?php echo number_format($p['p_venta'], 2, ',', '.'); ?></td>
                                 <td>
@@ -349,6 +370,25 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
                         </div>
                     </div>
 
+                    <div class="flex-row" style="margin-top: 15px; align-items: flex-end;">
+                        <div style="flex: 1;">
+                            <label>Posesión de la Mercadería</label>
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 0;">
+                                <input type="checkbox" name="es_consignacion" id="chk_consignacion" value="1" style="width: 18px; height: 18px; margin: 0;"
+                                    <?php echo (!empty($producto_editar['es_consignacion'])) ? 'checked' : ''; ?>>
+                                <span id="chk_consignacion_txt">🤝 En Consignación (es del proveedor)</span>
+                            </label>
+                            <small style="color: #888; display: block; margin-top: 4px;">Los productos en consignación no son de tu propiedad: se liquidan al proveedor según se venden.</small>
+                        </div>
+                        <div style="flex: 1;" id="row_comision_proveedor">
+                            <label>Comisión del Proveedor (%)</label>
+                            <input type="number" name="comision_proveedor" id="input_comision_proveedor" min="1" max="99" step="0.01"
+                                   value="<?php echo isset($producto_editar['comision_proveedor']) && $producto_editar['comision_proveedor'] !== null ? $producto_editar['comision_proveedor'] : '50'; ?>"
+                                   placeholder="50 = reparto 50/50">
+                            <small style="color: #888; display: block; margin-top: 4px;">% de la ganancia que se lleva el proveedor. Ej: 50 = 50/50.</small>
+                        </div>
+                    </div>
+
                     <div style="margin-top: 30px; display: flex; gap: 10px;">
                         <button type="submit" class="btn btn-primary" style="flex: 2;">💾 Guardar Cambios</button>
                         <a href="<?php echo URL_BASE; ?>productos" class="btn btn-secondary" style="flex: 1; text-align: center;">Cancelar</a>
@@ -370,7 +410,53 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
                     const texto = fila.innerText.toUpperCase();
                     fila.style.display = texto.includes(filtro) ? "" : "none";
                 });
+                aplicarTabPosesion();
             });
+        }
+
+        // --- FILTRO POR POSESIÓN (Propio / Consignación) ---
+        let tabPosesionActiva = 'todos';
+        function contarPosesion() {
+            const filas = document.querySelectorAll('#tablaProductos tbody tr.fila-prod');
+            let propios = 0, consignados = 0;
+            filas.forEach(f => {
+                if (f.dataset.pos === 'consignacion') consignados++; else propios++;
+            });
+            const cP = document.getElementById('cantPropios');
+            const cC = document.getElementById('cantConsignacion');
+            if (cP) cP.innerText = propios;
+            if (cC) cC.innerText = consignados;
+        }
+        function aplicarTabPosesion() {
+            const filtro = (document.getElementById('filtroProductos')?.value || '').toUpperCase();
+            document.querySelectorAll('#tablaProductos tbody tr.fila-prod').forEach(fila => {
+                const texto = fila.innerText.toUpperCase();
+                const pasaBusqueda = texto.includes(filtro);
+                const pasaTab = (tabPosesionActiva === 'todos') || (fila.dataset.pos === (tabPosesionActiva === 'propios' ? 'propio' : 'consignacion'));
+                fila.style.display = (pasaBusqueda && pasaTab) ? "" : "none";
+            });
+        }
+        window.filtrarPosesion = function(btn) {
+            tabPosesionActiva = btn.dataset.tab;
+            document.querySelectorAll('.tab-pos').forEach(b => b.classList.remove('tab-pos-activa'));
+            btn.classList.add('tab-pos-activa');
+            aplicarTabPosesion();
+        };
+        contarPosesion();
+
+        // --- TOGGLE COMISIÓN PROVEEDOR (form alta/edición) ---
+        const chkConsigna = document.getElementById('chk_consignacion');
+        const rowComision = document.getElementById('row_comision_proveedor');
+        function toggleComision() {
+            if (chkConsigna && rowComision) {
+                rowComision.style.display = chkConsigna.checked ? '' : 'none';
+                const txt = document.getElementById('chk_consignacion_txt');
+                if (txt) txt.textContent = chkConsigna.checked ? '🤝 En Consignación (es del proveedor)' : 'En Consignación (es del proveedor)';
+            }
+        }
+        if (chkConsigna) {
+            chkConsigna.addEventListener('change', toggleComision);
+            toggleComision();
         }
 
         // --- LÓGICA DE SELECCIÓN MÚLTIPLE ---
@@ -386,6 +472,21 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
                         if (cb) cb.checked = isChecked;
                     }
                 });
+            });
+        }
+
+        // --- FUNCIÓN OCULTA: CONSIGNACIÓN MASIVA ---
+        // Disparadores sin botón visible: Ctrl+Alt+C o doble clic en el encabezado "Posesión"
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.altKey && !e.shiftKey && (e.key === 'c' || e.key === 'C')) {
+                e.preventDefault();
+                abrirConsignacionMasiva();
+            }
+        });
+        const thPosesion = document.getElementById('thPosesion');
+        if (thPosesion) {
+            thPosesion.addEventListener('dblclick', function() {
+                abrirConsignacionMasiva();
             });
         }
 
@@ -424,6 +525,67 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
         document.getElementById('modalMasivo').style.display = 'block'; 
     };
     window.cerrarModalMasivo = function() { document.getElementById('modalMasivo').style.display = 'none'; };
+
+    // --- FUNCIONES OCULTAS: CONSIGNACIÓN MASIVA (ver atajo en DOMContentLoaded) ---
+    window.abrirConsignacionMasiva = function() {
+        const seleccionados = document.querySelectorAll('.prod-check:checked');
+        if (seleccionados.length === 0) {
+            mostrarMensaje('Sin selección', 'Primero marcá los productos con los checkboxes de la tabla.', 'error');
+            return;
+        }
+        let yaMarcados = 0;
+        seleccionados.forEach(cb => {
+            const fila = cb.closest('tr');
+            if (fila && fila.dataset.pos === 'consignacion') yaMarcados++;
+        });
+        const info = document.getElementById('infoConsignaMasiva');
+        info.innerHTML = `Seleccionados: <b>${seleccionados.length}</b> &middot; Ya en consignación: <b>${yaMarcados}</b> &middot; Propios: <b>${seleccionados.length - yaMarcados}</b>`;
+        document.getElementById('modalConsignacionMasiva').style.display = 'block';
+    };
+
+    window.cerrarModalConsignacionMasiva = function() {
+        document.getElementById('modalConsignacionMasiva').style.display = 'none';
+    };
+
+    window.aplicarConsignacionMasiva = function(accion) {
+        const ids = Array.from(document.querySelectorAll('.prod-check:checked')).map(cb => parseInt(cb.value));
+        if (ids.length === 0) return;
+
+        let comision = null;
+        if (accion === 'marcar') {
+            const comRaw = document.getElementById('com_consigna_masiva').value;
+            if (comRaw !== '') comision = parseFloat(String(comRaw).replace(',', '.'));
+            if (comision === null || isNaN(comision) || comision <= 0 || comision >= 100) {
+                mostrarMensaje('Datos Incompletos', 'La comisión del proveedor debe estar entre 1 y 99 (%).', 'error');
+                return;
+            }
+        }
+
+        const verbo = (accion === 'marcar')
+            ? 'MARCAR como CONSIGNACIÓN (es del proveedor)'
+            : 'DESMARCAR (pasar a PROPIO de tu inventario)';
+        const form = () => {
+            fetch('<?php echo URL_BASE; ?>ajax/consignacion_masiva.php', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ ids: ids, accion: accion, comision: comision })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    cerrarModalConsignacionMasiva();
+                    mostrarMensaje('Éxito', '✅ ' + data.mensaje, 'success', function() { location.reload(); });
+                } else {
+                    mostrarMensaje('Error', '❌ ' + (data.error || 'Error desconocido'), 'error');
+                }
+            })
+            .catch(err => {
+                mostrarMensaje('Error', '❌ Error de conexión: ' + err.message, 'error');
+            });
+        };
+        confirmarAccion('Consignación Masiva', `¿Aplicar "${verbo}" a ${ids.length} producto(s) seleccionado(s)?`, 'APLICAR', accion === 'marcar' ? 'btn-primary' : 'btn-secondary', form);
+    };
+
 
     // Función para calcular precio de venta sugerido basado en la configuración global
     window.calcularPrecioVentaSugerido = function() {
@@ -710,10 +872,20 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
                      </div>
                  </div>
 
-                 <!-- Fila 2: porcentaje al lado derecho de la misma columna de moneda -->
+                <!-- Fila 2: porcentaje al lado derecho de la misma columna de moneda -->
                  <div style="display: flex; gap: 15px; margin-bottom: 15px;">
-                     <div style="flex: 1;"></div>
-                     <div style="flex: 1;"></div>
+                     <div style="flex: 1;">
+                         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 20px; margin-bottom: 0;">
+                             <input type="checkbox" id="consignacion_multiple" style="width: 18px; height: 18px; margin: 0;" onchange="document.getElementById('row_comision_multiple').style.display = this.checked ? '' : 'none';">
+                             <span>🤝 En Consignación</span>
+                         </label>
+                         <small style="color: #888; display: block; margin-top: 4px;">Aplica a TODOS los productos de esta carga</small>
+                     </div>
+                     <div style="flex: 1; display: none;" id="row_comision_multiple">
+                         <label>Comisión del Proveedor (%)</label>
+                         <input type="number" step="0.01" min="1" max="99" id="comision_multiple" value="50" style="width: 100%; padding: 6px;">
+                         <small style="color: #888;">Ej: 50 = reparto 50/50</small>
+                     </div>
                      <div style="flex: 1; margin-left: auto;">
                          <label>Porcentaje (%)</label>
                          <input type="number" step="0.01" name="porcentaje_multiple" id="porcentaje_multiple" value="60" style="width: 100%; padding: 6px;">
@@ -890,6 +1062,20 @@ function cerrarModalMultiples() {
              return;
          }
 
+         const chkConsignaMult = document.getElementById('consignacion_multiple');
+         const esConsignacion = (chkConsignaMult && chkConsignaMult.checked) ? 1 : 0;
+         let comisionConsigna = null;
+         if (esConsignacion) {
+             const comRaw = document.getElementById('comision_multiple').value;
+             if (comRaw !== '') {
+                 comisionConsigna = parseFloat(String(comRaw).replace(',', '.'));
+             }
+             if (comisionConsigna === null || isNaN(comisionConsigna) || comisionConsigna <= 0 || comisionConsigna >= 100) {
+                 mostrarMensaje('Datos Incompletos', 'La comisión del proveedor debe estar entre 1 y 99 (%).', 'error');
+                 return;
+             }
+         }
+
          const filas = document.querySelectorAll('#cuerpoMultiples tr');
          const productos = [];
 
@@ -913,7 +1099,7 @@ function cerrarModalMultiples() {
          fetch('<?php echo URL_BASE; ?>ajax/cargar_multiples_productos.php', {
              method: 'POST',
              headers: {'Content-Type': 'application/json'},
-             body: JSON.stringify({proveedor, rubro, moneda, productos})
+             body: JSON.stringify({proveedor, rubro, moneda, productos, es_consignacion: esConsignacion, comision_proveedor: comisionConsigna})
          })
          .then(res => res.json())
          .then(data => {
@@ -929,6 +1115,33 @@ function cerrarModalMultiples() {
          });
 }
       </script>
+
+    <!-- Modal OCULTO: Consignación Masiva (sin botón visible en la UI)
+         Disparadores: Ctrl+Alt+C  |  doble clic en el encabezado "Posesión" -->
+    <div id="modalConsignacionMasiva" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px; border-top: 4px solid #f1c40f;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #444; padding-bottom: 10px;">
+                <h3 style="margin: 0; color: #f1c40f;"><i class="fas fa-handshake"></i> Consignación Masiva</h3>
+                <span style="cursor: pointer; font-size: 24px; color: #888;" onclick="cerrarModalConsignacionMasiva()">&times;</span>
+            </div>
+
+            <div id="infoConsignaMasiva" class="alert alert-info" style="margin-bottom: 15px;"></div>
+
+            <div style="margin-bottom: 15px;">
+                <label>Acción sobre los productos seleccionados</label>
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" class="btn btn-primary" style="flex: 1; background-color: #f1c40f; color: #222; font-weight: bold;" onclick="aplicarConsignacionMasiva('marcar')">🤝 Marcar como Consignación</button>
+                    <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="aplicarConsignacionMasiva('desmarcar')">Desmarcar (Propio)</button>
+                </div>
+            </div>
+
+            <div>
+                <label>Comisión del Proveedor (%) — solo para "Marcar"</label>
+                <input type="number" id="com_consigna_masiva" class="input-field" min="1" max="99" step="0.01" value="50">
+                <small style="color: #888; display: block; margin-top: 4px;">Ej: 50 = reparto 50/50. Dejá el valor actual si ya lo definiste por producto.</small>
+            </div>
+        </div>
+    </div>
 
     <!-- Modal Generar Listado PDF -->
     <div id="modalPdfPrecios" class="modal" style="display: none;">

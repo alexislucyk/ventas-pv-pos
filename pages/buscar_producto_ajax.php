@@ -26,7 +26,7 @@ try {
     if ($sucursal_id == 0) {
         // Central: sumar stock de TODAS las sucursales (sin filtrar por empresa en stocks,
         // porque pueden tener empresa_id viejo por migración)
-        $sql = "SELECT p.cod_prod, p.descripcion, p.p_compra, p.p_venta, p.moneda, p.rubro, p.unidad_medida,
+        $sql = "SELECT p.cod_prod, p.descripcion, p.p_compra, p.p_venta, p.moneda, p.rubro, p.unidad_medida, p.es_consignacion,
                        COALESCE((SELECT SUM(s2.stock_actual) FROM stocks s2 WHERE s2.cod_prod COLLATE utf8mb4_unicode_ci = p.cod_prod COLLATE utf8mb4_unicode_ci), 0) AS stock 
                 FROM productos p 
                 WHERE (p.cod_prod LIKE ? OR p.descripcion LIKE ?)
@@ -37,7 +37,7 @@ try {
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$param_busqueda, $param_busqueda, $empresa_id]);
     } else {
-        $sql = "SELECT p.cod_prod, p.descripcion, p.p_compra, p.p_venta, p.moneda, p.rubro, p.unidad_medida, COALESCE(s.stock_actual, 0) AS stock 
+        $sql = "SELECT p.cod_prod, p.descripcion, p.p_compra, p.p_venta, p.moneda, p.rubro, p.unidad_medida, p.es_consignacion, COALESCE(s.stock_actual, 0) AS stock 
                 FROM productos p 
                 LEFT JOIN stocks s ON p.cod_prod COLLATE utf8mb4_unicode_ci = s.cod_prod COLLATE utf8mb4_unicode_ci AND s.sucursal_id = ?
                 WHERE (p.cod_prod LIKE ? OR p.descripcion LIKE ?)

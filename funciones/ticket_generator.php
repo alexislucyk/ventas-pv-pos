@@ -277,9 +277,28 @@ function generar_html_ticket_contenido(PDO $pdo, int|string $n_documento, int $e
         $html .= '<p>*** DOCUMENTO NO FISCAL ***</p>';
         $html .= '</div>';
         
-        // --- QR AL FINAL DEL TICKET (solo en tickets de venta de 80mm) ---
-        if ($ancho_papel === '80mm') {
-            $qr_uri = generar_qr_data_uri(TICKET_QR_CONTENIDO);
+        // --- QR AL FINAL DEL TICKET (solo en tickets de venta de 80mm y si la
+        //     empresa lo tiene habilitado en Perfil del Negocio) ---
+        if ($ancho_papel === '80mm' && !empty($emp['mostrar_qr_ticket'])) {
+            // Contenido del QR: usa el "Sitio Web" de la sucursal principal
+            // (Perfil del Negocio → Sucursales y Contacto) si está cargado;
+            // si no, cae al contenido por defecto.
+            $qr_contenido = TICKET_QR_CONTENIDO;
+            try {
+                $stmt_web = $pdo->prepare("SELECT web FROM sucursales WHERE empresa_id = :empresa_id AND web <> '' AND web IS NOT NULL ORDER BY es_principal DESC, id ASC LIMIT 1");
+                $stmt_web->execute([':empresa_id' => $empresa_real]);
+                $web_suc = trim((string)$stmt_web->fetchColumn());
+                if ($web_suc !== '') {
+                    // Normalizar: si no trae esquema, se asume https
+                    if (!preg_match('#^https?://#i', $web_suc)) {
+                        $web_suc = 'https://' . $web_suc;
+                    }
+                    $qr_contenido = $web_suc;
+                }
+            } catch (Exception $e) {
+                // Si falla la consulta del sitio, continuamos con el contenido por defecto
+            }
+            $qr_uri = generar_qr_data_uri($qr_contenido);
             if ($qr_uri !== '') {
                 $html .= '<div class="sep"></div>';
                 $html .= '<div class="center">';

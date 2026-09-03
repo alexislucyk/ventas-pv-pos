@@ -21,6 +21,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $fecha_ult_compra = $_POST['fecha_ult_compra'] ?? date('Y-m-d');
     $rubro = trim($_POST['rubro'] ?? 'VARIOS');
     $proveedor = trim($_POST['proveedor'] ?? 'GENERAL');
+    $es_consignacion = isset($_POST['es_consignacion']) ? 1 : 0;
+    $comision_proveedor = null;
+    if ($es_consignacion && isset($_POST['comision_proveedor']) && $_POST['comision_proveedor'] !== '') {
+        $comision_proveedor = (float)str_replace(',', '.', $_POST['comision_proveedor']);
+        if ($comision_proveedor <= 0 || $comision_proveedor >= 100) {
+            echo json_encode(['success' => false, 'error' => 'La comisión del proveedor debe estar entre 1 y 99 (%).']);
+            exit;
+        }
+    }
 
     if (empty($cod_prod) || empty($descripcion) || $p_venta <= 0) {
         echo json_encode(['success' => false, 'error' => 'Código, descripción y precio son obligatorios.']);
@@ -36,9 +45,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // Insertar producto incluyendo stock (para evitar desincronía si la BD tiene productos.stock NOT NULL)
-        $sql = "INSERT INTO productos (cod_prod, descripcion, p_compra, p_venta, stock, fecha_ult_compra, rubro, proveedor, empresa_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        $sql = "INSERT INTO productos (cod_prod, descripcion, p_compra, p_venta, stock, fecha_ult_compra, rubro, proveedor, empresa_id, es_consignacion, comision_proveedor) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         $stmt = $pdo->prepare($sql);
-        $stmt->execute([$cod_prod, $descripcion, $p_compra, $p_venta, $stock, $fecha_ult_compra, $rubro, $proveedor, $empresa_id]);
+        $stmt->execute([$cod_prod, $descripcion, $p_compra, $p_venta, $stock, $fecha_ult_compra, $rubro, $proveedor, $empresa_id, $es_consignacion, $comision_proveedor]);
 
         $sql_stock = "INSERT INTO stocks (empresa_id, sucursal_id, cod_prod, stock_actual) VALUES (?, ?, ?, ?) 
                       ON DUPLICATE KEY UPDATE stock_actual = stock_actual + VALUES(stock_actual)";

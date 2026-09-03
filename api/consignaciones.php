@@ -57,6 +57,7 @@ try {
                 SUM(vd.cant) as total_cant,
                 vd.p_unit as precio_venta,
                 COALESCE(p.p_compra, 0) as costo_unitario,
+                COALESCE(p.comision_proveedor, 50) as comision,
                 SUM(vd.total) as subtotal_venta,
                 SUM(COALESCE(p.p_compra, 0) * vd.cant) as subtotal_costo,
                 SUM(vd.total - (COALESCE(p.p_compra, 0) * vd.cant)) as ganancia_total
@@ -64,9 +65,10 @@ try {
             JOIN ventas v ON vd.n_documento = v.n_documento AND v.empresa_id = :empresa_id1
             JOIN productos p ON vd.cod_prod COLLATE utf8mb4_unicode_ci = p.cod_prod COLLATE utf8mb4_unicode_ci AND p.empresa_id = :empresa_id2
             WHERE v.estado = 'Finalizada' 
+              AND p.es_consignacion = 1
               AND TRIM(p.proveedor) = :proveedor
               AND DATE(v.fecha_venta) BETWEEN :desde AND :hasta
-            GROUP BY vd.cod_prod, vd.descripcion, vd.p_unit, p.p_compra
+            GROUP BY vd.cod_prod, vd.descripcion, vd.p_unit, p.p_compra, p.comision_proveedor
             ORDER BY vd.descripcion ASC";
     
     $stmt = $pdo->prepare($sql);
@@ -80,12 +82,15 @@ try {
     
     $resultados = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Calcular totales
-    $totales = ['venta' => 0, 'costo' => 0, 'ganancia' => 0];
+    // Calcular totales (respetando la comisión por producto; default 50/50)
+    $totales = ['venta' => 0, 'costo' => 0, 'ganancia' => 0, 'pagar_proveedor' => 0, 'mi_utilidad' => 0];
     foreach ($resultados as $r) {
+        $comision = (float)$r['comision'];
         $totales['venta'] += $r['subtotal_venta'];
         $totales['costo'] += $r['subtotal_costo'];
         $totales['ganancia'] += $r['ganancia_total'];
+        $totales['pagar_proveedor'] += $r['subtotal_costo'] + ($r['ganancia_total'] * $comision / 100);
+        $totales['mi_utilidad'] += $r['ganancia_total'] * (1 - $comision / 100);
     }
     
     // Preparar respuesta
@@ -98,10 +103,11 @@ try {
             'venta' => round($totales['venta'], 2),
             'costo' => round($totales['costo'], 2),
             'ganancia' => round($totales['ganancia'], 2),
-            'pagar_proveedor' => round($totales['costo'] + ($totales['ganancia'] / 2), 2),
-            'utilidad_negocio' => round($totales['ganancia'] / 2, 2)
+            'pagar_proveedor' => round($totales['pagar_proveedor'], 2),
+            'utilidad_negocio' => round($totales['mi_utilidad'], 2)
         ],
         'detalle' => array_map(function($r) {
+            $comision = (float)$r['comision'];
             return [
                 'cod_prod' => $r['cod_prod'],
                 'descripcion' => $r['descripcion'],
@@ -111,8 +117,9 @@ try {
                 'subtotal_venta' => round($r['subtotal_venta'], 2),
                 'subtotal_costo' => round($r['subtotal_costo'], 2),
                 'ganancia_total' => round($r['ganancia_total'], 2),
-                'mi_parte' => round($r['ganancia_total'] / 2, 2),
-                'parte_proveedor' => round($r['ganancia_total'] / 2, 2)
+                'comision_proveedor' => $comision,
+                'mi_parte' => round($r['ganancia_total'] * (1 - $comision / 100), 2),
+                'parte_proveedor' => round($r['ganancia_total'] * $comision / 100, 2)
             ];
         }, $resultados)
     ];

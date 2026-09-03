@@ -93,7 +93,7 @@ if ($direccion_empresa && $localidad_empresa) {
 
 // --- Consultar resultados ---
 $resultados = [];
-$totales = ['venta' => 0, 'costo' => 0, 'ganancia' => 0];
+$totales = ['venta' => 0, 'costo' => 0, 'ganancia' => 0, 'pagar_proveedor' => 0, 'mi_utilidad' => 0];
 
 try {
     $sql = "SELECT 
@@ -102,6 +102,7 @@ try {
                 SUM(vd.cant) as total_cant,
                 vd.p_unit as precio_venta,
                 COALESCE(p.p_compra, 0) as costo_unitario,
+                COALESCE(p.comision_proveedor, 50) as comision,
                 SUM(vd.total) as subtotal_venta,
                 SUM(COALESCE(p.p_compra, 0) * vd.cant) as subtotal_costo,
                 SUM(vd.total - (COALESCE(p.p_compra, 0) * vd.cant)) as ganancia_total
@@ -109,9 +110,10 @@ try {
             JOIN ventas v ON vd.n_documento = v.n_documento AND v.empresa_id = :empresa_id1
             JOIN productos p ON vd.cod_prod COLLATE utf8mb4_unicode_ci = p.cod_prod COLLATE utf8mb4_unicode_ci AND p.empresa_id = :empresa_id2
             WHERE v.estado = 'Finalizada' 
+              AND p.es_consignacion = 1
               AND TRIM(p.proveedor) = :proveedor
               AND DATE(v.fecha_venta) BETWEEN :desde AND :hasta
-            GROUP BY vd.cod_prod, vd.descripcion, vd.p_unit, p.p_compra
+            GROUP BY vd.cod_prod, vd.descripcion, vd.p_unit, p.p_compra, p.comision_proveedor
             ORDER BY vd.descripcion ASC";
     
     $stmt = $pdo->prepare($sql);
@@ -119,9 +121,12 @@ try {
     $resultados = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     foreach ($resultados as $r) {
+        $comision = (float)$r['comision'];
         $totales['venta'] += $r['subtotal_venta'];
         $totales['costo'] += $r['subtotal_costo'];
         $totales['ganancia'] += $r['ganancia_total'];
+        $totales['pagar_proveedor'] += $r['subtotal_costo'] + ($r['ganancia_total'] * $comision / 100);
+        $totales['mi_utilidad'] += $r['ganancia_total'] * (1 - $comision / 100);
     }
 } catch (Exception $e) {
     die('Error en consulta: ' . $e->getMessage());
@@ -159,7 +164,7 @@ $pdf->Cell(100, 7, to_iso('LIQUIDACIÓN DE CONSIGNACIÓN'), 0, 1, 'R');
 $pdf->SetX(100);
 $pdf->SetFont('Arial', 'B', 10);
 $pdf->SetTextColor(80, 80, 80);
-$pdf->Cell(100, 5, to_iso('50% - 50%'), 0, 1, 'R');
+$pdf->Cell(100, 5, to_iso('Productos en Consignación'), 0, 1, 'R');
 $pdf->SetTextColor(0, 0, 0);
 
 // Línea separadora
@@ -191,8 +196,8 @@ $pdf->Ln(6);
 // ============================================================
 // TARJETAS DE RESUMEN (3 columnas)
 // ============================================================
-$total_proveedor = $totales['costo'] + ($totales['ganancia'] / 2);
-$utilidad_negocio = $totales['ganancia'] / 2;
+$total_proveedor = $totales['pagar_proveedor'];
+$utilidad_negocio = $totales['mi_utilidad'];
 
 $ancho_card = 58;
 $gap_card = 8;
@@ -257,16 +262,16 @@ $pdf->Cell($reparto_cols[2], 7, to_iso('Reembolso al proveedor por costo de prod
 $pdf->SetTextColor(0, 0, 0);
 
 $pdf->SetFont('Arial', '', 9);
-$pdf->Cell($reparto_cols[0], 7, to_iso('50% Ganancia - Proveedor'), 1, 0, 'L', false);
-$pdf->Cell($reparto_cols[1], 7, '$ ' . number_format($utilidad_negocio, 2, ',', '.'), 1, 0, 'R', false);
+$pdf->Cell($reparto_cols[0], 7, to_iso('Comisión Ganancia - Proveedor'), 1, 0, 'L', false);
+$pdf->Cell($reparto_cols[1], 7, '$ ' . number_format($totales['pagar_proveedor'] - $totales['costo'], 2, ',', '.'), 1, 0, 'R', false);
 $pdf->SetFont('Arial', 'I', 7);
 $pdf->SetTextColor(130, 130, 130);
-$pdf->Cell($reparto_cols[2], 7, to_iso('Mitad de la ganancia generada'), 1, 1, 'R', false);
+$pdf->Cell($reparto_cols[2], 7, to_iso('Comisión del proveedor sobre la ganancia'), 1, 1, 'R', false);
 $pdf->SetTextColor(0, 0, 0);
 
 $pdf->SetFont('Arial', '', 9);
 $pdf->SetFillColor(234, 250, 241);
-$pdf->Cell($reparto_cols[0], 7, to_iso('50% Ganancia - Comercio'), 1, 0, 'L', true);
+$pdf->Cell($reparto_cols[0], 7, to_iso('Ganancia - Comercio'), 1, 0, 'L', true);
 $pdf->Cell($reparto_cols[1], 7, '$ ' . number_format($utilidad_negocio, 2, ',', '.'), 1, 0, 'R', true);
 $pdf->SetFont('Arial', 'I', 7);
 $pdf->SetTextColor(130, 130, 130);
@@ -279,7 +284,7 @@ $pdf->SetFillColor(40, 40, 40);
 $pdf->SetTextColor(255, 255, 255);
 $pdf->Cell($reparto_cols[0], 9, to_iso('TOTAL A PAGAR AL PROVEEDOR'), 1, 0, 'L', true);
 $pdf->Cell($reparto_cols[1], 9, '$ ' . number_format($total_proveedor, 2, ',', '.'), 1, 0, 'R', true);
-$pdf->Cell($reparto_cols[2], 9, to_iso('Costo + 50% Ganancia'), 1, 1, 'R', true);
+$pdf->Cell($reparto_cols[2], 9, to_iso('Costo + Comisión de Ganancia'), 1, 1, 'R', true);
 $pdf->SetTextColor(0, 0, 0);
 
 $pdf->Ln(6);
@@ -293,7 +298,7 @@ $pdf->Cell(0, 6, to_iso('DETALLE DE PRODUCTOS VENDIDOS'), 0, 1, 'L');
 $pdf->Ln(2);
 
 $cols = [68, 16, 20, 20, 22, 22, 22];
-$headers = ['Producto', 'Cant.', 'Vta. Unit.', 'Cos. Unit.', 'Vta. Total', 'Mi 50%', 'Prov. 50%'];
+$headers = ['Producto', 'Cant.', 'Vta. Unit.', 'Cos. Unit.', 'Vta. Total', 'Mi Parte', 'Prov.'];
 
 $pdf->SetFont('Arial', 'B', 7);
 $pdf->SetFillColor(50, 50, 50);
@@ -310,7 +315,9 @@ $pdf->SetTextColor(0, 0, 0);
 $pdf->SetFont('Arial', '', 7);
 $fill = false;
 foreach ($resultados as $r) {
-    $ganancia_mitad = $r['ganancia_total'] / 2;
+    $comision = (float)$r['comision'];
+    $mi_parte = $r['ganancia_total'] * (1 - $comision / 100);
+    $parte_prov = $r['ganancia_total'] * $comision / 100;
     
     if ($fill) {
         $pdf->SetFillColor(245, 245, 245);
@@ -324,8 +331,8 @@ foreach ($resultados as $r) {
     $pdf->Cell($cols[2], 6, '$' . number_format($r['precio_venta'], 2, ',', '.'), 1, 0, 'R', $fill);
     $pdf->Cell($cols[3], 6, '$' . number_format($r['costo_unitario'], 2, ',', '.'), 1, 0, 'R', $fill);
     $pdf->Cell($cols[4], 6, '$' . number_format($r['subtotal_venta'], 2, ',', '.'), 1, 0, 'R', $fill);
-    $pdf->Cell($cols[5], 6, '$' . number_format($ganancia_mitad, 2, ',', '.'), 1, 0, 'R', $fill);
-    $pdf->Cell($cols[6], 6, '$' . number_format($ganancia_mitad, 2, ',', '.'), 1, 0, 'R', $fill);
+    $pdf->Cell($cols[5], 6, '$' . number_format($mi_parte, 2, ',', '.'), 1, 0, 'R', $fill);
+    $pdf->Cell($cols[6], 6, '$' . number_format($parte_prov, 2, ',', '.'), 1, 0, 'R', $fill);
     $pdf->Ln();
     $fill = !$fill;
 }

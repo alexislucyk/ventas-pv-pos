@@ -37,11 +37,24 @@ try {
     $stmt_emp->execute([$empresa_id]);
     $emp = $stmt_emp->fetch();
 
+    // LOGO DE LA EMPRESA: mismo criterio que el ticket de ventas
+    // (ej. img/logos/logo_*.png guardado en "Perfil del Negocio")
+    $logo_url = '';
+    if (!empty($emp['logo_path'])) {
+        $ruta_logo_disco = dirname(__DIR__) . '/' . ltrim($emp['logo_path'], '/');
+        if (@is_file($ruta_logo_disco)) {
+            $logo_url = (defined('URL_BASE') ? URL_BASE : '/') . ltrim($emp['logo_path'], '/');
+        }
+    }
+
     $nombre_cliente = htmlspecialchars($p['apellido'] . ', ' . $p['nombre']);
     $saldo_cuota = max(0, $p['monto_cuota'] - $p['acumulado_pagado']);
     ?>
 
     <div class="center">
+        <?php if ($logo_url): ?>
+        <img src="<?php echo htmlspecialchars($logo_url); ?>" alt="logo" style="max-width:54mm; max-height:30mm; display:block; margin:0 auto 2px auto;" />
+        <?php endif; ?>
         <h3><?php echo strtoupper($emp['nombre_fantasia']); ?></h3>
         <p><?php echo htmlspecialchars($emp['direccion']); ?><br>Tel: <?php echo htmlspecialchars($emp['telefono']); ?></p>
         <p><strong>*** COMPROBANTE DE PAGO ***</strong></p>

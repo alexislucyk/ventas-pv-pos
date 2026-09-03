@@ -476,6 +476,18 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                         <?php endforeach; ?>
                     </select>
                 </div>
+                <div style="display: flex; gap: 10px; align-items: flex-end;">
+                    <div style="flex: 1;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 0;">
+                            <input type="checkbox" id="np_es_consignacion" style="width: 18px; height: 18px; margin: 0;" onchange="document.getElementById('np_row_comision').style.display = this.checked ? '' : 'none';">
+                            <span>🤝 En Consignación</span>
+                        </label>
+                    </div>
+                    <div style="flex: 1; display: none;" id="np_row_comision">
+                        <label>Comisión Prov. (%)</label>
+                        <input type="number" id="np_comision_proveedor" class="input-field" min="1" max="99" step="0.01" value="50">
+                    </div>
+                </div>
                 <button type="button" class="btn btn-primary btn-block" onclick="guardarNuevoProducto()">GUARDAR Y AGREGAR</button>
             </form>
         </div>

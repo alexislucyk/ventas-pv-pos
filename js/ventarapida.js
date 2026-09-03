@@ -230,7 +230,7 @@ function sugerencias(q, contenedor) {
                 div.className = 'search-result-item';
                 div.dataset.idx = idx;
                 div.innerHTML =
-                    '<span><span class="sr-name">' + esc(p.descripcion) + '</span>' +
+                    '<span><span class="sr-name">' + esc(p.descripcion) + (parseInt(p.es_consignacion) === 1 ? ' <span style="background: rgba(241,196,15,0.15); color: #f1c40f; padding: 2px 6px; border-radius: 8px; font-size: 0.75em; font-weight: bold;">🤝</span>' : '') + '</span>' +
                     '<div class="sr-meta">' + esc(p.cod_prod) + ' &middot; ' + esc(p.rubro || '') + '</div></span>' +
                     '<span style="text-align:right;"><span class="sr-precio">' + formatear(precioPesos(p)) + '</span><br>' +
                     '<span class="sr-stock ' + (stock <= 0 ? 'agotado' : '') + '">' + (stock <= 0 ? 'SIN STOCK' : 'Stock: ' + stock) + '</span></span>';

@@ -162,9 +162,22 @@ if (isset($pdo) && ($pdo instanceof PDO)) {
                 if ($es_finalizar && $cond_pago === 'CUENTA CORRIENTE' && $id_cliente > 0) {
                     $saldo_deuda = $total_recalculado - ($pago_efectivo + $pago_transf);
                     if ($saldo_deuda > 0) {
-                        $sql_cc = "INSERT INTO ctacte (empresa_id, id_cliente, movimiento, n_documento, debe, haber, fecha, usuario)
-                                   VALUES (?, ?, 'FACTURA', ?, ?, 0, NOW(), ?)";
-                        $pdo->prepare($sql_cc)->execute([$empresa_id, $id_cliente, $n_documento, $saldo_deuda, $usuario_activo]);
+                        // Determinar plazo de vencimiento configurable (default: 30 dias)
+                        // IMPORTANTE: fecha_vencimiento es necesaria para que el sistema
+                        // de intereses por mora detecte este movimiento como vencido.
+                        $plazo_fiado = 30;
+                        try {
+                            $stmt_plazo = $pdo->prepare("SELECT plazo_fiado_dias FROM configuracion_intereses WHERE empresa_id = :empresa_id AND activo = 1 LIMIT 1");
+                            $stmt_plazo->execute([':empresa_id' => $empresa_id]);
+                            $plazo_fiado = (int)($stmt_plazo->fetchColumn() ?: 30);
+                            if ($plazo_fiado <= 0) $plazo_fiado = 30;
+                        } catch (Exception $e) {
+                            $plazo_fiado = 30;
+                        }
+                        $fecha_vencimiento = date('Y-m-d', strtotime("+{$plazo_fiado} days"));
+                        $sql_cc = "INSERT INTO ctacte (empresa_id, id_cliente, movimiento, n_documento, debe, haber, fecha, fecha_vencimiento, usuario)
+                                   VALUES (?, ?, 'FACTURA', ?, ?, 0, NOW(), ?, ?)";
+                        $pdo->prepare($sql_cc)->execute([$empresa_id, $id_cliente, $n_documento, $saldo_deuda, $fecha_vencimiento, $usuario_activo]);
                     }
                 }
 

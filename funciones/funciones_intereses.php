@@ -41,11 +41,12 @@ function obtenerConfiguracionIntereses($pdo, $empresa_id) {
     $stmt->execute([':empresa_id' => $empresa_id]);
     $config = $stmt->fetch(PDO::FETCH_ASSOC);
     
-    // Si no existe configuración, retornar valores por defecto
+        // Si no existe configuración, retornar valores por defecto
     if (!$config) {
         return [
             'tasa_mensual' => 3.00,
             'dias_gracia' => 0,
+            'plazo_fiado_dias' => 30,
             'aplicar_automatico' => 0,
             'frecuencia' => 'DIARIA',
             'activo' => 1

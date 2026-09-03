@@ -77,7 +77,9 @@ $router->get('/reportes-financieros', 'pages/reportes_financieros.php', 'reporte
 $router->get('/reportes-inventario', 'pages/reportes_inventario.php', 'reportes.inv');
 $router->get('/reporte-cierres', 'pages/reporte_cierres.php', 'reporte.cierres');
 $router->get('/reporte-movimientos-productos', 'pages/reporte_movimientos_productos.php', 'reporte.movimientos');
+
 $router->get('/consignacion-reporte', 'pages/consignacion_reporte.php', 'consignaciones');
+$router->get('/consignaciones-ingreso', 'pages/consignaciones_ingreso.php', 'consignaciones.ingreso');
 
 // Consultas
 $router->get('/consulta-precios', 'pages/consulta_precios.php', 'precios');

@@ -241,16 +241,28 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                     }
                 }
 
-                // --- C) Cuenta Corriente ---
+                // --- C) Cuenta Corriente (Fiado) ---
                 if ($es_finalizar && $cond_pago === 'CUENTA CORRIENTE' && $id_cliente > 0) {
                     $saldo_deuda = $total_recalculado - ($pago_efectivo + $pago_transf);
                     if ($saldo_deuda > 0) {
                         $empresa_id = $_SESSION['empresa_id'] ?? 1;
-                        $sql_cc = "INSERT INTO ctacte (empresa_id, id_cliente, movimiento, n_documento, debe, haber, fecha) VALUES (?, ?, 'FACTURA', ?, ?, 0, NOW())";
-                        $pdo->prepare($sql_cc)->execute([$empresa_id, $id_cliente, $n_documento, $saldo_deuda]);
+                        // Determinar plazo de vencimiento configurable (default: 30 dias)
+                        // IMPORTANTE: fecha_vencimiento es necesaria para que el sistema
+                        // de intereses por mora detecte este movimiento como vencido.
+                        $plazo_fiado = 30;
+                        try {
+                            $stmt_plazo = $pdo->prepare("SELECT plazo_fiado_dias FROM configuracion_intereses WHERE empresa_id = :empresa_id AND activo = 1 LIMIT 1");
+                            $stmt_plazo->execute([':empresa_id' => $empresa_id]);
+                            $plazo_fiado = (int)($stmt_plazo->fetchColumn() ?: 30);
+                            if ($plazo_fiado <= 0) $plazo_fiado = 30;
+                        } catch (Exception $e) {
+                            $plazo_fiado = 30;
+                        }
+                        $fecha_vencimiento = date('Y-m-d', strtotime("+{$plazo_fiado} days"));
+                        $sql_cc = "INSERT INTO ctacte (empresa_id, id_cliente, movimiento, n_documento, debe, haber, fecha, fecha_vencimiento, usuario) VALUES (?, ?, 'FACTURA', ?, ?, 0, NOW(), ?, ?)";
+                        $pdo->prepare($sql_cc)->execute([$empresa_id, $id_cliente, $n_documento, $saldo_deuda, $fecha_vencimiento, $usuario_activo]);
                     }
                 }
-
                 // --- D) Lógica de Financiación (Cuotas) ---
                 if ($es_finalizar && $cond_pago === 'FINANCIADO' && $id_cliente > 0) {
                     $saldo_a_financiar = $total_recalculado - ($pago_efectivo + $pago_transf);
@@ -280,6 +292,7 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                                   (id_venta, nro_cuota, fecha_vencimiento, monto_original, estado)
                                   VALUES (?, ?, ?, ?, ?)";
                     $stmt_cuota = $pdo->prepare($sql_cuota);
+                    $id_cuota_primera = 0;
 
                     for ($i = 1; $i <= $cant_cuotas; $i++) {
                         // Si "cobrar primera cuota hoy" está activo:
@@ -303,6 +316,41 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                             $valor_cuota,
                             $estado_cuota
                         ]);
+
+                        // Guardamos el id de la primera cuota para registrar su pago
+                        if ($cobrar_primera_hoy && $i === 1) {
+                            $id_cuota_primera = (int)$pdo->lastInsertId();
+                        }
+                    }
+
+                    // 3. Si "cobrar primera cuota hoy": registrar el pago en cuotas_pagos,
+                    //    el ingreso en caja y habilitar el recibo de pago de cuota
+                    if ($cobrar_primera_hoy && $id_cuota_primera > 0) {
+                        $metodo_cuota_hoy = ($_POST['metodo_pago_cuota_hoy'] ?? 'EFECTIVO') === 'TRANSFERENCIA' ? 'TRANSFERENCIA' : 'EFECTIVO';
+                        $usuario_actual = $usuario_activo ?: 'Sistema';
+
+                        // 3.1 Registro en cuotas_pagos (permite imprimir el recibo de cuota)
+                        $sql_pago_cuota = "INSERT INTO cuotas_pagos (id_cuota, monto, descuento, metodo_pago, usuario) VALUES (?, ?, 0.00, ?, ?)";
+                        $pdo->prepare($sql_pago_cuota)->execute([$id_cuota_primera, $valor_cuota, $metodo_cuota_hoy, $usuario_actual]);
+                        $id_pago_cuota_generado = (int)$pdo->lastInsertId();
+
+                        // 3.2 Actualizamos el monto pagado de la cuota registrada como "Pagada"
+                        $pdo->prepare("UPDATE cuotas_seguimiento SET monto_pagado = ? WHERE id = ?")
+                            ->execute([$valor_cuota, $id_cuota_primera]);
+
+                        // 3.3 Ingreso en caja por el cobro de la primera cuota
+                        $monto_efectivo_cuota = ($metodo_cuota_hoy === 'EFECTIVO') ? $valor_cuota : 0;
+                        $monto_transferencia_cuota = ($metodo_cuota_hoy === 'TRANSFERENCIA') ? $valor_cuota : 0;
+                        $detalle_cuota_hoy = "COBRO CUOTA 1 - VENTA N° $n_documento";
+                        $sql_mov_cuota = "INSERT INTO movimientos (empresa_id, sucursal_id, tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado, monto_efectivo, monto_transferencia) VALUES (?, ?, 'INGRESO', ?, ?, ?, NOW(), ?, 0, ?, ?)";
+                        $pdo->prepare($sql_mov_cuota)->execute([
+                            $empresa_id, $sucursal_id, $valor_cuota, $metodo_cuota_hoy,
+                            $detalle_cuota_hoy, $usuario_actual, $monto_efectivo_cuota, $monto_transferencia_cuota
+                        ]);
+
+                        // 3.4 Dejar listo el recibo de cuota para imprimir tras redirección
+                        $_SESSION['ticket_cuota_a_imprimir'] = $id_pago_cuota_generado;
+                        $_SESSION['ticket_cuota_venta_doc'] = $n_documento;
                     }
                 }
 
@@ -358,6 +406,8 @@ $mensaje_warning = '';
 if (isset($_SESSION['status_msj_warning'])) { $mensaje_warning = $_SESSION['status_msj_warning']; unset($_SESSION['status_msj_warning']); }
 $ticket_doc_a_imprimir = isset($_SESSION['ticket_a_imprimir_doc']) ? $_SESSION['ticket_a_imprimir_doc'] : null;
 $ticket_id_a_imprimir = isset($_SESSION['ticket_a_imprimir_id']) ? $_SESSION['ticket_a_imprimir_id'] : null;
+$ticket_cuota_a_imprimir = isset($_SESSION['ticket_cuota_a_imprimir']) ? (int)$_SESSION['ticket_cuota_a_imprimir'] : null;
+$ticket_cuota_venta_doc = isset($_SESSION['ticket_cuota_venta_doc']) ? $_SESSION['ticket_cuota_venta_doc'] : null;
 $cliente_tel = '';
 $cliente_nom = '';
 if ($ticket_doc_a_imprimir) {
@@ -371,6 +421,8 @@ if ($ticket_doc_a_imprimir) {
 }
 unset($_SESSION['ticket_a_imprimir_doc']);
 unset($_SESSION['ticket_a_imprimir_id']);
+unset($_SESSION['ticket_cuota_a_imprimir']);
+unset($_SESSION['ticket_cuota_venta_doc']);
 ?>
 
 <!DOCTYPE html>
@@ -503,10 +555,20 @@ unset($_SESSION['ticket_a_imprimir_id']);
                         <!-- Checkbox: Cobrar primera cuota hoy -->
                         <div style="margin-top: 15px; padding-top: 10px; border-top: 1px dashed #444;">
                             <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; color: #e0e0e0;">
-                                <input type="checkbox" id="cobrar_primera_hoy" name="cobrar_primera_hoy" value="1" style="width: 18px; height: 18px; cursor: pointer;">
+                                <input type="checkbox" id="cobrar_primera_hoy" name="cobrar_primera_hoy" value="1" style="width: 18px; height: 18px; cursor: pointer;" onchange="alternarMetodoPagoPrimeraCuota()">
                                 <span><i class="fas fa-hand-holding-usd"></i> Cobrar primera cuota hoy</span>
                             </label>
                             <small style="color: #888; display: block; margin-top: 5px;">La primera cuota se cobra en el día de hoy. Las restantes se difieren según el intervalo.</small>
+                        </div>
+
+                        <!-- Método de pago de la primera cuota (visible si "cobrar hoy" está activo) -->
+                        <div id="metodo_pago_primera_cuota_container" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #444;">
+                            <label for="metodo_pago_cuota_hoy">Método de pago de la primera cuota</label>
+                            <select id="metodo_pago_cuota_hoy" name="metodo_pago_cuota_hoy" class="input-field">
+                                <option value="EFECTIVO">EFECTIVO</option>
+                                <option value="TRANSFERENCIA">TRANSFERENCIA</option>
+                            </select>
+                            <small style="color: #888; display: block; margin-top: 5px;">Se registrará el cobro y se generará el recibo de pago de cuota con este método.</small>
                         </div>
 
                         <div style="display: flex; justify-content: space-between; font-size: 1.1em; margin-top: 15px; padding-top: 10px; border-top: 1px dashed #444;">
@@ -688,10 +750,20 @@ unset($_SESSION['ticket_a_imprimir_id']);
             <i class="fas fa-print" style="font-size: 3rem; color: #00bcd4; margin-bottom: 15px;"></i>
             <h3 style="color: #4caf50; margin-bottom: 10px;">Venta Procesada</h3>
             <p style="color: #ccc;">¿Desea imprimir el ticket N° <strong><?php echo $ticket_doc_a_imprimir; ?></strong>?</p>
+            <?php if ($ticket_cuota_a_imprimir): ?>
+            <p style="color: #2ecc71; margin-top: 8px; font-size: 0.9rem;">
+                <i class="fas fa-receipt"></i> La primera cuota fue cobrada hoy. Recibo de cuota listo para imprimir.
+            </p>
+            <?php endif; ?>
             <div style="margin-top: 25px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
-                <button onclick="window.open('vista_previa_ticket.php?n_documento=<?php echo $ticket_doc_a_imprimir; ?>', '_blank'); this.parentElement.parentElement.parentElement.style.display='none';" class="btn btn-primary" style="padding: 10px 20px;">
+                <button onclick="window.open('vista_previa_ticket.php?n_documento=<?php echo $ticket_doc_a_imprimir; ?>', '_blank');" class="btn btn-primary" style="padding: 10px 20px;">
                     <i class="fas fa-print"></i> Imprimir
                 </button>
+                <?php if ($ticket_cuota_a_imprimir): ?>
+                <button onclick="window.open('vista_previa_ticket_cuota.php?id_pago=<?php echo $ticket_cuota_a_imprimir; ?>', '_blank', 'width=400,height=700');" class="btn btn-success" style="padding: 10px 20px;">
+                    <i class="fas fa-receipt"></i> Imprimir Recibo de Cuota
+                </button>
+                <?php endif; ?>
                 <?php $pdf_ref_ventas = ((int)($ticket_id_a_imprimir ?? 0)) > 0 ? ('id=' . (int)$ticket_id_a_imprimir) : ('n_documento=' . (int)$ticket_doc_a_imprimir); ?>
                 <button onclick="enviarTicketWA('', '', '<?php echo $pdf_ref_ventas; ?>', event)" class="btn btn-warning" style="padding: 10px 20px;">
                     <i class="fas fa-file-pdf"></i> Descargar PDF
@@ -745,6 +817,13 @@ unset($_SESSION['ticket_a_imprimir_id']);
                 toast.classList.add('toast-fade-out');
                 setTimeout(() => toast.remove(), 500);
             }, 5000);
+        }
+
+        // Muestra/oculta el método de pago de la primera cuota según el checkbox "Cobrar primera cuota hoy"
+        function alternarMetodoPagoPrimeraCuota() {
+            const chk = document.getElementById('cobrar_primera_hoy');
+            const cont = document.getElementById('metodo_pago_primera_cuota_container');
+            if (chk && cont) cont.style.display = chk.checked ? 'block' : 'none';
         }
 
         function enviarTicketWA(telefono, nombre, nDoc, event) {

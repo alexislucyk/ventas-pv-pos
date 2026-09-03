@@ -43,7 +43,10 @@ try {
     $productos = $stmt_prod->fetchAll(PDO::FETCH_ASSOC);
 
     // Construcción dinámica de WHERE
-    $where_fecha = " AND DATE(v.fecha_venta) BETWEEN :inicio AND :fin ";
+    // Filtro de fechas "sargable": sin DATE() sobre la columna para permitir
+    // el uso del indice idx_v_empresa_estado_fecha (empresa_id, estado, fecha_venta).
+    // [inicio 00:00:00, fin+1 dia 00:00:00) equivale a BETWEEN fechas completas.
+    $where_fecha = " AND v.fecha_venta >= :inicio AND v.fecha_venta < DATE_ADD(:fin, INTERVAL 1 DAY) ";
     $where_sucursal = ($sucursal_id > 0) ? " AND v.sucursal_id = :sucursal_id " : "";
     $where_producto = ($cod_prod_filtro !== '') ? " AND vd.cod_prod = :cod_prod " : "";
     $where_cliente = ($id_cliente_filtro > 0) ? " AND v.id_cliente = :id_cliente " : "";

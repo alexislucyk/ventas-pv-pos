@@ -200,10 +200,13 @@ document.addEventListener('DOMContentLoaded', function() {
                             : null;
                         // (si moneda=dolar) en la lista se muestra USD y Pesos
                         const esDolar = (prod.moneda === 'dolar');
+                        const badgeConsigna = (parseInt(prod.es_consignacion) === 1)
+                            ? ' <span style="background: rgba(241,196,15,0.15); color: #f1c40f; padding: 2px 6px; border-radius: 8px; font-size: 0.75em; font-weight: bold;">🤝 Consignación</span>'
+                            : '';
 
                         div.innerHTML = `
                             <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span><strong>${prod.cod_prod}</strong> - ${prod.descripcion}</span>
+                                <span><strong>${prod.cod_prod}</strong> - ${prod.descripcion}${badgeConsigna}</span>
                                 <span style="font-size: 0.9em; text-align:right; display:flex; gap:10px; align-items:flex-start; justify-content:flex-end;">
                                     ${esDolar ? `<span style="white-space:nowrap;color:#2ecc71">$${precioVentaUSD.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (USD)</span>` : ''}
                                     <span style="white-space:nowrap;color:#3498db">$${(precioVentaARS !== null ? precioVentaARS : precioVentaUSD).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Pesos)</span>

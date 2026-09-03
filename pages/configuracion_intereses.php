@@ -25,6 +25,7 @@ $tipo_mensaje = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar_configuracion'])) {
     $tasa_mensual = floatval($_POST['tasa_mensual'] ?? 3.00);
     $dias_gracia = intval($_POST['dias_gracia'] ?? 0);
+    $plazo_fiado_dias = intval($_POST['plazo_fiado_dias'] ?? 30);
     $aplicar_automatico = isset($_POST['aplicar_automatico']) ? 1 : 0;
     $frecuencia = $_POST['frecuencia'] ?? 'DIARIA';
     $activo = isset($_POST['activo']) ? 1 : 0;
@@ -35,6 +36,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar_configuracion
         $tipo_mensaje = 'error';
     } elseif ($dias_gracia < 0 || $dias_gracia > 365) {
         $mensaje = 'Los días de gracia deben estar entre 0 y 365';
+        $tipo_mensaje = 'error';
+    } elseif ($plazo_fiado_dias < 1 || $plazo_fiado_dias > 365) {
+        $mensaje = 'El plazo de fiado debe estar entre 1 y 365 días';
         $tipo_mensaje = 'error';
     } else {
         try {
@@ -50,6 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar_configuracion
                     UPDATE configuracion_intereses 
                     SET tasa_mensual = :tasa_mensual,
                         dias_gracia = :dias_gracia,
+                        plazo_fiado_dias = :plazo_fiado_dias,
                         aplicar_automatico = :aplicar_automatico,
                         frecuencia = :frecuencia,
                         activo = :activo,
@@ -60,6 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar_configuracion
                 $stmt_update->execute([
                     ':tasa_mensual' => $tasa_mensual,
                     ':dias_gracia' => $dias_gracia,
+                    ':plazo_fiado_dias' => $plazo_fiado_dias,
                     ':aplicar_automatico' => $aplicar_automatico,
                     ':frecuencia' => $frecuencia,
                     ':activo' => $activo,
@@ -69,15 +75,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar_configuracion
                 // Insertar
                 $sql_insert = "
                     INSERT INTO configuracion_intereses 
-                    (empresa_id, tasa_mensual, dias_gracia, aplicar_automatico, frecuencia, activo)
+                    (empresa_id, tasa_mensual, dias_gracia, plazo_fiado_dias, aplicar_automatico, frecuencia, activo)
                     VALUES
-                    (:empresa_id, :tasa_mensual, :dias_gracia, :aplicar_automatico, :frecuencia, :activo)
+                    (:empresa_id, :tasa_mensual, :dias_gracia, :plazo_fiado_dias, :aplicar_automatico, :frecuencia, :activo)
                 ";
                 $stmt_insert = $pdo->prepare($sql_insert);
                 $stmt_insert->execute([
                     ':empresa_id' => $empresa_id,
                     ':tasa_mensual' => $tasa_mensual,
                     ':dias_gracia' => $dias_gracia,
+                    ':plazo_fiado_dias' => $plazo_fiado_dias,
                     ':aplicar_automatico' => $aplicar_automatico,
                     ':frecuencia' => $frecuencia,
                     ':activo' => $activo
@@ -107,6 +114,7 @@ try {
         $config = [
             'tasa_mensual' => 3.00,
             'dias_gracia' => 0,
+            'plazo_fiado_dias' => 30,
             'aplicar_automatico' => 0,
             'frecuencia' => 'DIARIA',
             'activo' => 1
@@ -118,6 +126,7 @@ try {
     $config = [
         'tasa_mensual' => 3.00,
         'dias_gracia' => 0,
+        'plazo_fiado_dias' => 30,
         'aplicar_automatico' => 0,
         'frecuencia' => 'DIARIA',
         'activo' => 1
@@ -221,7 +230,21 @@ try {
                                required>
                         <p class="help-text">Ej: 5 días de gracia después del vencimiento</p>
                     </div>
-                    
+
+                    <div class="form-group">
+                        <label for="plazo_fiado_dias">
+                            Plazo de Vencimiento (Fiado)
+                            <small>Días hasta el vencimiento de facturas al fiado</small>
+                        </label>
+                        <input type="number"
+                               id="plazo_fiado_dias"
+                               name="plazo_fiado_dias"
+                               min="1"
+                               max="365"
+                               value="<?php echo htmlspecialchars($config['plazo_fiado_dias'] ?? 30); ?>"
+                               required>
+                        <p class="help-text">Ej: 30 días. Las facturas al fiado vencen N días después de la venta. Los intereses por mora se calculan desde esta fecha.</p>
+                    </div>
                     <div class="form-group">
                         <label for="frecuencia">
                             Frecuencia de Cálculo
