@@ -20,16 +20,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     try {
+        // Verificar si ya existe un rubro con ese nombre
+        $stmt_check = $pdo->prepare("SELECT id FROM rubros WHERE nombre = ?");
+        $stmt_check->execute([$nombre]);
+        if ($stmt_check->fetch()) {
+            echo json_encode(['success' => false, 'error' => 'Ya existe un rubro con ese nombre.']);
+            exit;
+        }
+
         $stmt_id = $pdo->query("SELECT id FROM rubros ORDER BY id DESC LIMIT 1");
         $ultimo = $stmt_id->fetch();
         $nuevo_id = $ultimo ? (intval($ultimo['id']) + 1) : 1;
 
-        $stmt = $pdo->prepare("INSERT INTO rubros (id, nombre, empresa_id) VALUES (?, ?, ?)");
-        $stmt->execute([$nuevo_id, $nombre, $empresa_id]);
+        $stmt = $pdo->prepare("INSERT INTO rubros (id, nombre) VALUES (?, ?)");
+        $stmt->execute([$nuevo_id, $nombre]);
         
         echo json_encode(['success' => true, 'nombre' => $nombre]);
     } catch (Exception $e) {
-        echo json_encode(['success' => false, 'error' => 'No se pudo agregar. El rubro ya existe o hay un problema con la base de datos.']);
+        echo json_encode(['success' => false, 'error' => 'No se pudo agregar el rubro: ' . $e->getMessage()]);
     }
 }
 ?>

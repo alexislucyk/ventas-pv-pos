@@ -306,7 +306,7 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
-                                <button type="button" class="btn btn-success" onclick="agregarNuevoRubro()" title="Agregar nuevo rubro" style="width: 45px; display: flex; align-items: center; justify-content: center; padding: 0; margin-bottom: 0;">+</button>
+                                <button type="button" class="btn btn-success" onclick="abrirModalRubro()" title="Agregar nuevo rubro" style="width: 45px; display: flex; align-items: center; justify-content: center; padding: 0; margin-bottom: 0;">+</button>
                             </div>
                         </div>
                     </div>
@@ -606,7 +606,7 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
     };
 
     // Funciones para el Modal de Nuevo Rubro
-    window.agregarNuevoRubro = function() {
+    window.abrirModalRubro = function() {
         document.getElementById('modalNuevoRubro').style.display = 'block';
         document.getElementById('input_nombre_rubro').focus();
     };
