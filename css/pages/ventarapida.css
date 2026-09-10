@@ -34,7 +34,7 @@
         }
 
         .content {
-            padding-top: 66px;
+            padding-top: 70px;
         }
 
         /* ===== CABECERA POS ===== */
@@ -97,7 +97,7 @@
         .pos-left { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
         .pos-right { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
 
-        @media (max-width: 1150px) {
+        @media (max-width: 850px) {
             body { overflow: auto; }
             .pos-wrap { height: auto; }
             .pos-grid { grid-template-columns: 1fr; }

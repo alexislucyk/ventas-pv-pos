@@ -6,7 +6,7 @@
     grid-template-columns: 2fr 1fr; 
     gap: 20px; 
 }
-@media (max-width: 1100px) {
+@media (max-width: 850px) {
     .compra-grid {
         grid-template-columns: 1fr; /* Columna única en móviles */
     }

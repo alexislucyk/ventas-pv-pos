@@ -98,27 +98,27 @@
 /* --- Header del Sidebar --- */
 .empresa-title {
     text-align: center;
-    padding: 16px 10px;
-    font-size: 1.1em;
+    padding: 12px 8px;
+    font-size: 1em;
     font-weight: bold;
     color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 6px;
     flex-shrink: 0;
     transition: padding 0.3s;
 }
 .empresa-title i.fa-bolt {
     color: #FFD700;
-    font-size: 1.3em;
+    font-size: 1.2em;
 }
 .empresa-version {
-    font-size: 0.55em;
+    font-size: 0.5em;
     opacity: 0.4;
     font-weight: normal;
-    margin-top: 2px;
-    letter-spacing: 1px;
+    margin-top: 1px;
+    letter-spacing: 0.5px;
 }
 
 /* --- Botón Toggle --- */
@@ -168,28 +168,28 @@
 
 /* --- Buscador del Menú --- */
 .sidebar-search {
-    padding: 10px 12px;
+    padding: 8px 10px;
     flex-shrink: 0;
     position: relative;
 }
 .sidebar-search .search-icon {
     position: absolute;
-    left: 24px;
+    left: 20px;
     top: 50%;
     transform: translateY(-50%);
     color: #666;
-    font-size: 0.9em;
+    font-size: 0.8em;
     pointer-events: none;
     z-index: 1;
 }
 .sidebar-search input {
     width: 100% !important;
-    padding: 10px 12px 10px 38px !important;
+    padding: 8px 10px 8px 30px !important;
     border: 1px solid #333 !important;
     background: #252525 !important;
     color: #f0f0f0 !important;
-    border-radius: 8px !important;
-    font-size: 0.85em !important;
+    border-radius: 6px !important;
+    font-size: 0.8em !important;
     outline: none;
     transition: border-color 0.3s, box-shadow 0.3s;
     box-sizing: border-box !important;
@@ -223,26 +223,26 @@
     border: none;
     height: 1px;
     background: linear-gradient(90deg, transparent, #333, transparent);
-    margin: 6px 20px;
+    margin: 4px 14px;
 }
 
 /* --- Títulos de Sección --- */
 .sidebar-menu-container h4 {
     color: #888;
-    font-size: 0.7em;
-    margin: 20px 0 8px 0;
-    padding: 0 20px;
+    font-size: 0.65em;
+    margin: 14px 0 6px 0;
+    padding: 0 14px;
     text-transform: uppercase;
-    letter-spacing: 1.5px;
+    letter-spacing: 1px;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     white-space: nowrap;
     overflow: hidden;
 }
 .sidebar-menu-container h4 i {
     font-size: 0.9em;
-    width: 20px;
+    width: 16px;
     text-align: center;
     opacity: 0.5;
 }
@@ -253,20 +253,20 @@
     text-decoration: none;
     display: flex;
     align-items: center;
-    padding: 10px 20px;
-    margin: 2px 8px;
-    border-radius: 8px;
+    padding: 8px 14px;
+    margin: 1px 6px;
+    border-radius: 6px;
     transition: all 0.25s ease;
     border-left: 3px solid transparent;
     white-space: nowrap;
     overflow: hidden;
-    font-size: 0.92em;
+    font-size: 0.88em;
     position: relative;
 }
 .sidebar-menu-container a i {
     display: inline-block;
-    width: 25px;
-    margin-right: 10px;
+    width: 20px;
+    margin-right: 8px;
     text-align: center;
     transition: transform 0.25s ease;
     flex-shrink: 0;
@@ -298,11 +298,11 @@
 .sidebar-menu-container a.active::before {
     content: '';
     position: absolute;
-    left: -8px;
+    left: -6px;
     top: 50%;
     transform: translateY(-50%);
     width: 4px;
-    height: 20px;
+    height: 16px;
     background: #00bcd4;
     border-radius: 0 4px 4px 0;
 }
@@ -392,18 +392,18 @@
     text-decoration: none;
     display: flex;
     align-items: center;
-    padding: 8px 20px;
-    margin: 2px 8px;
-    border-radius: 8px;
+    padding: 6px 14px;
+    margin: 1px 6px;
+    border-radius: 6px;
     transition: all 0.25s ease;
     white-space: nowrap;
     overflow: hidden;
-    font-size: 0.88em;
+    font-size: 0.85em;
 }
 .sidebar-footer a i {
     display: inline-block;
-    width: 25px;
-    margin-right: 10px;
+    width: 20px;
+    margin-right: 8px;
     text-align: center;
     flex-shrink: 0;
 }

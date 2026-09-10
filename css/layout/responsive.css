@@ -1,19 +1,168 @@
 /* ==================== RESPONSIVE ==================== */
-@media (max-width: 1100px) {
+
+/* Prevenir saltos de layout por scrollbar */
+html {
+    overflow-y: scroll;
+    scrollbar-gutter: stable;
+}
+
+/* Pantallas pequeñas: <= 850px (modo móvil sin sidebar) */
+@media (max-width: 850px) {
     .content { 
         margin-left: 0; 
         width: 100%; 
-        padding-top: 70px; 
+        padding: 10px;
+        padding-top: 60px; 
     }
     .topbar { 
-        left: 0; 
+        left: 0;
+        padding: 0 8px;
+        gap: 5px;
+        height: 45px;
     }
-    #menuToggle { 
-        display: block; 
-    }
+    #menuToggle { display: block; }
+    .topbar__dolar .operativo, .topbar__dolar small, .topbar__dolar .compra { display: none; }
+    .topbar__dolar { font-size: 0.7em; padding: 3px 6px; gap: 3px; }
+    .topbar__sucursal, .topbar__user { padding: 4px 6px; font-size: 0.8em; }
+    .topbar__sucursal .sucursal-label { display: none; }
+    th, td { padding: 6px 4px; font-size: 0.8em; }
+    .filtros-bar { flex-direction: column; padding: 6px 8px; }
+    .card-stats { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stat-card { padding: 10px 12px; }
+    .stat-card .value { font-size: 1.1rem; }
+    .venta-grid, .compra-grid, .presupuesto-grid { grid-template-columns: 1fr; gap: 10px; }
+    .card { padding: 12px; }
+    .input-field, input[type="text"], input[type="number"], select, textarea { padding: 6px 8px; font-size: 0.85em; }
+    body { font-size: 0.9em; }
 }
 
-@media (min-width: 1101px) {
+/* Pantallas medianas: 851px - 1024px (optimizado para 1024x768) */
+@media (min-width: 851px) and (max-width: 1024px) {
+    /* Prevenir desbordamiento horizontal */
+    body { overflow-x: hidden; font-size: 0.72em; }
+    
+    /* Sidebar compacto para 1024x768 */
+    .sidebar { width: 200px; }
+    body .content {
+        padding: 6px 8px !important;
+        padding-top: 45px !important;
+        width: calc(100% - 200px);
+        margin-left: 200px !important;
+        box-sizing: border-box;
+    }
+    body .topbar {
+        padding: 0 6px;
+        gap: 4px;
+        height: 38px;
+        left: 200px;
+    }
+    
+    /* Topbar compacto */
+    .topbar__dolar { font-size: 0.6em; padding: 2px 4px; gap: 2px; }
+    .topbar__dolar .operativo { display: none; }
+    .topbar__dolar small { display: none; }
+    .topbar__refresh { font-size: 0.65em; padding: 1px; }
+    .topbar__sucursal, .topbar__user { padding: 2px 4px; font-size: 0.68em; gap: 2px; }
+    .topbar__sucursal .sucursal-label { display: none; }
+    
+    /* Tablas compactas */
+    th, td { padding: 3px 2px; font-size: 0.65em; }
+    
+    /* Cards stats en dos columnas */
+    .card-stats { grid-template-columns: repeat(2, 1fr); gap: 5px; }
+    .stat-card { padding: 5px 6px; }
+    .stat-card h3 { font-size: 0.5rem; }
+    .stat-card .value { font-size: 0.78rem; margin-top: 1px; }
+    
+    /* Filtros compactos */
+    .filtros-bar { padding: 3px 4px; gap: 2px; margin-bottom: 6px; }
+    .filtros-bar input, .filtros-bar .btn-filtro { font-size: 0.58em; height: 20px; }
+    
+    /* Grids en una columna */
+    .venta-grid, .compra-grid, .presupuesto-grid { grid-template-columns: 1fr; gap: 5px; }
+    
+    /* Cards compactos */
+    .card { padding: 6px; }
+    
+    /* Inputs más pequeños */
+    .input-field, input[type="text"], input[type="number"], select, textarea { padding: 3px 4px; font-size: 0.68em; }
+    
+    /* Carrito compacto */
+    .carrito-container-scroll { max-height: 150px; overflow-y: auto; overflow-x: auto; }
+    .table-full th { font-size: 0.58rem; padding: 3px 2px; }
+    .table-full td { padding: 2px 2px; font-size: 0.62rem; }
+    .table-full input[type="number"] { width: 35px !important; padding: 1px !important; font-size: 0.68em; }
+    
+    /* Ventas header compacto */
+    .ventas-header { gap: 4px; margin-bottom: 6px; padding-bottom: 2px; }
+    .ventas-header h1 { font-size: 0.85rem; margin: 0; }
+    .pos-clock { padding: 2px 4px; }
+    #relojHora { font-size: 0.7rem; }
+    #relojFecha { font-size: 0.45rem; }
+    
+    /* Total compacto */
+    .total-box { padding: 5px; margin: 5px 0; }
+    #total_venta_display { font-size: 0.95rem; }
+    .vuelto-box { padding: 5px; }
+    #vuelto_display { font-size: 0.75rem; }
+    
+    /* Botones compactos */
+    .btn, .btn-primary, .btn-secondary, .btn-success { padding: 2px 5px; font-size: 0.65em; border-radius: 3px; }
+    .btn-sm { padding: 1px 3px; font-size: 0.6em; border-radius: 2px; }
+    
+    /* Labels más pequeños */
+    label { font-size: 0.58rem; margin-bottom: 1px; }
+    
+    /* HR compacto */
+    hr { margin: 5px 0; }
+    
+    /* Alert compacto */
+    .alert, .alert-info { padding: 4px 5px; font-size: 0.65em; }
+    
+    /* Toast compacto */
+    .toast-notificacion { padding: 5px 8px; font-size: 0.65em; }
+    
+    /* Paginación compacta */
+    .pagination-bar { padding: 2px 5px; font-size: 0.62em; }
+    
+    /* Títulos más pequeños */
+    .content h1 { font-size: 0.88rem; margin-bottom: 6px; padding-bottom: 2px; }
+    h2, h3 { font-size: 0.72rem; }
+    
+    /* Dropdowns compactos */
+    .resultado-item { padding: 3px 4px; font-size: 0.62em; }
+    
+    /* Panel descuento compacto */
+    #panel_descuento_global { margin-top: 5px; padding: 4px; }
+    
+    /* Panel financiación compacto */
+    #panel_financiacion { padding: 5px; }
+    
+    /* Modal contenido compacto */
+    .modal-content { padding: 8px; margin: 2% auto; }
+    
+    /* Bordes de card más sutiles */
+    .card { border-radius: 6px; }
+    
+    /* Sidebar footer compacto */
+    .sidebar-footer a { padding: 4px 10px; font-size: 0.75em; }
+    .sidebar-footer a i { width: 16px; margin-right: 6px; }
+    
+    /* Contenedor de búsqueda compacto */
+    .sidebar-search { padding: 6px 8px; }
+    .sidebar-search input { padding: 6px 8px 6px 24px !important; font-size: 0.72em !important; }
+    .sidebar-search .search-icon { left: 16px; font-size: 0.7em; }
+    
+    /* Menú sidebar compacto */
+    .sidebar-menu-container a { padding: 6px 10px; font-size: 0.78em; }
+    .sidebar-menu-container a i { width: 16px; margin-right: 6px; }
+    .sidebar-menu-container h4 { font-size: 0.55em; margin: 10px 0 4px 0; }
+    .empresa-title { padding: 8px 6px; font-size: 0.85em; }
+}
+
+
+/* Pantallas grandes: > 1024px */
+@media (min-width: 1025px) {
     .venta-grid, .compra-grid, .presupuesto-grid {
         display: grid;
         grid-template-columns: 2.5fr 1fr; 

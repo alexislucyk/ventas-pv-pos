@@ -31,7 +31,7 @@ th {
 }
 
 /* Panel de totales fijo en escritorio */
-@media (min-width: 1101px) {
+@media (min-width: 1025px) {
     .venta-grid > .card:last-child {
         position: sticky;
         top: 20px;

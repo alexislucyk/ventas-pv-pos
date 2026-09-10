@@ -95,7 +95,7 @@ $id_cliente = (int)$_GET['id_cliente'];
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h1>📊 Detalle Cuenta Corriente</h1>
             <div style="display: flex; gap: 10px;">
-                <a href="pagos_ctacte.php?id_cliente=<?php echo $id_cliente; ?>" class="btn-primary" style="padding: 8px 18px; text-decoration: none; border-radius: 5px;">
+                <a href="pagos_ctacte.php?id_cliente=<?php echo $id_cliente; ?>" class="btn btn-success" style="padding: 8px 18px; text-decoration: none; border-radius: 5px;">
                     ➕ Registrar Pago / Cobro
                 </a>
                 <a href="cuentas_corrientes.php" class="btn btn-secondary" style="padding: 8px 18px; text-decoration: none; border-radius: 5px;">

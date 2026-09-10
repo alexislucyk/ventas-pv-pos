@@ -36,7 +36,7 @@ body { background-color: #121212; color: #e0e0e0; }
 
 .presupuesto-grid { display: grid; grid-template-columns: 3fr 1fr; gap: 20px; }
 
-@media (max-width: 1100px) {
+@media (max-width: 850px) {
     .presupuesto-grid {
         grid-template-columns: 1fr;
         display: block;
