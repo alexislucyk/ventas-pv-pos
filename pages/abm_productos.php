@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 include 'infosesion.php';
 require_once '../config/validar_permisos.php';
 //restringirPagina('developer', 'admin');
@@ -189,7 +189,42 @@ if ($accion === 'editar' && $id) {
     $producto_editar = $stmt->fetch();
 }
 
-$productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_actual, 0) AS stock FROM productos p LEFT JOIN stocks s ON p.cod_prod COLLATE utf8mb4_unicode_ci = s.cod_prod COLLATE utf8mb4_unicode_ci AND s.empresa_id = " . (int)$empresa_id . " AND s.sucursal_id = " . (int)$sucursal_id . " WHERE p.empresa_id = " . (int)$empresa_id . " ORDER BY p.id DESC")->fetchAll() : [];
+// --- Paginación y Búsqueda de Productos ---
+$pagina = max(1, (int)($_GET['pagina'] ?? 1));
+$registros_por_pagina = (int)($_GET['registros'] ?? 20);
+$busqueda = trim((string)($_GET['q'] ?? ''));
+
+$opciones_registros = [10, 20, 50, 100];
+if (!in_array($registros_por_pagina, $opciones_registros)) {
+    $registros_por_pagina = 20;
+}
+
+// Cláusula WHERE base + condición de búsqueda (server-side)
+$where_consulta = "p.empresa_id = " . (int)$empresa_id;
+$params_consulta = [];
+if ($busqueda !== '') {
+    $where_consulta .= " AND (p.cod_prod LIKE :q OR p.descripcion LIKE :q OR p.rubro LIKE :q OR p.proveedor LIKE :q)";
+    $params_consulta[':q'] = '%' . $busqueda . '%';
+}
+
+// Contar total de productos (para cálculo de páginas)
+$stmt_count = $pdo->prepare("SELECT COUNT(*) FROM productos p WHERE " . $where_consulta);
+$stmt_count->execute($params_consulta);
+$total_productos = (int)$stmt_count->fetchColumn();
+
+$total_paginas = (int)ceil($total_productos / $registros_por_pagina);
+$pagina_actual = min($pagina, max(1, $total_paginas));
+$offset = ($pagina_actual - 1) * $registros_por_pagina;
+
+// Query principal con paginación (LIMIT / OFFSET)
+$sql_listado = "SELECT p.*, COALESCE(s.stock_actual, 0) AS stock FROM productos p LEFT JOIN stocks s ON p.cod_prod COLLATE utf8mb4_unicode_ci = s.cod_prod COLLATE utf8mb4_unicode_ci AND s.empresa_id = " . (int)$empresa_id . " AND s.sucursal_id = " . (int)$sucursal_id . " WHERE " . $where_consulta . " ORDER BY p.id DESC LIMIT " . (int)$registros_por_pagina . " OFFSET " . (int)$offset;
+
+$productos = [];
+if ($accion === 'listar') {
+    $stmt_listado = $pdo->prepare($sql_listado);
+    $stmt_listado->execute($params_consulta);
+    $productos = $stmt_listado->fetchAll();
+}
 ?>
 
 <!DOCTYPE html>
@@ -223,10 +258,31 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
             </div>
         <?php endif; ?>
 
-        <?php if ($accion === 'listar'): ?>
+                <?php if ($accion === 'listar'): ?>
             <div class="card">
-                <input type="text" id="filtroProductos" class="form-control" placeholder="Buscar por código o descripción...">
-                <div id="tabsPosesion" style="display: flex; gap: 8px; margin-top: 10px;">
+                <!-- Barra de búsqueda y controles -->
+                <div class="pagination-bar">
+                    <div class="search-box">
+                        <input type="text" id="filtroProductos" class="form-control" placeholder="Buscar por código, descripción, rubro o proveedor..." value="<?php echo htmlspecialchars($busqueda); ?>">
+                        <button type="button" onclick="buscarProductos()" class="btn btn-primary" style="padding: 8px 16px; white-space: nowrap;">
+                            <i class="fas fa-search"></i> Buscar
+                        </button>
+                        <?php if ($busqueda !== ''): ?>
+                            <a href="<?php echo URL_BASE; ?>productos" class="btn btn-secondary" style="padding: 8px 12px;">
+                                <i class="fas fa-times"></i> Limpiar
+                            </a>
+                        <?php endif; ?>
+                    </div>
+                    <div class="per-page-selector">
+                        <select id="registrosPorPagina" class="form-control" onchange="cambiarRegistros()">
+                            <?php foreach ($opciones_registros as $opt): ?>
+                                <option value="<?php echo $opt; ?>" <?php echo $registros_por_pagina === $opt ? 'selected' : ''; ?>><?php echo $opt; ?> / página</option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="tabsPosesion" style="display: flex; gap: 8px; margin-bottom: 10px;">
                     <button type="button" class="btn btn-sm tab-pos tab-pos-activa" data-tab="todos" onclick="filtrarPosesion(this)">Todos</button>
                     <button type="button" class="btn btn-sm tab-pos" data-tab="propios" onclick="filtrarPosesion(this)" style="border-color: #2ecc71; color: #2ecc71;">Propios (<span id="cantPropios">0</span>)</button>
                     <button type="button" class="btn btn-sm tab-pos" data-tab="consignacion" onclick="filtrarPosesion(this)" style="border-color: #f1c40f; color: #f1c40f;">🤝 Consignación (<span id="cantConsignacion">0</span>)</button>
@@ -278,6 +334,52 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
                             <?php endforeach; ?>
                         </tbody>
                     </table>
+                </div>
+
+                <!-- Mensaje cuando no hay resultados -->
+                <?php if (empty($productos)): ?>
+                <div style="text-align: center; padding: 30px; color: #888;">
+                    <i class="fas fa-box-open" style="font-size: 2rem; margin-bottom: 10px;"></i>
+                    <p>No se encontraron productos<?php echo $busqueda !== '' ? ' para: <strong>' . htmlspecialchars($busqueda) . '</strong>' : ''; ?>.</p>
+                </div>
+                <?php endif; ?>
+
+                <!-- Resumen y Controles de Paginación -->
+                <div class="pagination-footer">
+                    <div class="pagination-summary">
+                        <?php
+                        $inicio = ($total_productos > 0) ? ($offset + 1) : 0;
+                        $fin = min($offset + $registros_por_pagina, $total_productos);
+                        echo "Mostrando <strong>$inicio</strong> - <strong>$fin</strong> de <strong>$total_productos</strong> producto" . ($total_productos != 1 ? 's' : '');
+                        ?>
+                    </div>
+                    <?php if ($total_paginas > 1): ?>
+                    <div class="pagination-nav">
+                        <?php
+                        // Helper: construir URL preservando q y registros
+                        $buildPageUrl = function($p) use ($busqueda, $registros_por_pagina) {
+                            $params = [];
+                            if ($busqueda !== '') $params['q'] = $busqueda;
+                            if ($registros_por_pagina != 20) $params['registros'] = $registros_por_pagina;
+                            if ($p > 1) $params['pagina'] = $p;
+                            return URL_BASE . 'productos?' . http_build_query($params);
+                        };
+
+                        $rango = 2;
+                        $inicio_rango = max(1, $pagina_actual - $rango);
+                        $fin_rango = min($total_paginas, $pagina_actual + $rango);
+                        ?>
+                        <a href="<?php echo $buildPageUrl(1); ?>" class="btn btn-sm btn-secondary" <?php echo $pagina_actual <= 1 ? 'style="opacity:0.4;pointer-events:none"' : ''; ?>>« Primero</a>
+                        <a href="<?php echo $buildPageUrl(max(1, $pagina_actual - 1)); ?>" class="btn btn-sm btn-secondary" <?php echo $pagina_actual <= 1 ? 'style="opacity:0.4;pointer-events:none"' : ''; ?>>‹ Ant.</a>
+
+                        <?php for ($i = $inicio_rango; $i <= $fin_rango; $i++): ?>
+                            <a href="<?php echo $buildPageUrl($i); ?>" class="btn btn-sm <?php echo $i == $pagina_actual ? 'btn-info' : 'btn-secondary'; ?>" style="<?php echo $i == $pagina_actual ? 'background-color:#00bcd4;color:#000;font-weight:bold;' : ''; ?>"><?php echo $i; ?></a>
+                        <?php endfor; ?>
+
+                        <a href="<?php echo $buildPageUrl(min($total_paginas, $pagina_actual + 1)); ?>" class="btn btn-sm btn-secondary" <?php echo $pagina_actual >= $total_paginas ? 'style="opacity:0.4;pointer-events:none"' : ''; ?>>Sig. ›</a>
+                        <a href="<?php echo $buildPageUrl($total_paginas); ?>" class="btn btn-sm btn-secondary" <?php echo $pagina_actual >= $total_paginas ? 'style="opacity:0.4;pointer-events:none"' : ''; ?>>Último »</a>
+                    </div>
+                    <?php endif; ?>
                 </div>
             </div>
 
@@ -400,17 +502,47 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
 
     <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // --- FILTRO DE TABLA ---
+        // --- BÚSQUEDA SERVER-SIDE ---
+        // buscarProductos() y cambiarRegistros() están en window.* para usarlas
+        // desde atributos onclick/onchange del HTML.
+
+        window.buscarProductos = function() {
+            const input = document.getElementById('filtroProductos');
+            const params = new URLSearchParams(window.location.search);
+            const q = (input ? input.value.trim() : '');
+            if (q) {
+                params.set('q', q);
+            } else {
+                params.delete('q');
+            }
+            params.delete('pagina'); // Siempre volver a página 1 al buscar
+            window.location.search = params.toString();
+        };
+
+        window.cambiarRegistros = function() {
+            const sel = document.getElementById('registrosPorPagina');
+            if (!sel) return;
+            const params = new URLSearchParams(window.location.search);
+            params.set('registros', sel.value);
+            params.delete('pagina'); // Volver a página 1 al cambiar registros
+            window.location.search = params.toString();
+        };
+
         const inputFiltro = document.getElementById('filtroProductos');
         if (inputFiltro) {
-            inputFiltro.addEventListener('keyup', function() {
-                const filtro = this.value.toUpperCase();
-                const filas = document.querySelectorAll('#tablaProductos tbody tr');
-                filas.forEach(fila => {
-                    const texto = fila.innerText.toUpperCase();
-                    fila.style.display = texto.includes(filtro) ? "" : "none";
-                });
-                aplicarTabPosesion();
+            // Auto-búsqueda con debounce (500 ms) para mejor UX
+            let timeoutBusqueda = null;
+            inputFiltro.addEventListener('input', function() {
+                clearTimeout(timeoutBusqueda);
+                timeoutBusqueda = setTimeout(window.buscarProductos, 500);
+            });
+            // Búsqueda al presionar Enter
+            inputFiltro.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    clearTimeout(timeoutBusqueda);
+                    window.buscarProductos();
+                }
             });
         }
 
@@ -428,12 +560,10 @@ $productos = ($accion === 'listar') ? $pdo->query("SELECT p.*, COALESCE(s.stock_
             if (cC) cC.innerText = consignados;
         }
         function aplicarTabPosesion() {
-            const filtro = (document.getElementById('filtroProductos')?.value || '').toUpperCase();
+            // La búsqueda es ahora server-side; aquí solo filtramos por posesión
             document.querySelectorAll('#tablaProductos tbody tr.fila-prod').forEach(fila => {
-                const texto = fila.innerText.toUpperCase();
-                const pasaBusqueda = texto.includes(filtro);
                 const pasaTab = (tabPosesionActiva === 'todos') || (fila.dataset.pos === (tabPosesionActiva === 'propios' ? 'propio' : 'consignacion'));
-                fila.style.display = (pasaBusqueda && pasaTab) ? "" : "none";
+                fila.style.display = pasaTab ? "" : "none";
             });
         }
         window.filtrarPosesion = function(btn) {

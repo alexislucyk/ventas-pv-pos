@@ -11,8 +11,70 @@ if (!function_exists('actualizaciones_git_disponible')) {
      */
     function actualizaciones_git_disponible() {
         if (!function_exists('shell_exec')) return false;
-        $out = @shell_exec('git --version 2>&1');
+        $cmd = actualizaciones_git_cmd('--version');
+        if ($cmd === null) return false;
+        $out = @shell_exec($cmd);
         return !empty($out) && stripos((string)$out, 'git version') !== false;
+    }
+
+    /**
+     * Resuelve la ruta absoluta al binario de git (cacheada en la petición).
+     *
+     * Orden de resolución:
+     *  1) Constante GIT_BINARIO (config/actualizaciones.php) si fue fijada.
+     *  2) "git" del PATH del proceso Apache.
+     *  3) Fallback: ubicaciones típicas de Git para Windows. Esto es clave
+     *     cuando Apache/XAMPP corre como servicio (usuario SYSTEM) y no
+     *     hereda el PATH del usuario que instaló Git.
+     *
+     * @return string Ruta ('git' si se usa el PATH); '' si no se encontró.
+     */
+    function actualizaciones_git_binario() {
+        static $bin = null;
+        if ($bin !== null) return $bin;
+
+        // 1) Binario forzado por configuración
+        if (defined('GIT_BINARIO') && GIT_BINARIO !== '' && GIT_BINARIO !== 'auto') {
+            $bin = str_replace('\\', '/', (string)GIT_BINARIO);
+            return $bin;
+        }
+
+        // 2) ¿Responde el git del PATH?
+        $out = @shell_exec('git --version 2>&1');
+        if (!empty($out) && stripos((string)$out, 'git version') !== false) {
+            $bin = 'git';
+            return $bin;
+        }
+
+        // 3) Fallback: instalaciones típicas de Git en Windows
+        $candidatos = [
+            'C:/Program Files/Git/cmd/git.exe',
+            'C:/Program Files (x86)/Git/cmd/git.exe',
+            'C:/Git/cmd/git.exe',
+            rtrim((string)getenv('LOCALAPPDATA'), '\\/') . '/Programs/Git/cmd/git.exe',
+        ];
+        foreach ($candidatos as $c) {
+            $c = str_replace('\\', '/', (string)$c);
+            if ($c !== '/' && is_file($c)) {
+                $bin = $c;
+                return $bin;
+            }
+        }
+
+        $bin = '';
+        return $bin;
+    }
+
+    /**
+     * Devuelve la línea de comando completa para ejecutar git (con 2>&1),
+     * o null si el binario no fue encontrado.
+     *
+     * @param string $args Argumentos que siguen al binario (ej. "--version").
+     */
+    function actualizaciones_git_cmd($args) {
+        $bin = actualizaciones_git_binario();
+        if ($bin === '') return null;
+        return '"' . $bin . '" ' . $args . ' 2>&1';
     }
 
     /**
@@ -34,9 +96,12 @@ if (!function_exists('actualizaciones_git_disponible')) {
      * @return array{code:int, out:string}
      */
     function actualizaciones_ejecutar_git($cmd) {
+        if (actualizaciones_git_binario() === '') {
+            return ['code' => 1, 'out' => 'git no encontrado en el servidor'];
+        }
         $root  = actualizaciones_git_root();
         $safe  = '"' . addcslashes($root, '"\\') . '"';
-        $line  = 'git -c safe.directory=' . $safe . ' ' . $cmd . ' 2>&1';
+        $line  = '"' . actualizaciones_git_binario() . '" -c safe.directory=' . $safe . ' ' . $cmd . ' 2>&1';
         $prevDir = getcwd();
         if (is_dir($root)) chdir($root);
 
@@ -61,9 +126,10 @@ if (!function_exists('actualizaciones_git_disponible')) {
      * Es lo que recomienda el propio mensaje de error de git.
      */
     function actualizaciones_asegurar_safe_dir() {
-        $root  = actualizaciones_git_root();
-        $safe  = '"' . addcslashes($root, '"\\') . '"';
-        @shell_exec('git config --global --add safe.directory ' . $safe . ' 2>&1');
+        $cmd = actualizaciones_git_cmd('config --global --add safe.directory "'
+            . addcslashes(actualizaciones_git_root(), '"\\') . '"');
+        if ($cmd === null) return;
+        @shell_exec($cmd);
     }
 
     /**

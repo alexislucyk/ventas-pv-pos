@@ -125,7 +125,7 @@ $no_autorizados = array_values(array_diff($todos_proveedores, $proveedores_autor
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <button type="submit" name="accion" value="agregar" class="btn">
+                    <button type="submit" name="accion" value="agregar" class="btn btn-primary">
                         <i class="fas fa-plus"></i> Autorizar Proveedor
                     </button>
                 </form>

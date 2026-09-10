@@ -22,6 +22,14 @@ if (!defined('GITHUB_TIMEOUT')) {
     define('GITHUB_TIMEOUT', 5);
 }
 
+// Ruta al ejecutable de git. Dejar en 'auto' para detectarlo en el PATH del
+// servidor y en las ubicaciones típicas de Git para Windows. Si Apache/XAMPP
+// corre como servicio con un PATH que no incluye git, fijar aquí la ruta, ej.:
+//   define('GIT_BINARIO', 'C:\\Program Files\\Git\\cmd\\git.exe');
+if (!defined('GIT_BINARIO')) {
+    define('GIT_BINARIO', 'auto');
+}
+
 // TTL de la caché del estado de actualizaciones (segundos).
 // Mientras la caché no expire, la página NO consulta GitHub ni el remoto git,
 // por lo que carga casi al instante. Se refresca con el botón "Comprobar de nuevo".
