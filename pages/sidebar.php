@@ -123,6 +123,9 @@ $version_app = obtener_version_app($pdo);
         <?php if (tiene_permiso('pages/reporte_cierres.php')): ?>
             <a href="<?php echo route_file('pages/reporte_cierres.php'); ?>" data-title="Reporte de Cierres"><i class="fas fa-clipboard-list"></i> <span>Reporte de Cierres</span></a>
         <?php endif; ?>
+        <?php if (tiene_permiso('pages/comprobantes_externos.php')): ?>
+            <a href="<?php echo route_file('pages/comprobantes_externos.php'); ?>" data-title="Comprobantes Externos"><i class="fas fa-file-invoice-dollar"></i> <span>Comprobantes Externos</span></a>
+        <?php endif; ?>
         <?php endif; ?>
         </div>
 
