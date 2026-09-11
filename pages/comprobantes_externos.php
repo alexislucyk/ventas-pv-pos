@@ -91,7 +91,7 @@ $condiciones_iva = ['Responsable Inscripto', 'Monotributo', 'Exento', 'Consumido
     <div class="ce-container">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h1 style="color: #00bcd4; margin: 0;"><i class="fas fa-file-invoice"></i> Comprobantes Externos</h1>
-            <a href="index.php" class="ce-btn" style="background: #333; color: #fff; text-decoration: none;"><i class="fas fa-arrow-left"></i> Volver</a>
+            <a href="<?php echo URL_BASE; ?>" class="ce-btn" style="background: #333; color: #fff; text-decoration: none;"><i class="fas fa-arrow-left"></i> Volver</a>
         </div>
         <div id="alertSuccess" class="ce-alert ce-alert-success"></div>
         <div id="alertError" class="ce-alert ce-alert-error"></div>
