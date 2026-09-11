@@ -114,9 +114,9 @@ $condiciones_iva = ['Responsable Inscripto', 'Monotributo', 'Exento', 'Consumido
             </div>
         </div>
         <div class="ce-tabs">
-            <button class="ce-tab active" onclick="showTab(\'listado\', this)"><i class="fas fa-list"></i> Listado</button>
-            <button class="ce-tab" onclick="showTab(\'nuevo\', this)"><i class="fas fa-plus"></i> Nuevo Comprobante</button>
-            <button class="ce-tab" onclick="showTab(\'asociar\', this)"><i class="fas fa-link"></i> Asociar Ventas</button>
+            <button class="ce-tab active" onclick="showTab('listado', this)"><i class="fas fa-list"></i> Listado</button>
+            <button class="ce-tab" onclick="showTab('nuevo', this)"><i class="fas fa-plus"></i> Nuevo Comprobante</button>
+            <button class="ce-tab" onclick="showTab('asociar', this)"><i class="fas fa-link"></i> Asociar Ventas</button>
         </div>
         <div id="tab-listado" class="ce-tab-content active">
             <div class="ce-card">

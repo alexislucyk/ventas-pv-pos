@@ -116,6 +116,19 @@ AND NOT EXISTS (
     WHERE pr.rol = 'admin' AND m.archivo = 'pages/comprobantes_externos.php'
 );
 
+-- 6b. Registrar permisos individuales para usuarios con rol 'admin'
+--     El login (login.php) carga permisos desde permisos_usuario + permisos_rol,
+--     por lo que es necesario asignar el modulo tambien en permisos_usuario.
+INSERT INTO permisos_usuario (usuario_id, modulo_id, empresa_id)
+SELECT u.id, m.id, u.empresa_id
+FROM usuarios u
+JOIN modulos m ON m.archivo = 'pages/comprobantes_externos.php'
+WHERE u.rol = 'admin'
+AND NOT EXISTS (
+    SELECT 1 FROM permisos_usuario pu
+    WHERE pu.usuario_id = u.id AND pu.modulo_id = m.id
+);
+
 -- 7. NOTA: Los triggers deben crearse ejecutando el script:
 --    procesos/crear_triggers_comprobantes.php
 --    (No se incluyen aqui porque requieren DELIMITER que no es compatible con PDO)
