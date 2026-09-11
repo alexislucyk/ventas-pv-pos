@@ -203,8 +203,11 @@ if (!in_array($registros_por_pagina, $opciones_registros)) {
 $where_consulta = "p.empresa_id = " . (int)$empresa_id;
 $params_consulta = [];
 if ($busqueda !== '') {
-    $where_consulta .= " AND (p.cod_prod LIKE :q OR p.descripcion LIKE :q OR p.rubro LIKE :q OR p.proveedor LIKE :q)";
-    $params_consulta[':q'] = '%' . $busqueda . '%';
+    $where_consulta .= " AND (p.cod_prod LIKE :q1 OR p.descripcion LIKE :q2 OR p.rubro LIKE :q3 OR p.proveedor LIKE :q4)";
+    $params_consulta[':q1'] = '%' . $busqueda . '%';
+    $params_consulta[':q2'] = '%' . $busqueda . '%';
+    $params_consulta[':q3'] = '%' . $busqueda . '%';
+    $params_consulta[':q4'] = '%' . $busqueda . '%';
 }
 
 // Contar total de productos (para cálculo de páginas)
