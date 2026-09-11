@@ -37,8 +37,9 @@ $condiciones_iva = ['Responsable Inscripto', 'Monotributo', 'Exento', 'Consumido
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Comprobantes Externos - POS Dev</title>
+    <title>Comprobantes Externos | <?php echo $nombre_empresa_sistema; ?></title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<link rel="stylesheet" href="<?php echo url('css/style.css?v=' . (file_exists(__DIR__ . '/../css/style.css') ? filemtime(__DIR__ . '/../css/style.css') : '1')); ?>">
     <style>
         .ce-container { max-width: 1400px; margin: 0 auto; padding: 20px; font-family: sans-serif; }
         .ce-card { background: #1a1a1a; border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid #333; }
@@ -87,7 +88,11 @@ $condiciones_iva = ['Responsable Inscripto', 'Monotributo', 'Exento', 'Consumido
         .ce-stat-card .label { color: #aaa; font-size: 0.9em; }
     </style>
 </head>
-<body style="background: #111; margin: 0;">
+<body>
+    <?php include 'sidebar.php'; ?>
+    
+    <div class="content" style="padding-top: 70px;">
+        <?php include 'topbar.php'; ?>
     <div class="ce-container">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h1 style="color: #00bcd4; margin: 0;"><i class="fas fa-file-invoice"></i> Comprobantes Externos</h1>
@@ -286,6 +291,7 @@ $condiciones_iva = ['Responsable Inscripto', 'Monotributo', 'Exento', 'Consumido
             </div>
         </div>
     </div>
+</div>
     <script>
         let ventaSeleccionada = null;
 
