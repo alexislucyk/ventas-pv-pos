@@ -71,8 +71,8 @@ $condiciones_iva = ['Responsable Inscripto', 'Monotributo', 'Exento', 'Consumido
         .ce-alert-error { background: #e74c3c; color: #fff; }
         .ce-progress { height: 8px; background: #333; border-radius: 4px; overflow: hidden; margin-top: 5px; }
         .ce-progress-bar { height: 100%; background: #00bcd4; transition: width 0.3s; }
-        .ce-search-results { max-height: 300px; overflow-y: auto; border: 1px solid #333; border-radius: 6px; }
-        .ce-search-item { padding: 12px; border-bottom: 1px solid #333; cursor: pointer; transition: background 0.2s; color: #ddd; }
+        .ce-search-results { max-height: 300px; overflow-y: auto; border: 1px solid #333; border-radius: 6px; max-width: 720px; background: #181818; }
+        .ce-search-item { padding: 10px 14px; border-bottom: 1px solid #333; cursor: pointer; transition: background 0.2s; color: #ddd; }
         .ce-search-item:hover { background: #2a2a2a; }
         .ce-search-item:last-child { border-bottom: none; }
         .ce-search-item.selected { background: #00bcd4; color: #000; }
