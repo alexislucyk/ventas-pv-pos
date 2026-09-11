@@ -295,7 +295,7 @@ $condiciones_iva = ['Responsable Inscripto', 'Monotributo', 'Exento', 'Consumido
                     } else {
                         var html = "";
                         data.data.forEach(function(v) {
-                            html += "<div class=\"ce-search-item\" onclick=\"seleccionarVenta(" + v.venta_id + ", '" + v.n_documento + "', " + v.total_venta + ", '" + v.cliente.replace(/'/g, "\\'") + "')\">";
+                            html += "<div class=\"ce-search-item\" onclick=\"seleccionarVentaEv(event, " + v.venta_id + ", '" + v.n_documento + "', " + v.total_venta + ", '" + v.cliente.replace(/'/g, "\\'") + "')\">";
                             html += "<div class=\"row1\"><div><strong>N " + v.n_documento + "</strong> - " + v.cliente + "</div>";
                             html += "<div class=\"monto\">$" + parseFloat(v.total_venta).toLocaleString("es-AR", {minimumFractionDigits:2}) + "</div></div><div class=\"row2\">" + v.fecha_venta + " | " + v.cond_pago + "</div></div>";
                         });
@@ -305,14 +305,15 @@ $condiciones_iva = ['Responsable Inscripto', 'Monotributo', 'Exento', 'Consumido
                 } else { mostrarAlerta("error", data.message); }
             }).catch(function(err) { mostrarAlerta("error", "Error: " + err.message); });
         }
-        function seleccionarVenta(id, nDocumento, total, cliente) {
+        function seleccionarVentaEv(ev, id, nDocumento, total, cliente) { seleccionarVenta(id, nDocumento, total, cliente, ev); }
+        function seleccionarVenta(id, nDocumento, total, cliente, ev) {
             ventaSeleccionada = { id: id, nDocumento: nDocumento, total: total, cliente: cliente };
             document.getElementById("venta_id_seleccionada").value = id;
             document.getElementById("venta_seleccionada").value = "N " + nDocumento + " - " + cliente + " ($" + parseFloat(total).toLocaleString("es-AR", {minimumFractionDigits:2}) + ")";
             document.getElementById("monto_asociacion").value = total;
-            document.getElementById("cardAsociacion").style.display = "block"; document.getElementById("cardAsociacion").scrollIntoView({ behavior: "smooth", block: "nearest" });
+            document.getElementById("cardAsociacion").style.display = "block"; var _rc=document.getElementById("resultadosBusqueda"); if(_rc){_rc.classList.remove("visible");_rc.innerHTML="";} document.getElementById("cardAsociacion").scrollIntoView({ behavior: "smooth", block: "nearest" });
             document.querySelectorAll(".ce-search-item").forEach(function(item) { item.classList.remove("selected"); });
-            if (event && event.currentTarget) { event.currentTarget.classList.add("selected"); }
+            if (ev && ev.currentTarget) { /* dropdown cerrado y limpiado al seleccionar */ }
         }
 
         function asociarVenta() {
@@ -342,6 +343,8 @@ $condiciones_iva = ['Responsable Inscripto', 'Monotributo', 'Exento', 'Consumido
             }
         }
 
+        document.addEventListener("click", function(e) { var _dd=document.getElementById("resultadosBusqueda"); if(_dd && _dd.classList.contains("visible")) { var _w=_dd.closest(".search-dropdown-wrap"); if(_w && !_w.contains(e.target)) { _dd.classList.remove("visible"); } } });
+        document.addEventListener("keydown", function(e) { if(e.key === "Escape") { var _d2=document.getElementById("resultadosBusqueda"); if(_d2){ _d2.classList.remove("visible"); } } });
         document.addEventListener("DOMContentLoaded", function() {
             var filas = document.querySelectorAll("#tbodyComprobantes tr[data-id]");
             var totalComp = 0, ventasAsoc = 0, montoTotal = 0;
