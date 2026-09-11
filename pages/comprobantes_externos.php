@@ -192,11 +192,11 @@ $condiciones_iva = ['Responsable Inscripto', 'Monotributo', 'Exento', 'Consumido
                         <label>Cliente / N Doc</label>
                         <input type="text" id="buscar_cliente" placeholder="Buscar por nombre, CUIT o N documento">
                     </div>
-                    <div class="ce-form-group" style="display: flex; align-items: flex-end; min-width: auto;">
+                    <div class="ce-form-group search-btn-wrap">
                         <button type="button" class="btn-action primary" onclick="buscarVentasSinFacturar()"><i class="fas fa-search"></i> Buscar</button>
                     </div>
                 </div>
-                <div id="resultadosBusqueda" class="ce-search-results"></div>
+                <div class="search-dropdown-wrap"><div id="resultadosBusqueda" class="ce-search-results"></div></div>
             </div>
             <div class="panel" id="cardAsociacion" style="display: none;">
                 <div class="panel-head"><h3 class="panel-title"><i class="fas fa-link"></i> Asociar Venta a Comprobante</h3></div>
