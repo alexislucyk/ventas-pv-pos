@@ -217,17 +217,19 @@ try {
                           (empresa_id, sucursal_id, fecha_cierre, saldo_inicial, 
                            ingresos_efectivo, ingresos_transf, egresos, 
                            saldo_esperado_efectivo, saldo_real_efectivo, diferencia,
-                           fondo_reservado_vuelto, tipo_cierre, numero_cierre, usuario)
+                           fecha_desde, fecha_hasta, fondo_reservado_vuelto, numero_cierre, usuario)
                           VALUES (:empresa_id, :sucursal_id, :fecha_cierre, :saldo_inicial,
                                   :ingresos_efectivo, :ingresos_transf, :egresos,
                                   :saldo_esperado, :saldo_real, :diferencia,
-                                  :fondo_vuelto, 'DIARIO', :numero_cierre, :usuario)";
+                                  :fecha_desde, :fecha_hasta, :fondo_vuelto, :numero_cierre, :usuario)";
             
             $stmt_cierre = $pdo->prepare($sql_cierre);
             $stmt_cierre->execute([
                 ':empresa_id' => $empresa_id,
                 ':sucursal_id' => $sucursal_id,
                 ':fecha_cierre' => $fecha_cierre,
+                ':fecha_desde' => $fecha_caja . ' 00:00:00',
+                ':fecha_hasta' => $fecha_caja . ' 23:59:59',
                 ':saldo_inicial' => $saldo_inicial,
                 ':ingresos_efectivo' => $ing_efectivo,
                 ':ingresos_transf' => $ing_transf,
