@@ -18,7 +18,7 @@ header('Content-Type: application/json');
 
 $empresa_id = $_SESSION['empresa_id'] ?? null;
 $sucursal_id = $_SESSION['sucursal_id'] ?? 1;
-$usuario = $_SESSION['usuario'] ?? 'Sistema';
+$usuario = $_SESSION['usuario_nombre'] ?? $_SESSION['usuario'] ?? 'Sistema';
 
 if (!$empresa_id) {
     echo json_encode(['success' => false, 'mensaje' => 'Sesión expirada']);

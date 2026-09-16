@@ -223,10 +223,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmar_cierre'])) 
                     
                     $log[] = sprintf("  ✓ %s movimientos marcados como cerrados", $movimientos_afectados);
                     
-                    // Nota: No actualizamos estado_caja porque:
-                    // 1. Los movimientos ya están marcados como cerrados
-                    // 2. El dashboard filtra por fecha actual y cerrado=0
-                    // 3. La tabla estado_caja puede no tener registros históricos
+                    // Cerrar la sesión de caja (estado_caja) de esta fecha.
+                    // Si quedara ABIERTA, bloquearía la próxima apertura con
+                    // el mensaje "La caja ya está abierta".
+                    $sql_estado = "UPDATE estado_caja 
+                                   SET estado = 'CERRADA', 
+                                       usuario_cierre = :usuario, 
+                                       fecha_cierre = :fecha_cierre 
+                                   WHERE empresa_id = :empresa_id 
+                                     AND sucursal_id = :sucursal_id 
+                                     AND fecha = :fecha 
+                                     AND estado = 'ABIERTA'";
+                    
+                    $stmt_estado = $pdo->prepare($sql_estado);
+                    $stmt_estado->execute([
+                        ':usuario'      => $usuario_sistema,
+                        ':fecha_cierre' => $fecha_cierre,
+                        ':empresa_id'   => $empresa_id,
+                        ':sucursal_id'  => $sucursal_id,
+                        ':fecha'        => $fecha_caja
+                    ]);
+                    
+                    if ($stmt_estado->rowCount() > 0) {
+                        $log[] = "  ✓ Sesión de caja (estado_caja) marcada como CERRADA";
+                    }
                     
                     // Registrar en log de auditoría (si existe la tabla)
                     try {

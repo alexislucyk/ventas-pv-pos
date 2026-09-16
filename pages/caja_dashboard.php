@@ -256,18 +256,18 @@ function fmt_moneda($monto) {
 
     <!-- Modal: Validación de Transferencias -->
     <div id="modalValidarTransferencias" class="modal" style="display:none;">
-        <div class="modal-content" style="max-width: 950px; border-top: 4px solid #3498db; background: #1e1e1e;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <div class="modal-content" style="max-width: 780px; border-top: 4px solid #3498db; background: #1e1e1e;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                 <h3 style="margin:0; color:#3498db;"><i class="fas fa-arrow-right-arrow-left"></i> Validación de Transferencias</h3>
-                <button type="button" onclick="cerrarModalTransferencias()" style="background:transparent;border:none;color:#9aa0a6;font-size:1.6rem;line-height:1;cursor:pointer;" title="Cerrar">&times;</button>
+                <button type="button" onclick="cerrarModalTransferencias()" style="background:transparent;border:none;color:#9aa0a6;font-size:1.2rem;line-height:1;cursor:pointer;" title="Cerrar">&times;</button>
             </div>
-            <div class="alert-box alert-info" style="margin-bottom:14px;">
+            <div class="alert-box alert-info" style="margin-bottom:10px;">
                 <i class="fas fa-info-circle"></i>
                 <div>Marque como <strong>validada</strong> cada transferencia que ya fue acreditada en el banco. Si la transferencia <strong>no llegó</strong>, márquela como <strong>No realizada</strong> y resuelva qué hacer con la venta.</div>
             </div>
-            <div id="transferenciasResumen" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;"></div>
+            <div id="transferenciasResumen" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;"></div>
             <div id="transferenciasBody" class="transferencia-list" style="max-height:60vh; overflow-y:auto;"></div>
-            <div style="text-align:right; margin-top:14px;">
+            <div style="text-align:right; margin-top:10px;">
                 <button type="button" class="btn-action secondary" onclick="recargarTransferencias()" style="margin-right:8px;">
                     <i class="fas fa-sync-alt"></i> Refrescar
                 </button>

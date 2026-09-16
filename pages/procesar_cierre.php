@@ -11,7 +11,7 @@ require_permiso('pages/cierre_caja.php');
 
 $empresa_id = $_SESSION['empresa_id'] ?? null;
 $sucursal_id = $_SESSION['sucursal_id'] ?? 1;
-$usuario = $_SESSION['usuario'] ?? 'Sistema';
+$usuario = $_SESSION['usuario_nombre'] ?? $_SESSION['usuario'] ?? 'Sistema';
 
 if (!$empresa_id) {
     die('❌ ERROR CRÍTICO: Falta empresa_id en sesión.');

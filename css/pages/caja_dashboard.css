@@ -355,6 +355,35 @@
             white-space: nowrap;
         }
 
+        /* ===== MODAL VALIDACIÓN DE TRANSFERENCIAS (compacto) ===== */
+        #modalValidarTransferencias .modal-content { padding: 14px 18px; }
+        #modalValidarTransferencias h3 { font-size: 0.95rem; }
+        #modalValidarTransferencias button[title="Cerrar"] { font-size: 1.2rem; }
+        #modalValidarTransferencias .alert-box {
+            padding: 8px 12px;
+            border-radius: 8px;
+            gap: 8px;
+            font-size: 0.72rem;
+            line-height: 1.45;
+        }
+        #modalValidarTransferencias .alert-box i { margin-top: 1px; font-size: 0.85rem; }
+        #modalValidarTransferencias .metodo-tag { padding: 2px 8px; font-size: 0.66rem; }
+        #modalValidarTransferencias .transferencia-list h4 { font-size: 0.72rem; margin: 10px 0 5px; }
+        #modalValidarTransferencias .transferencia-list .mov-table thead th,
+        #modalValidarTransferencias .transferencia-list .mov-table td { padding: 3px 6px; font-size: 0.68rem; }
+        #modalValidarTransferencias .transferencia-list .cliente-cell { font-size: 0.68rem; }
+        #modalValidarTransferencias .transferencia-list .usuario-cell { font-size: 0.63rem; }
+        #modalValidarTransferencias .comp-input { width: 110px; padding: 2px 5px; font-size: 0.66rem; }
+        #modalValidarTransferencias .btn-validar,
+        #modalValidarTransferencias .btn-norealizada { padding: 2px 6px; font-size: 0.63rem; margin-left: 4px; }
+        #modalValidarTransferencias .btn-desvalidar { padding: 2px 6px; font-size: 0.65rem; }
+        #modalValidarTransferencias .pill-resolucion { padding: 1px 6px; font-size: 0.62rem; }
+        #modalValidarTransferencias .obs-cell { font-size: 0.65rem; max-width: 200px; }
+        #modalValidarTransferencias .btn-action { padding: 6px 12px; font-size: 0.75rem; gap: 6px; }
+        #modalValidarTransferencias .btn-action.primary:hover { transform: none; }
+        #modalValidarTransferencias .empty-state { padding: 24px 14px; }
+        #modalValidarTransferencias .empty-state i { font-size: 1.6rem; }
+
         .empty-state {
             text-align: center;
             padding: 40px 20px;

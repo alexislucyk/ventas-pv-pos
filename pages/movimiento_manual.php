@@ -16,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $monto = (float)str_replace(',', '.', $_POST['monto'] ?? '0');
     $metodo = $_POST['metodo_pago'] ?? 'EFECTIVO';
     $detalle = trim($_POST['detalle'] ?? '');
-    $usuario = $_SESSION['usuario'] ?? 'Sistema';
+    $usuario = $_SESSION['usuario_nombre'] ?? $_SESSION['usuario'] ?? 'Sistema';
 
     if ($monto > 0 && !empty($detalle)) {
         try {
