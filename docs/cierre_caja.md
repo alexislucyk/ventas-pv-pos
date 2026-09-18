@@ -81,10 +81,16 @@ Control del estado actual de caja (ABIERTA/CERRADA).
 **`pages/abrir_caja.php`**
 - Interfaz para abrir caja
 - Definición de saldo inicial
+- Observaciones de la apertura (se guardan en `estado_caja.observaciones`, migración 46)
 
 **`pages/caja_dashboard.php`**
 - Dashboard de caja en tiempo real
 - Resumen del día actual
+
+**`pages/reparar_cierres_fondo_inicial.php`** (solo rol `developer`)
+- Herramienta de mantenimiento: detecta y repara cierres guardados con el
+  fondo inicial contado dos veces (ver "Mantenimiento" más abajo)
+- GET: solo lectura (detección). POST confirmado + CSRF: aplica la reparación
 
 ## Migraciones
 
@@ -109,6 +115,11 @@ Agrega campos para desglose de métodos de pago:
 2. Ingresa saldo inicial
 3. Sistema crea registro en `estado_caja` con estado `ABIERTA`
 4. Si hay saldo inicial, se crea movimiento de fondo inicial
+   (`detalle = 'FONDO INICIAL (APERTURA)'`, `es_fondo_inicial = 1`).
+   **Solo informativo**: ese movimiento se muestra en la lista de movimientos
+   pero **no** se suma a los totales, porque el saldo inicial ya se agrega
+   desde `estado_caja.saldo_inicial` (de lo contrario el fondo reservado del
+   cierre anterior se contaría dos veces).
 
 ### 2. Operaciones del Día
 
@@ -160,6 +171,10 @@ saldo_esperado = saldo_inicial + ingresos_efectivo - egresos
 ```
 
 **Nota:** Solo se considera el efectivo para el saldo esperado, ya que es lo que debe haber físicamente en caja.
+**Importante:** `ingresos_efectivo` **no** incluye el movimiento de fondo inicial
+(`es_fondo_inicial = 1`), porque ese monto ya está en `saldo_inicial`. Todas las
+consultas de totales deben aplicar el filtro `COALESCE(es_fondo_inicial, 0) = 0`
+(constante `SQL_FILTRO_SIN_FONDO_INICIAL` en `funciones/funciones_caja.php`).
 
 ### Diferencia
 ```
@@ -214,8 +229,16 @@ total_ingresos = efectivo + transferencias + cheques + tarjetas + otros
 
 ### Fondo de Vuelto
 - Al cerrar caja, se puede dejar dinero para el día siguiente
-- Este monto se registra como movimiento de fondo inicial
-- Se marca como `cerrado = 1` para que no aparezca en el siguiente cierre
+- Ese monto se guarda en `cierres_caja.fondo_reservado_vuelto` y se **sugiere**
+  como saldo inicial en la próxima apertura (`pages/abrir_caja.php`)
+- Al abrir la caja se registra como `estado_caja.saldo_inicial` y, además, como
+  movimiento informativo `FONDO INICIAL (APERTURA)` con `es_fondo_inicial = 1`
+- Ese movimiento **no se suma** a los totales (se excluye con
+  `SQL_FILTRO_SIN_FONDO_INICIAL`); al cerrar la sesión queda con `cerrado = 1`
+  para no arrastrarse al cierre siguiente
+- ⚠️ Si se sumara el movimiento de fondo inicial a los ingresos, el fondo
+  reservado se contaría **dos veces** (una como saldo inicial y otra como
+  ingreso), mostrando un efectivo en caja duplicado
 
 ### Sistema de Auditoría
 - Todos los cierres se registran en `cierres_caja_audit`

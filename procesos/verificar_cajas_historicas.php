@@ -50,6 +50,9 @@ $options = array(
     PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"
 );
 
+// Funciones de caja: provee la constante SQL_FILTRO_SIN_FONDO_INICIAL
+require_once __DIR__ . '/../funciones/funciones_caja.php';
+
 // Variables de control
 $inicio = microtime(true);
 $cajas_encontradas = [];
@@ -175,7 +178,9 @@ try {
         $total_saldo_inicial = 0;
         
         foreach ($cajas_abiertas as $index => $caja) {
-            // Obtener cantidad de movimientos para esta caja
+            // Obtener cantidad de movimientos para esta caja.
+            // Los ingresos excluyen el movimiento de FONDO INICIAL: ese monto se
+            // informa aparte como saldo inicial (evita duplicarlo).
             $sql_mov = "SELECT COUNT(*) as cantidad, 
                                SUM(CASE WHEN tipo = 'INGRESO' AND (metodo_pago = 'EFECTIVO' OR metodo_pago = 'MIXTO') 
                                         THEN monto ELSE 0 END) as ing_efectivo,
@@ -184,7 +189,8 @@ try {
                         WHERE empresa_id = :empresa_id 
                           AND sucursal_id = :sucursal_id
                           AND DATE(fecha) = :fecha
-                          AND cerrado = 0";
+                          AND cerrado = 0"
+                          . SQL_FILTRO_SIN_FONDO_INICIAL;
             
             $stmt_mov = $pdo->prepare($sql_mov);
             $stmt_mov->execute([
@@ -197,7 +203,9 @@ try {
             $cant_mov = (int)($mov_data['cantidad'] ?? 0);
             $ing_efectivo = (float)($mov_data['ing_efectivo'] ?? 0);
             $egresos = (float)($mov_data['egresos'] ?? 0);
-            $saldo_esperado = $ing_efectivo - $egresos;
+            // El saldo inicial (fondo de apertura) se suma aparte porque el
+            // movimiento de fondo inicial quedó excluido de los ingresos
+            $saldo_esperado = (float)$caja['saldo_inicial'] + $ing_efectivo - $egresos;
             
             $total_movimientos += $cant_mov;
             $total_saldo_inicial += (float)$caja['saldo_inicial'];

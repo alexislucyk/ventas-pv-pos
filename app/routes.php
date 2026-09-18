@@ -64,6 +64,8 @@ $router->get('/abrir-caja', 'pages/abrir_caja.php', 'caja.abrir');
 $router->get('/cierre-caja', 'pages/cierre_caja.php', 'caja.cierre');
 $router->get('/cerrar-cajas-historicas', 'pages/cerrar_cajas_historicas.php', 'caja.historial');
 $router->get('/verificar-cajas-historicas', 'pages/verificar_cajas_historicas.php', 'caja.verificar');
+$router->get('/reparar-cierres-fondo-inicial', 'pages/reparar_cierres_fondo_inicial.php', 'caja.reparar_cierres');
+$router->post('/reparar-cierres-fondo-inicial', 'pages/reparar_cierres_fondo_inicial.php');
 $router->get('/reparar-caja-total', 'pages/reparar_caja_total.php', 'caja.reparar');
 
 // Anulaciones y cobros

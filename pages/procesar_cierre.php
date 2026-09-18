@@ -83,6 +83,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $estado_cierre = obtener_estado_caja($pdo, $empresa_id, $sucursal_id);
         $saldo_inicial = (float)($estado_cierre['saldo_inicial'] ?? 0);
         
+        // Recalcular saldo esperado y diferencia (incluyendo saldo inicial).
+        // Se excluye el movimiento de FONDO INICIAL (es_fondo_inicial = 1): su
+        // monto ya está en $saldo_inicial, así que sumarlo duplicaría el fondo
+        // reservado de la caja anterior que se dejó como cambio.
         $sql_totales = "SELECT 
             SUM(CASE WHEN tipo = 'INGRESO' AND (metodo_pago = 'EFECTIVO' OR metodo_pago = 'MIXTO') 
                      THEN monto ELSE 0 END) as ingresos_efectivo,
@@ -90,8 +94,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         FROM movimientos 
         WHERE cerrado = 1 
           AND empresa_id = :empresa_id 
-          AND sucursal_id = :sucursal_id
-          AND DATE(fecha) BETWEEN :fecha_desde AND :fecha_hasta";
+          AND sucursal_id = :sucursal_id"
+          . SQL_FILTRO_SIN_FONDO_INICIAL .
+          "AND DATE(fecha) BETWEEN :fecha_desde AND :fecha_hasta";
         
         $stmt_totales = $pdo->prepare($sql_totales);
         $stmt_totales->execute([

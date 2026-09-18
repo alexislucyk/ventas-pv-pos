@@ -38,7 +38,7 @@ if ($saldo_inicial < 0) {
     exit();
 }
 
-$resultado = abrir_caja($pdo, $empresa_id, $sucursal_id, $saldo_inicial, $usuario);
+$resultado = abrir_caja($pdo, $empresa_id, $sucursal_id, $saldo_inicial, $usuario, $observaciones);
 
 echo json_encode($resultado);
 ?>

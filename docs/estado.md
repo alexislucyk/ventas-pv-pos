@@ -150,10 +150,15 @@ El proyecto mantiene **31 migraciones SQL** que evidencian su evolución:
 - Generación de PDF de presupuesto (`generar_pdf_presupuesto.php`).
 
 ### Caja
-- `pages/abrir_caja.php`, `cierre_caja.php` (619, con rango de fechas), `caja_dashboard.php`, `reporte_cierres.php`, `cerrar_cajas_historicas.php`, `verificar_cajas_historicas.php`, `reparar_caja_total.php`, `movimiento_manual.php`.
+- `pages/abrir_caja.php`, `cierre_caja.php` (619, con rango de fechas), `caja_dashboard.php`, `reporte_cierres.php`, `cerrar_cajas_historicas.php`, `verificar_cajas_historicas.php`, `reparar_cierres_fondo_inicial.php`, `reparar_caja_total.php`, `movimiento_manual.php`.
 - **Cierre por rango de fechas** (días múltiples) según `docs/CIERRES_MULTIPLES_DIAS.md`.
 - **Módulo de cierre activable por empresa** (migración 29).
-- Funciones en `funciones/funciones_caja.php` (449 líneas).
+- **Observaciones de apertura** en `estado_caja.observaciones` (migración 46).
+- **Filtro `SQL_FILTRO_SIN_FONDO_INICIAL`**: todas las sumas de ingresos excluyen el
+  movimiento `FONDO INICIAL (APERTURA)` (`es_fondo_inicial = 1`) para no duplicar el
+  fondo reservado; el saldo inicial se suma desde `estado_caja.saldo_inicial`.
+- Funciones en `funciones/funciones_caja.php` (incluye `detectar_cierres_fondo_inicial_duplicado()`
+  y `reparar_cierres_fondo_inicial_duplicado()` para el mantenimiento de datos históricos).
 
 ### Facturación Electrónica (ARCA/AFIP)
 - `pages/facturacion_arca.php`, `pages/procesar_factura_arca.php`, `config/check_arca_requirements.php`.

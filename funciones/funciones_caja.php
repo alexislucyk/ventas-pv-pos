@@ -1,9 +1,27 @@
 <?php
 /**
  * Funciones auxiliares para el sistema de caja
- * Versión: 2.1.0
- * Fecha: 08/03/2026
+ * Versión: 2.3.0
+ * Fecha: 18/09/2026
  */
+
+/**
+ * Filtro SQL para EXCLUIR de los totales el movimiento de fondo inicial.
+ *
+ * Al abrir la caja se registra el saldo inicial en DOS lugares:
+ *   1) estado_caja.saldo_inicial  (fuente de la fórmula
+ *      "saldo_esperado = saldo_inicial + ingresos_efectivo - egresos")
+ *   2) un movimiento INGRESO/EFECTIVO "FONDO INICIAL (APERTURA)" con
+ *      es_fondo_inicial = 1 y cerrado = 0 (para trazabilidad en la UI).
+ *
+ * Si ese movimiento se incluye también en la suma de ingresos, el fondo
+ * reservado que se dejó de la caja anterior (sugerido como saldo inicial)
+ * se cuenta DOS veces. Por eso todas las sumas de totales deben excluirlo:
+ * el saldo inicial se agrega siempre desde estado_caja.saldo_inicial.
+ */
+if (!defined('SQL_FILTRO_SIN_FONDO_INICIAL')) {
+    define('SQL_FILTRO_SIN_FONDO_INICIAL', ' AND COALESCE(es_fondo_inicial, 0) = 0 ');
+}
 
 /**
  * Obtener el estado de caja para una empresa/sucursal.
@@ -86,6 +104,29 @@ function caja_esta_abierta($pdo, $empresa_id, $sucursal_id, $fecha = null) {
 }
 
 /**
+ * Verificar si estado_caja soporta la columna `observaciones`
+ * (migración 46). Se cachea en memoria para no repetir la consulta.
+ *
+ * Permite que abrir_caja() guarde la observación sin romper las
+ * aperturas en instalaciones donde la migración todavía no se aplicó.
+ *
+ * @param PDO $pdo Conexión a base de datos
+ * @return bool
+ */
+function estado_caja_tiene_observaciones($pdo) {
+    static $tiene = null;
+    if ($tiene === null) {
+        try {
+            $stmt = $pdo->query("SHOW COLUMNS FROM estado_caja LIKE 'observaciones'");
+            $tiene = (bool)$stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            $tiene = false;
+        }
+    }
+    return $tiene;
+}
+
+/**
  * Abrir caja para el día
  * 
  * @param PDO $pdo Conexión a base de datos
@@ -93,9 +134,11 @@ function caja_esta_abierta($pdo, $empresa_id, $sucursal_id, $fecha = null) {
  * @param int $sucursal_id ID de la sucursal
  * @param float $saldo_inicial Saldo inicial de caja
  * @param string $usuario Usuario que abre la caja
+ * @param string $observaciones Observación de la apertura (opcional)
  * @return array Resultado de la operación
  */
-function abrir_caja($pdo, $empresa_id, $sucursal_id, $saldo_inicial, $usuario) {
+function abrir_caja($pdo, $empresa_id, $sucursal_id, $saldo_inicial, $usuario, $observaciones = '') {
+    $transaccion_propia = false;
     try {
         $fecha = date('Y-m-d');
         $fecha_apertura = date('Y-m-d H:i:s');
@@ -112,22 +155,56 @@ function abrir_caja($pdo, $empresa_id, $sucursal_id, $saldo_inicial, $usuario) {
             ];
         }
         
-        // Crear nuevo registro de caja abierta
-        $sql = "INSERT INTO estado_caja 
-                (empresa_id, sucursal_id, fecha, estado, saldo_inicial, usuario_apertura, fecha_apertura)
-                VALUES (:empresa_id, :sucursal_id, :fecha, 'ABIERTA', :saldo_inicial, :usuario, :fecha_apertura)";
+        // Apertura transaccional: la sesión (estado_caja) y su movimiento de
+        // fondo inicial deben grabarse juntos. Si falla uno, no debe quedar el
+        // otro (una sesión sin fondo o un fondo sin sesión).
+        $transaccion_propia = !$pdo->inTransaction();
+        if ($transaccion_propia) {
+            $pdo->beginTransaction();
+        }
+        
+        $observaciones = trim((string)$observaciones);
+        
+        // Crear nuevo registro de caja abierta.
+        // La observación se guarda solo si la columna existe (migración 46);
+        // así la apertura no falla en instalaciones sin migrar.
+        if (estado_caja_tiene_observaciones($pdo)) {
+            $sql = "INSERT INTO estado_caja 
+                    (empresa_id, sucursal_id, fecha, estado, saldo_inicial, observaciones, usuario_apertura, fecha_apertura)
+                    VALUES (:empresa_id, :sucursal_id, :fecha, 'ABIERTA', :saldo_inicial, :observaciones, :usuario, :fecha_apertura)";
+            $params = [
+                ':empresa_id' => $empresa_id,
+                ':sucursal_id' => $sucursal_id,
+                ':fecha' => $fecha,
+                ':saldo_inicial' => $saldo_inicial,
+                ':observaciones' => ($observaciones !== '' ? $observaciones : null),
+                ':usuario' => $usuario,
+                ':fecha_apertura' => $fecha_apertura
+            ];
+        } else {
+            $sql = "INSERT INTO estado_caja 
+                    (empresa_id, sucursal_id, fecha, estado, saldo_inicial, usuario_apertura, fecha_apertura)
+                    VALUES (:empresa_id, :sucursal_id, :fecha, 'ABIERTA', :saldo_inicial, :usuario, :fecha_apertura)";
+            $params = [
+                ':empresa_id' => $empresa_id,
+                ':sucursal_id' => $sucursal_id,
+                ':fecha' => $fecha,
+                ':saldo_inicial' => $saldo_inicial,
+                ':usuario' => $usuario,
+                ':fecha_apertura' => $fecha_apertura
+            ];
+        }
         
         $stmt = $pdo->prepare($sql);
-        $stmt->execute([
-            ':empresa_id' => $empresa_id,
-            ':sucursal_id' => $sucursal_id,
-            ':fecha' => $fecha,
-            ':saldo_inicial' => $saldo_inicial,
-            ':usuario' => $usuario,
-            ':fecha_apertura' => $fecha_apertura
-        ]);
+        $stmt->execute($params);
         
-        // Si hay saldo inicial, crear movimiento de fondo inicial
+        // Si hay saldo inicial, crear movimiento de fondo inicial.
+        // IMPORTANTE: este movimiento es SOLO informativo/trazabilidad (aparece en
+        // la lista de movimientos de la caja). El monto NO debe incluirse en las
+        // sumas de ingresos: el saldo inicial ya se agrega desde
+        // estado_caja.saldo_inicial (ver SQL_FILTRO_SIN_FONDO_INICIAL en
+        // funciones_caja.php). Incluirlo duplicaría el fondo reservado de la caja
+        // anterior que se dejó como cambio.
         if ($saldo_inicial > 0) {
             $sql_mov = "INSERT INTO movimientos 
                         (empresa_id, sucursal_id, tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado, es_fondo_inicial)
@@ -142,6 +219,10 @@ function abrir_caja($pdo, $empresa_id, $sucursal_id, $saldo_inicial, $usuario) {
                 ':usuario' => $usuario
             ]);
         }
+
+        if ($transaccion_propia) {
+            $pdo->commit();
+        }
         
         return [
             'success' => true,
@@ -149,6 +230,11 @@ function abrir_caja($pdo, $empresa_id, $sucursal_id, $saldo_inicial, $usuario) {
         ];
         
     } catch (Exception $e) {
+        // Si la apertura inició su propia transacción, se revierte completa:
+        // no debe quedar ni la sesión ni el movimiento de fondo por separado.
+        if ($transaccion_propia && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         return [
             'success' => false,
             'mensaje' => 'Error al abrir caja: ' . $e->getMessage()
@@ -207,7 +293,9 @@ function cerrar_caja($pdo, $empresa_id, $sucursal_id, $usuario, $fondo_vuelto = 
         // Iniciar transacción
         $pdo->beginTransaction();
         
-        // Calcular totales del período especificado por método de pago
+        // Calcular totales del período especificado por método de pago.
+        // Se excluye el movimiento de FONDO INICIAL (es_fondo_inicial = 1):
+        // el saldo inicial ya se suma aparte desde estado_caja.saldo_inicial.
         $sql_totales = "SELECT 
             SUM(CASE WHEN tipo = 'INGRESO' AND (metodo_pago = 'EFECTIVO' OR metodo_pago = 'MIXTO') 
                      THEN monto ELSE 0 END) as ingresos_efectivo,
@@ -223,8 +311,9 @@ function cerrar_caja($pdo, $empresa_id, $sucursal_id, $usuario, $fondo_vuelto = 
         FROM movimientos 
         WHERE cerrado = 0 
           AND empresa_id = :empresa_id 
-          AND sucursal_id = :sucursal_id
-          AND fecha BETWEEN :fecha_desde AND :fecha_hasta";
+          AND sucursal_id = :sucursal_id"
+          . SQL_FILTRO_SIN_FONDO_INICIAL .
+          "AND fecha BETWEEN :fecha_desde AND :fecha_hasta";
         
         $stmt_totales = $pdo->prepare($sql_totales);
         $stmt_totales->execute([
@@ -395,7 +484,8 @@ function obtener_resumen_caja($pdo, $empresa_id, $sucursal_id, $fecha = null) {
         $fecha = date('Y-m-d');
     }
     
-    // Solo movimientos abiertos (cerrado = 0)
+    // Solo movimientos abiertos (cerrado = 0), excluyendo el fondo inicial:
+    // el saldo inicial se agrega aparte (estado_caja.saldo_inicial) para no duplicar.
     $sql = "SELECT 
         SUM(CASE WHEN tipo = 'INGRESO' AND (metodo_pago = 'EFECTIVO' OR metodo_pago = 'MIXTO') 
                  THEN monto ELSE 0 END) as efectivo,
@@ -405,8 +495,9 @@ function obtener_resumen_caja($pdo, $empresa_id, $sucursal_id, $fecha = null) {
     FROM movimientos 
     WHERE cerrado = 0 
       AND empresa_id = :empresa_id 
-      AND sucursal_id = :sucursal_id
-      AND DATE(fecha) = :fecha";
+      AND sucursal_id = :sucursal_id"
+      . SQL_FILTRO_SIN_FONDO_INICIAL .
+      "AND DATE(fecha) = :fecha";
     
     $stmt = $pdo->prepare($sql);
     $stmt->execute([
@@ -447,3 +538,200 @@ function obtener_numero_cierre($pdo, $empresa_id, $sucursal_id) {
     
     return (int)$stmt->fetchColumn();
 }
+/**
+ * Detectar cierres de caja afectados por el FONDO INICIAL DUPLICADO.
+ *
+ * Bug corregido (versión 2.2.0): el movimiento de fondo inicial
+ * ("FONDO INICIAL (APERTURA)", es_fondo_inicial = 1) se sumaba en
+ * `ingresos_efectivo` además de agregarse el saldo inicial, por lo que el
+ * fondo reservado que se dejó de la caja anterior quedaba contado dos veces.
+ *
+ * Criterios de detección (todos deben cumplirse):
+ *   1. saldo_inicial > 0
+ *   2. No proviene del cierre histórico masivo ('Sistema (Cierre Histórico)'),
+ *      cuyas filas usan otra fórmula y NO deben tocarse.
+ *   3. Cumple la firma aritmética del bug: saldo_esperado = saldo_inicial + ingresos - egresos
+ *   4. Existe el movimiento de fondo inicial por el mismo monto dentro del período.
+ *   5. El descuento real es verificable: los ingresos del período calculados desde
+ *      los movimientos (sin el fondo) coinciden con "ingresos_efectivo - fondo".
+ *      Este es el criterio que separa una fila afectada de una ya correcta: en una
+ *      fila correcta, ingresos_efectivo ya excluye el fondo y no habría coincidencia.
+ *
+ * Nota: `movimientos.monto` es DECIMAL(10,0), por lo que el movimiento de fondo
+ * guarda ROUND(saldo_inicial) y eso es exactamente lo que se sumó de más a
+ * `ingresos_efectivo`. Las columnas *_corregido restan ese valor redondeado.
+ *
+ * @param PDO $pdo Conexión a base de datos
+ * @param int|null $empresa_id Filtrar por empresa (opcional)
+ * @param int|null $sucursal_id Filtrar por sucursal (opcional)
+ * @return array Filas con los valores corregidos (*_corregido)
+ */
+function detectar_cierres_fondo_inicial_duplicado($pdo, $empresa_id = null, $sucursal_id = null) {
+    $sql = "SELECT 
+                c.id,
+                c.empresa_id,
+                c.sucursal_id,
+                c.fecha_desde,
+                c.fecha_hasta,
+                c.fecha_cierre,
+                c.saldo_inicial,
+                c.ingresos_efectivo,
+                c.egresos,
+                c.saldo_esperado_efectivo,
+                c.saldo_real_efectivo,
+                c.diferencia,
+                c.usuario,
+                (c.ingresos_efectivo - ROUND(c.saldo_inicial)) AS ingresos_efectivo_corregido,
+                (c.saldo_esperado_efectivo - ROUND(c.saldo_inicial)) AS saldo_esperado_corregido,
+                (c.saldo_real_efectivo - (c.saldo_esperado_efectivo - ROUND(c.saldo_inicial))) AS diferencia_corregida
+            FROM cierres_caja c
+            WHERE COALESCE(c.saldo_inicial, 0) > 0
+              AND (c.usuario IS NULL OR c.usuario <> 'Sistema (Cierre Histórico)')
+              AND ABS(c.saldo_esperado_efectivo - (c.saldo_inicial + c.ingresos_efectivo - c.egresos)) < 0.01
+              AND EXISTS (
+                    SELECT 1
+                    FROM movimientos m
+                    WHERE m.empresa_id = c.empresa_id
+                      AND m.sucursal_id = c.sucursal_id
+                      AND COALESCE(m.es_fondo_inicial, 0) = 1
+                      AND ABS(m.monto - ROUND(c.saldo_inicial)) < 0.01
+                      AND m.fecha BETWEEN c.fecha_desde AND c.fecha_hasta
+              )
+              AND ROUND(c.saldo_inicial) <= c.ingresos_efectivo
+              AND ABS(
+                    (SELECT COALESCE(SUM(m2.monto), 0)
+                       FROM movimientos m2
+                      WHERE m2.empresa_id = c.empresa_id
+                        AND m2.sucursal_id = c.sucursal_id
+                        AND m2.tipo = 'INGRESO'
+                        AND m2.metodo_pago IN ('EFECTIVO', 'MIXTO')
+                        AND COALESCE(m2.es_fondo_inicial, 0) = 0
+                        AND m2.fecha BETWEEN c.fecha_desde AND c.fecha_hasta)
+                    - (c.ingresos_efectivo - ROUND(c.saldo_inicial))
+                  ) < 0.01";
+    
+    $params = [];
+    if ($empresa_id !== null) {
+        $sql .= " AND c.empresa_id = :empresa_id";
+        $params[':empresa_id'] = $empresa_id;
+    }
+    if ($sucursal_id !== null) {
+        $sql .= " AND c.sucursal_id = :sucursal_id";
+        $params[':sucursal_id'] = $sucursal_id;
+    }
+    $sql .= " ORDER BY c.fecha_cierre, c.id";
+    
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/**
+ * Reparar los cierres detectados por detectar_cierres_fondo_inicial_duplicado().
+ *
+ * Quita el monto del fondo inicial de `ingresos_efectivo`, recalcula
+ * `saldo_esperado_efectivo` y `diferencia` (el saldo real contado NO se toca)
+ * y registra cada cambio en `cierres_caja_audit` como 'MODIFICADO'.
+ *
+ * El UPDATE incluye la firma del bug para que re-ejecutar sea inofensivo.
+ *
+ * @param PDO $pdo Conexión a base de datos
+ * @param array $cierres Filas detectadas (con columnas *_corregido)
+ * @param string $usuario Usuario que ejecuta la reparación
+ * @return array Resultado con success, reparados, mensaje y detalle
+ */
+function reparar_cierres_fondo_inicial_duplicado($pdo, array $cierres, $usuario = 'Sistema') {
+    $resultado = ['success' => false, 'reparados' => 0, 'mensaje' => '', 'detalle' => []];
+    $transaccion_propia = false;
+    
+    if (empty($cierres)) {
+        $resultado['success'] = true;
+        $resultado['mensaje'] = 'No hay cierres para reparar.';
+        return $resultado;
+    }
+    
+    try {
+        $transaccion_propia = !$pdo->inTransaction();
+        if ($transaccion_propia) {
+            $pdo->beginTransaction();
+        }
+        
+        $stmt_update = $pdo->prepare(
+            "UPDATE cierres_caja 
+                SET ingresos_efectivo = :ingresos,
+                    saldo_esperado_efectivo = :esperado,
+                    diferencia = :diferencia
+              WHERE id = :id
+                AND COALESCE(saldo_inicial, 0) > 0
+                AND ABS(saldo_esperado_efectivo - (saldo_inicial + ingresos_efectivo - egresos)) < 0.01"
+        );
+        
+        $stmt_audit = $pdo->prepare(
+            "INSERT INTO cierres_caja_audit 
+                (cierre_id, accion, usuario, datos_anteriores, datos_nuevos)
+                VALUES (:cierre_id, 'MODIFICADO', :usuario, :anteriores, :nuevos)"
+        );
+        
+        foreach ($cierres as $c) {
+            $id = (int)$c['id'];
+            
+            $datos_anteriores = [
+                'ingresos_efectivo'       => (float)$c['ingresos_efectivo'],
+                'saldo_esperado_efectivo' => (float)$c['saldo_esperado_efectivo'],
+                'diferencia'              => (float)$c['diferencia']
+            ];
+            $datos_nuevos = [
+                'ingresos_efectivo'       => (float)$c['ingresos_efectivo_corregido'],
+                'saldo_esperado_efectivo' => (float)$c['saldo_esperado_corregido'],
+                'diferencia'              => (float)$c['diferencia_corregida'],
+                'motivo'                  => 'Fondo inicial sumado dos veces (corregido)'
+            ];
+            
+            $stmt_update->execute([
+                ':ingresos'   => $datos_nuevos['ingresos_efectivo'],
+                ':esperado'   => $datos_nuevos['saldo_esperado_efectivo'],
+                ':diferencia' => $datos_nuevos['diferencia'],
+                ':id'         => $id
+            ]);
+            
+            // La auditoría es informativa: si la tabla no existe, no se aborta la reparación
+            try {
+                $stmt_audit->execute([
+                    ':cierre_id'  => $id,
+                    ':usuario'    => $usuario,
+                    ':anteriores' => json_encode($datos_anteriores),
+                    ':nuevos'     => json_encode($datos_nuevos)
+                ]);
+            } catch (Exception $e) {
+                error_log('Aviso: no se pudo registrar auditoría del cierre ' . $id . ': ' . $e->getMessage());
+            }
+            
+            $resultado['reparados']++;
+            $resultado['detalle'][] = [
+                'cierre_id'               => $id,
+                'ingresos_efectivo'       => $datos_anteriores['ingresos_efectivo'],
+                'ingresos_efectivo_nuevo' => $datos_nuevos['ingresos_efectivo'],
+                'saldo_esperado_nuevo'    => $datos_nuevos['saldo_esperado_efectivo'],
+                'diferencia_nueva'        => $datos_nuevos['diferencia']
+            ];
+        }
+        
+        if ($transaccion_propia) {
+            $pdo->commit();
+        }
+        
+        $resultado['success'] = true;
+        $resultado['mensaje'] = 'Se corrigieron ' . $resultado['reparados'] . ' cierre(s) de caja.';
+        
+    } catch (Exception $e) {
+        if ($transaccion_propia && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        $resultado['reparados'] = 0;
+        $resultado['detalle'] = [];
+        $resultado['mensaje'] = 'Error al reparar cierres: ' . $e->getMessage();
+    }
+    
+    return $resultado;
+}
+

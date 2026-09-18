@@ -2,6 +2,9 @@
 // pages/cerrar_cajas_historicas.php - Vista con estilo de la app
 include 'infosesion.php';
 require '../config/db_config.php';
+// Garantiza la disponibilidad de SQL_FILTRO_SIN_FONDO_INICIAL (el include de
+// infosesion.php puede no cargar funciones_caja.php si el módulo está deshabilitado)
+require_once '../funciones/funciones_caja.php';
 
 // Verificar que el usuario sea developer
 if (!isset($_SESSION['usuario_rol']) || $_SESSION['usuario_rol'] !== 'developer') {
@@ -117,7 +120,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmar_cierre'])) 
                     $log[] = "";
                     $log[] = "Procesando: {$caja['empresa_nombre']} | {$caja['sucursal_nombre']} | $fecha_caja";
                     
-                    // Calcular totales de movimientos para esa fecha
+                    // Calcular totales de movimientos para esa fecha.
+                    // Se excluye el movimiento de FONDO INICIAL: ese monto se
+                    // registra aparte como saldo_inicial (evita duplicarlo).
                     $sql_totales = "SELECT 
                         SUM(CASE WHEN tipo = 'INGRESO' AND (metodo_pago = 'EFECTIVO' OR metodo_pago = 'MIXTO') 
                                  THEN monto ELSE 0 END) as ingresos_efectivo,
@@ -128,7 +133,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmar_cierre'])) 
                     WHERE empresa_id = :empresa_id 
                       AND sucursal_id = :sucursal_id
                       AND DATE(fecha) = :fecha
-                      AND cerrado = 0";
+                      AND cerrado = 0"
+                      . SQL_FILTRO_SIN_FONDO_INICIAL;
                     
                     $stmt_totales = $pdo->prepare($sql_totales);
                     $stmt_totales->execute([
@@ -141,7 +147,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmar_cierre'])) 
                     $ing_efectivo = (float)($totales['ingresos_efectivo'] ?? 0);
                     $ing_transf = (float)($totales['ingresos_transf'] ?? 0);
                     $egresos = (float)($totales['egresos'] ?? 0);
-                    $saldo_esperado = $ing_efectivo - $egresos;
+                    // El saldo inicial (fondo de apertura) se suma aparte porque
+                    // el movimiento de fondo inicial quedó excluido de los ingresos
+                    $saldo_esperado = $saldo_inicial + $ing_efectivo - $egresos;
                     
                     $log[] = sprintf(
                         "  Totales: Ing.Efectivo=$%s | Ing.Transf=$%s | Egresos=$%s | Saldo Esperado=$%s",

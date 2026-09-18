@@ -32,14 +32,18 @@ try {
     $apertura = date('Y-m-d', strtotime($fecha_apertura_db)) . ' 00:00:00';
 
     // USAR cerrado = 0 en lugar de DATE(fecha) = ?
+    // Se excluye el movimiento de FONDO INICIAL (es_fondo_inicial = 1): su monto
+    // ya se suma aparte desde estado_caja.saldo_inicial ($saldo_inicial), por lo
+    // que incluirlo aquí duplicaría el fondo reservado de la caja anterior.
     $sql_resumen = "SELECT 
                         SUM(CASE WHEN metodo_pago = 'EFECTIVO' THEN monto ELSE 0 END) as efectivo,
                         SUM(CASE WHEN metodo_pago = 'TRANSFERENCIA' THEN monto ELSE 0 END) as transferencia,
                         SUM(CASE WHEN metodo_pago = 'MIXTO' THEN monto ELSE 0 END) as mixto
                     FROM movimientos 
                     WHERE tipo = 'INGRESO' 
-                      AND cerrado = 0 
-                      AND fecha >= ?
+                      AND cerrado = 0 "
+                      . SQL_FILTRO_SIN_FONDO_INICIAL .
+                      "AND fecha >= ?
                       AND empresa_id = ? 
                       AND sucursal_id = ?";
     $stmt = $pdo->prepare($sql_resumen);
@@ -150,6 +154,9 @@ function fmt_moneda($monto) {
                 <strong>Caja Abierta</strong> -
                 Apertura: <strong><?php echo date('d/m/Y H:i', strtotime($estado['fecha_apertura'])); ?></strong> -
                 Usuario: <strong><?php echo htmlspecialchars($estado['usuario_apertura']); ?></strong>
+                <?php if (!empty($estado['observaciones'])): ?>
+                    <br><span class="small">Observaciones de apertura: <?php echo htmlspecialchars($estado['observaciones']); ?></span>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -170,6 +177,9 @@ function fmt_moneda($monto) {
                     </a>
                     <a href="<?php echo route_file('pages/cerrar_cajas_historicas.php'); ?>" class="dev-link danger" title="Cerrar todas las cajas abiertas anteriores al 05/08/2026 (MODIFICA BD)">
                         <i class="fas fa-exclamation-triangle"></i> Cerrar Cajas Históricas
+                    </a>
+                    <a href="<?php echo route_file('pages/reparar_cierres_fondo_inicial.php'); ?>" class="dev-link warning" title="Corregir cierres de caja con el fondo inicial contado dos veces (MODIFICA BD)">
+                        <i class="fas fa-screwdriver-wrench"></i> Reparar Cierres con Fondo Duplicado
                     </a>
                 </div>
                 <p class="dev-note" style="margin-top: 12px;">* Solo para desarrollo - Ejecutar una sola vez</p>

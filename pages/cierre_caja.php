@@ -65,7 +65,10 @@ if ($mov_pendientes_previos > 0) {
     $ultimo_dia_pendiente = $check_previos['ultimo_dia'];
 }
 
-// Calculamos los totales del período para mostrar como "Esperado"
+// Calculamos los totales del período para mostrar como "Esperado".
+// Se excluye el movimiento de FONDO INICIAL (es_fondo_inicial = 1): su monto
+// ya está incluido en $saldo_inicial (estado_caja.saldo_inicial), así que
+// sumarlo aquí duplicaría el fondo reservado de la caja anterior.
 try {
     $sql_sistema = "SELECT 
         SUM(CASE WHEN tipo = 'INGRESO' AND (metodo_pago = 'EFECTIVO' OR metodo_pago = 'MIXTO') THEN monto ELSE 0 END) as ingresos_efectivo,
@@ -74,8 +77,9 @@ try {
     FROM movimientos 
     WHERE cerrado = 0 
       AND empresa_id = :empresa_id 
-      AND sucursal_id = :sucursal_id
-      AND fecha BETWEEN :fecha_desde AND :fecha_hasta";
+      AND sucursal_id = :sucursal_id"
+      . SQL_FILTRO_SIN_FONDO_INICIAL .
+      "AND fecha BETWEEN :fecha_desde AND :fecha_hasta";
     
     $stmt = $pdo->prepare($sql_sistema);
     $stmt->execute([
@@ -98,7 +102,8 @@ try {
     die("Error al calcular totales: " . $e->getMessage());
 }
 
-// Totales del período por método de pago
+// Totales del período por método de pago (excluyendo el FONDO INICIAL: se
+// muestra aparte como "Saldo Inicial" para no duplicar el fondo de apertura)
 $sql_metodos = "SELECT 
     SUM(CASE WHEN tipo = 'INGRESO' AND (metodo_pago = 'EFECTIVO' OR metodo_pago = 'MIXTO') 
              THEN monto ELSE 0 END) as efectivo,
@@ -114,8 +119,9 @@ $sql_metodos = "SELECT
 FROM movimientos 
 WHERE cerrado = 0 
   AND empresa_id = :empresa_id 
-  AND sucursal_id = :sucursal_id
-  AND fecha BETWEEN :fecha_desde AND :fecha_hasta";
+  AND sucursal_id = :sucursal_id"
+  . SQL_FILTRO_SIN_FONDO_INICIAL .
+  "AND fecha BETWEEN :fecha_desde AND :fecha_hasta";
 
 $stmt_metodos = $pdo->prepare($sql_metodos);
 $stmt_metodos->execute([

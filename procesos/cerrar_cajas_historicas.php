@@ -51,6 +51,9 @@ $options = array(
     PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"
 );
 
+// Funciones de caja: provee la constante SQL_FILTRO_SIN_FONDO_INICIAL
+require_once __DIR__ . '/../funciones/funciones_caja.php';
+
 // Variables de control
 $inicio_ejecucion = microtime(true);
 $log = [];
@@ -161,7 +164,9 @@ try {
             $log[] = "";
             $log[] = "Procesando: {$caja['empresa_nombre']} | {$caja['sucursal_nombre']} | $fecha_caja";
             
-            // Calcular totales de movimientos para esa fecha
+            // Calcular totales de movimientos para esa fecha.
+            // Se excluye el movimiento de FONDO INICIAL: ese monto se registra
+            // aparte como saldo_inicial (evita duplicar el fondo de apertura).
             $sql_totales = "SELECT 
                 SUM(CASE WHEN tipo = 'INGRESO' AND (metodo_pago = 'EFECTIVO' OR metodo_pago = 'MIXTO') 
                          THEN monto ELSE 0 END) as ingresos_efectivo,
@@ -172,7 +177,8 @@ try {
             WHERE empresa_id = :empresa_id 
               AND sucursal_id = :sucursal_id
               AND DATE(fecha) = :fecha
-              AND cerrado = 0";
+              AND cerrado = 0"
+              . SQL_FILTRO_SIN_FONDO_INICIAL;
             
             $stmt_totales = $pdo->prepare($sql_totales);
             $stmt_totales->execute([
@@ -185,7 +191,9 @@ try {
             $ing_efectivo = (float)($totales['ingresos_efectivo'] ?? 0);
             $ing_transf = (float)($totales['ingresos_transf'] ?? 0);
             $egresos = (float)($totales['egresos'] ?? 0);
-            $saldo_esperado = $ing_efectivo - $egresos;
+            // El saldo inicial (fondo de apertura) se suma aparte porque el
+            // movimiento de fondo inicial quedó excluido de los ingresos
+            $saldo_esperado = $saldo_inicial + $ing_efectivo - $egresos;
             
             $log[] = sprintf(
                 "  Totales: Ing.Efectivo=$%s | Ing.Transf=$%s | Egresos=$%s | Saldo Esperado=$%s",

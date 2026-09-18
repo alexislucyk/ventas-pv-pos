@@ -208,6 +208,8 @@
         .dev-link.search:hover { background: rgba(52, 152, 219, 0.2); }
         .dev-link.danger { background: var(--danger-soft); border: 1px solid rgba(231, 76, 60, 0.4); color: #f09086; }
         .dev-link.danger:hover { background: rgba(231, 76, 60, 0.22); }
+        .dev-link.warning { background: rgba(241, 196, 15, 0.12); border: 1px solid rgba(241, 196, 15, 0.4); color: #e9c46a; }
+        .dev-link.warning:hover { background: rgba(241, 196, 15, 0.2); }
         .dev-note { color: var(--muted-2); font-size: 0.75rem; font-style: italic; }
 
         /* ===== TABLA DE MOVIMIENTOS ===== */

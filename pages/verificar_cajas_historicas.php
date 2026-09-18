@@ -2,6 +2,9 @@
 // pages/verificar_cajas_historicas.php - Vista con estilo de la app
 include 'infosesion.php';
 require '../config/db_config.php';
+// Garantiza la disponibilidad de SQL_FILTRO_SIN_FONDO_INICIAL (el include de
+// infosesion.php puede no cargar funciones_caja.php si el módulo está deshabilitado)
+require_once '../funciones/funciones_caja.php';
 
 // Verificar que el usuario sea developer
 if (!isset($_SESSION['usuario_rol']) || $_SESSION['usuario_rol'] !== 'developer') {
@@ -51,7 +54,9 @@ try {
         
         if ($total_cajas > 0) {
             foreach ($cajas_abiertas as $caja) {
-                // Obtener cantidad de movimientos para esta caja
+                // Obtener cantidad de movimientos para esta caja.
+                // Los ingresos excluyen el movimiento de FONDO INICIAL: ese monto
+                // se informa aparte como saldo inicial (evita duplicarlo).
                 $sql_mov = "SELECT COUNT(*) as cantidad, 
                                    SUM(CASE WHEN tipo = 'INGRESO' AND (metodo_pago = 'EFECTIVO' OR metodo_pago = 'MIXTO') 
                                             THEN monto ELSE 0 END) as ing_efectivo,
@@ -60,7 +65,8 @@ try {
                             WHERE empresa_id = :empresa_id 
                               AND sucursal_id = :sucursal_id
                               AND DATE(fecha) = :fecha
-                              AND cerrado = 0";
+                              AND cerrado = 0"
+                              . SQL_FILTRO_SIN_FONDO_INICIAL;
                 
                 $stmt_mov = $pdo->prepare($sql_mov);
                 $stmt_mov->execute([
@@ -73,7 +79,9 @@ try {
                 $caja['cant_movimientos'] = (int)($mov_data['cantidad'] ?? 0);
                 $caja['ing_efectivo'] = (float)($mov_data['ing_efectivo'] ?? 0);
                 $caja['egresos'] = (float)($mov_data['egresos'] ?? 0);
-                $caja['saldo_esperado'] = $caja['ing_efectivo'] - $caja['egresos'];
+                // El saldo inicial (fondo de apertura) se suma aparte porque el
+                // movimiento de fondo inicial quedó excluido de los ingresos
+                $caja['saldo_esperado'] = $caja['saldo_inicial'] + $caja['ing_efectivo'] - $caja['egresos'];
                 
                 // Calcular fecha_apertura en PHP
                 $caja['fecha_apertura'] = $caja['fecha'] . ' 00:00:00';
