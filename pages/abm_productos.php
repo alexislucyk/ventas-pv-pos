@@ -513,6 +513,13 @@ if ($accion === 'listar') {
             const input = document.getElementById('filtroProductos');
             const params = new URLSearchParams(window.location.search);
             const q = (input ? input.value.trim() : '');
+            const qActual = (params.get('q') || '').trim();
+            const paginaActual = params.get('pagina');
+            // Si la búsqueda no cambió y no hay página que resetear,
+            // no recargar (evita una recarga redundante que roba el foco)
+            if (q === qActual && !paginaActual) {
+                return;
+            }
             if (q) {
                 params.set('q', q);
             } else {
@@ -533,10 +540,15 @@ if ($accion === 'listar') {
 
         const inputFiltro = document.getElementById('filtroProductos');
         if (inputFiltro) {
+            const qEnUrl = () => ((new URLSearchParams(window.location.search).get('q')) || '').trim();
             // Auto-búsqueda con debounce (500 ms) para mejor UX
             let timeoutBusqueda = null;
             inputFiltro.addEventListener('input', function() {
                 clearTimeout(timeoutBusqueda);
+                // Solo buscar si el texto cambió respecto a la búsqueda actual
+                if (inputFiltro.value.trim() === qEnUrl()) {
+                    return;
+                }
                 timeoutBusqueda = setTimeout(window.buscarProductos, 500);
             });
             // Búsqueda al presionar Enter
@@ -547,6 +559,14 @@ if ($accion === 'listar') {
                     window.buscarProductos();
                 }
             });
+
+            // Restaurar el foco del filtro después de la recarga de la
+            // búsqueda (la paginación/búsqueda son navegación server-side)
+            if (qEnUrl() !== '') {
+                inputFiltro.focus();
+                const largo = inputFiltro.value.length;
+                try { inputFiltro.setSelectionRange(largo, largo); } catch (e) { /* no-op */ }
+            }
         }
 
         // --- FILTRO POR POSESIÓN (Propio / Consignación) ---
