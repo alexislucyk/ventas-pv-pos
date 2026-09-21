@@ -98,6 +98,10 @@ $id_cliente = (int)$_GET['id_cliente'];
                 <a href="pagos_ctacte.php?id_cliente=<?php echo $id_cliente; ?>" class="btn btn-success" style="padding: 8px 18px; text-decoration: none; border-radius: 5px;">
                     ➕ Registrar Pago / Cobro
                 </a>
+                <button type="button" class="btn-action btn-pdf-v" onclick="generarPDFCuentaCorriente()"
+                        title="Descargar el estado de cuenta completo (fecha, movimiento, nro., debe, haber y saldo)">
+                    <i class="fas fa-file-pdf"></i> PDF con Saldo
+                </button>
                 <a href="cuentas_corrientes.php" class="btn btn-secondary" style="padding: 8px 18px; text-decoration: none; border-radius: 5px;">
                     ← Volver
                 </a>
@@ -390,6 +394,12 @@ $id_cliente = (int)$_GET['id_cliente'];
                 todos.checked = totalMov > 0 && seleccionados.length === totalMov;
                 todos.indeterminate = seleccionados.length > 0 && seleccionados.length < totalMov;
             }
+        }
+
+        // Generar el estado de cuenta corriente completo en PDF
+        // (fecha, movimiento, nro. de movimiento, debe, haber y saldo acumulado)
+        window.generarPDFCuentaCorriente = function() {
+            window.open('generar_pdf_ctacte.php?id_cliente=<?php echo (int)$id_cliente; ?>', '_blank');
         }
 
         // Generar el PDF con los movimientos seleccionados
