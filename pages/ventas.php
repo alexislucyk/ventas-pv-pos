@@ -173,12 +173,30 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                             throw new Exception("No se pudo obtener el dólar operativo para convertir el producto en USD: {$item['cod_prod']}.");
                         }
 
-                        $item['p_unit'] = (float)$prod_db['p_venta'] * $dolar_operativo;
-                        $item['p_costo_venta'] = (float)$prod_db['p_compra'] * $dolar_operativo;
+                        $precio_db = (float)$prod_db['p_venta'] * $dolar_operativo;
+                        $costo_db  = (float)$prod_db['p_compra'] * $dolar_operativo;
                     } else {
-                        $item['p_unit'] = (float)$prod_db['p_venta'];
-                        $item['p_costo_venta'] = (float)$prod_db['p_compra'];
+                        $precio_db = (float)$prod_db['p_venta'];
+                        $costo_db  = (float)$prod_db['p_compra'];
                     }
+
+                    // PRECIO DEL ÍTEM:
+                    // El carrito marca con precio_manual = true los productos cuyo precio debe
+                    // respetarse tal como se envía:
+                    //   - Productos copiados desde un presupuesto emitido (se cobra el precio del
+                    //     presupuesto, no el precio actual de la tabla productos).
+                    //   - Ventas pendientes reanudadas (se conserva el precio ya guardado).
+                    // En cualquier otro caso el precio autoritativo es el de la tabla productos.
+                    $precio_enviado = isset($item['p_unit']) ? (float)$item['p_unit'] : 0.0;
+
+                    if (!empty($item['precio_manual']) && $precio_enviado > 0) {
+                        $item['p_unit'] = $precio_enviado;
+                    } else {
+                        $item['p_unit'] = $precio_db;
+                    }
+
+                    // El costo siempre se toma de la tabla productos (margen / estadística)
+                    $item['p_costo_venta'] = $costo_db;
 
                     
                     // Descuento por producto (Tratado como porcentaje)
@@ -1004,7 +1022,10 @@ unset($_SESSION['ticket_cuota_venta_doc']);
                             total: pUnit * cant,
                             precio_presupuesto: precioPres,
                             precio_actual: precioAct,
-                            precio_corregido: false
+                            precio_corregido: false,
+                            // Indica al backend (pages/ventas.php) que debe guardar ESTE precio
+                            // y no el de la tabla productos al registrar la venta.
+                            precio_manual: true
                         });
                     });
 

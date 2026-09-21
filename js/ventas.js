@@ -756,6 +756,9 @@ window.actualizarPrecioCarrito = function(index) {
     }
     item.p_unit = parseFloat(item.precio_actual);
     item.precio_corregido = true;
+    // Al corregir el precio al valor actual, el precio autoritativo vuelve a ser
+    // el de la tabla productos (el backend lo recalcula, con cotización si es USD).
+    item.precio_manual = false;
     // Recalcular total respetando el descuento aplicado
     let subtotal = item.cant * item.p_unit;
     let descuentoMonto = subtotal * ((item.desc || 0) / 100);
@@ -856,7 +859,10 @@ window.reanudarVenta = function(nDocumento) {
                     p_costo: parseFloat(p.p_costo) || 0,
                     cant: parseFloat(p.cant),
                     desc: parseFloat(p.descuento_unitario) || 0,
-                    total: parseFloat(p.total)
+                    total: parseFloat(p.total),
+                    // Al reanudar una venta pendiente se conserva el precio ya guardado
+                    // (el backend no lo reemplaza por el de la tabla productos).
+                    precio_manual: true
                 });
             });
 
