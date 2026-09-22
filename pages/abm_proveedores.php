@@ -133,9 +133,9 @@ try {
 </head>
 <body>
     <?php include 'sidebar.php'; ?>
-    <div class="content" style="padding-top: 70px;">
+    <div class="content content-topbar">
         <?php include 'topbar.php'; ?>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <div class="page-header">
             <h1>🚚 Gestión de Proveedores</h1>
             <?php if ($accion === 'listar'): ?>
                 <a href="<?php echo URL_BASE; ?>proveedores?accion=crear" class="btn btn-success">+ Nuevo Proveedor</a>

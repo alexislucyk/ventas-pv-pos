@@ -227,11 +227,11 @@ if ($accion === 'listar' && $id && isset($_GET['accion']) && $_GET['accion'] ===
 <body>
     <?php include 'sidebar.php'; ?>
     
-    <div class="content" style="padding-top: 70px;">
+    <div class="content content-topbar">
         <?php include 'topbar.php'; ?>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+        <div class="page-header">
             <h1>👥 Gestión de Clientes</h1>
-            <div style="display: flex; gap: 8px; align-items: center;">
+            <div class="page-actions">
                 <?php if ($accion === 'listar'): ?>
                     <a href="<?php echo URL_BASE; ?>clientes?accion=crear" class="btn btn-success">+ Nuevo Cliente</a>
                 <?php endif; ?>

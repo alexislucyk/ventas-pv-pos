@@ -241,12 +241,12 @@ if ($accion === 'listar') {
 <body>
     <?php include 'sidebar.php'; ?>
     
-    <div class="content" style="padding-top: 70px;">
+    <div class="content content-topbar">
         <?php include 'topbar.php'; ?>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <div class="page-header">
             <h1>📦 Gestión de Productos</h1>
 <?php if ($accion === 'listar'): ?>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <div class="page-actions">
                       <button type="button" class="btn" onclick="abrirModalMasivo()" style="background-color: #6f42c1; color: white;"><i class="fas fa-bolt"></i> Aumento Masivo</button>
                       <button type="button" class="btn" onclick="abrirModalMultiples()" style="background-color: #ff9800; color: white;"><i class="fas fa-layer-group"></i> Carga Múltiple</button>
                       <button type="button" class="btn" onclick="abrirModalPdfPrecios()" style="background-color: #00bcd4; color: white;"><i class="fas fa-file-pdf"></i> Listado PDF</button>
