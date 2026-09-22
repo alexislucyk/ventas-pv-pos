@@ -258,17 +258,6 @@ $pdf->Cell(86, 4, to_iso('CUIT/DNI: ' . $clienteDoc), 0, 1, 'L');
 $pdf->SetXY(16, $yBox + 19);
 $pdf->Cell(86, 4, to_iso('Dirección: ' . $clienteDir), 0, 1, 'L');
 
-// Panel derecho del presupuesto (50% ancho)
-$pdf->SetFont('Arial', 'B', 8);
-$pdf->SetXY(106, $yBox + 3);
-$pdf->Cell(88, 4, to_iso('DETALLE'), 0, 1, 'L');
-
-$pdf->SetFont('Arial', '', 9);
-$pdf->SetXY(106, $yBox + 8);
-$pdf->Cell(88, 5, to_iso('Número de presupuesto: ' . $id), 0, 1, 'L');
-$pdf->SetXY(106, $yBox + 14);
-$pdf->Cell(88, 4, to_iso('Fecha de emisión: ' . $fechaStr), 0, 1, 'L');
-
 $pdf->SetY($yBox + 45);
 
 // ---------- Tabla de productos ----------
