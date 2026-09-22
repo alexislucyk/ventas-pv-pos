@@ -221,53 +221,172 @@ document.addEventListener('DOMContentLoaded', () => {
                 : '';
 
             cuerpoPresupuesto.innerHTML += `
-                <tr style="border-bottom: 1px solid #333;">
+                <tr data-index="${index}" style="border-bottom: 1px solid #333;">
                     <td style="padding: 10px;">${item.codigo}</td>
                     <td><input type="text" class="form-control-custom" value="${item.descripcion}" onchange="editarItem(${index}, 'desc', this.value)"></td>
                     <td><input type="number" class="form-control-custom input-cant" value="${item.cantidad}" onchange="editarItem(${index}, 'cant', this.value)"></td>
                     <td><input type="number" class="form-control-custom input-precio" value="${item.precio}" onchange="editarItem(${index}, 'precio', this.value)" ${warnPrecio}></td>
                     ${precioActualTd}
-                    <td style="text-align: right;">$ ${subtotal.toFixed(2)}</td>
+                    <td class="subtotal-cell" style="text-align: right;">$ ${subtotal.toFixed(2)}</td>
                     <td><button onclick="eliminarItem(${index})" style="background:none; border:none; color:#e74c3c; cursor:pointer;">❌</button></td>
                 </tr>
             `;
         });
 
         totalPresupuestoLabel.innerText = `$ ${totalGeneral.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
+}
+
+// Actualiza solo el subtotal de una fila sin re-renderizar toda la tabla
+function actualizarSubtotal(index) {
+    const item = items[index];
+    if (!item) return;
+    const subtotal = item.precio * item.cantidad;
+    const row = cuerpoPresupuesto.querySelector(`tr[data-index="${index}"]`);
+    if (row) {
+        const cell = row.querySelector('.subtotal-cell');
+        if (cell) {
+            cell.textContent = `$ ${subtotal.toFixed(2)}`;
+        }
     }
+}
+
+// Actualiza solo el total general sin re-renderizar
+function actualizarTotal() {
+    const totalGeneral = items.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
+    totalPresupuestoLabel.innerText = `$ ${totalGeneral.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
+}
 
     // Navegación de foco con Enter dentro de la tabla:
-    // Cantidad → Precio → vuelve al buscador de productos
+    // Cantidad → Precio → siguiente fila (cantidad) → ... → al final vuelve al buscador
+    // Flechas: ↓ siguiente fila, ↑ fila anterior (mismo campo)
     cuerpoPresupuesto.addEventListener('keydown', (e) => {
-        if (e.key !== 'Enter') return;
+        if (e.key !== 'Enter' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
         const inp = e.target;
         if (!inp || !(inp instanceof HTMLInputElement)) return;
+        const currentRow = inp.closest('tr');
+        if (!currentRow) return;
 
-        if (inp.classList.contains('input-cant')) {
-            e.preventDefault();
-            const fila = inp.closest('tr');
-            const precio = fila ? fila.querySelector('.input-precio') : null;
-            if (precio) {
-                precio.focus();
-                precio.select();
+        const currentIdx = currentRow ? parseInt(currentRow.dataset.index, 10) : -1;
+
+        if (e.key === 'Enter') {
+            if (inp.classList.contains('input-cant')) {
+                e.preventDefault();
+                const precio = currentRow.querySelector('.input-precio');
+                if (precio) {
+                    precio.focus();
+                    if (typeof precio.select === 'function') precio.select();
+                }
+            } else if (inp.classList.contains('input-precio')) {
+                e.preventDefault();
+                const nextIdx = currentIdx + 1;
+                const nextRow = cuerpoPresupuesto.querySelector(`tr[data-index="${nextIdx}"]`);
+                if (nextRow) {
+                    const cant = nextRow.querySelector('.input-cant');
+                    if (cant) {
+                        cant.focus();
+                        if (typeof cant.select === 'function') cant.select();
+                    }
+                } else {
+                    buscarProducto.focus();
+                }
             }
-        } else if (inp.classList.contains('input-precio')) {
+        } else if (e.key === 'ArrowDown') {
             e.preventDefault();
-            buscarProducto.focus();
+            if (currentIdx < 0 || currentIdx >= items.length - 1) return;
+            const isCant = inp.classList.contains('input-cant');
+            const isPrecio = inp.classList.contains('input-precio');
+            if (!isCant && !isPrecio) return;
+            const nextIdx = currentIdx + 1;
+            const nextRow = cuerpoPresupuesto.querySelector(`tr[data-index="${nextIdx}"]`);
+            if (nextRow) {
+                nextRow.scrollIntoView({ block: 'nearest' });
+                if (isCant) {
+                    const cant = nextRow.querySelector('.input-cant');
+                    if (cant) { cant.focus(); if (typeof cant.select === 'function') cant.select(); }
+                } else if (isPrecio) {
+                    const precio = nextRow.querySelector('.input-precio');
+                    if (precio) { precio.focus(); if (typeof precio.select === 'function') precio.select(); }
+                }
+            }
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (currentIdx <= 0) return;
+            const isCant = inp.classList.contains('input-cant');
+            const isPrecio = inp.classList.contains('input-precio');
+            if (!isCant && !isPrecio) return;
+            const prevIdx = currentIdx - 1;
+            const prevRow = cuerpoPresupuesto.querySelector(`tr[data-index="${prevIdx}"]`);
+            if (prevRow) {
+                prevRow.scrollIntoView({ block: 'nearest' });
+                if (isCant) {
+                    const cant = prevRow.querySelector('.input-cant');
+                    if (cant) { cant.focus(); if (typeof cant.select === 'function') cant.select(); }
+                } else if (isPrecio) {
+                    const precio = prevRow.querySelector('.input-precio');
+                    if (precio) { precio.focus(); if (typeof precio.select === 'function') precio.select(); }
+                }
+            }
         }
     });
 
+        // Variable para guardar el foco que debe restaurarse después de un re-render
+    let focoPendiente = null;
+
     // Funciones globales para los eventos onchange/onclick de la tabla
     window.editarItem = (index, campo, valor) => {
-        if (campo === 'cant') items[index].cantidad = parseFloat(valor);
-        if (campo === 'precio') items[index].precio = parseFloat(valor);
-        if (campo === 'desc') items[index].descripcion = valor;
-        renderizarTabla();
+        if (campo === 'cant') {
+            items[index].cantidad = parseFloat(valor);
+            actualizarSubtotal(index);
+            actualizarTotal();
+        } else if (campo === 'precio') {
+            items[index].precio = parseFloat(valor);
+            actualizarTotal();
+            const row = cuerpoPresupuesto.querySelector(`tr[data-index="${index}"]`);
+            if (row) {
+                const precioInput = row.querySelector('.input-precio');
+                if (precioInput) {
+                    const tieneActual = items[index].precio_actual !== undefined && items[index].precio_actual !== null;
+                    const precioActualVal = tieneActual ? parseFloat(items[index].precio_actual) : null;
+                    const hayVariacion = tieneActual && Math.abs(precioActualVal - parseFloat(valor)) > 0.001;
+                    precioInput.style.color = hayVariacion ? '#e67e22' : '';
+                    precioInput.title = hayVariacion ? `Variación: presupuesto $${parseFloat(items[index].precio).toFixed(2)} → actual $${precioActualVal.toFixed(2)}` : '';
+                }
+            }
+            // Después de editar el precio, avanzar el foco a la cantidad de la siguiente fila
+            const nextIdx = index + 1;
+            const nextRow = cuerpoPresupuesto.querySelector(`tr[data-index="${nextIdx}"]`);
+            if (nextRow) {
+                const nextCant = nextRow.querySelector('.input-cant');
+                if (nextCant) {
+                    nextCant.focus();
+                    if (typeof nextCant.select === 'function') nextCant.select();
+                }
+            } else {
+                buscarProducto.focus();
+            }
+        } else if (campo === 'desc') {
+            items[index].descripcion = valor;
+        }
     };
 
     window.eliminarItem = (index) => {
         items.splice(index, 1);
         renderizarTabla();
+        // Restaurar foco: si quedan items, enfocar la cantidad de la fila que ocupa el mismo índice
+        // (o la última si se eliminó la última); si no quedan, enfocar el buscador
+        if (items.length > 0) {
+            const targetIdx = Math.min(index, items.length - 1);
+            const targetRow = cuerpoPresupuesto.querySelector(`tr[data-index="${targetIdx}"]`);
+            if (targetRow) {
+                const cant = targetRow.querySelector('.input-cant');
+                if (cant) {
+                    cant.focus();
+                    if (typeof cant.select === 'function') cant.select();
+                }
+            }
+        } else {
+            buscarProducto.focus();
+        }
     };
 
     // Actualiza el precio de un producto específico al precio actual de la BD
@@ -280,7 +399,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         item.precio = parseFloat(item.precio_actual);
         item.variado = false;
-        renderizarTabla();
+        actualizarSubtotal(index);
+        actualizarTotal();
+        const row = cuerpoPresupuesto.querySelector(`tr[data-index="${index}"]`);
+        if (row) {
+            const precioInput = row.querySelector('.input-precio');
+            if (precioInput) {
+                precioInput.value = item.precio.toFixed(2);
+                precioInput.style.color = '';
+                precioInput.title = '';
+            }
+            const precioActualCell = row.querySelectorAll('td')[4];
+            if (precioActualCell) {
+                precioActualCell.textContent = `⚠ $ ${item.precio_actual.toFixed(2)}`;
+            }
+        }
+        const inputPrecio = cuerpoPresupuesto.querySelector(`tr[data-index="${index}"] .input-precio`);
+        if (inputPrecio) inputPrecio.focus();
         mostrarMensaje("Éxito", `✅ Precio de "${item.codigo} - ${item.descripcion}" actualizado a $${item.precio.toFixed(2)}.`);
     };
 
