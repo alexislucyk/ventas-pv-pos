@@ -7,6 +7,7 @@ let gridProductos = [];
 let pagoMetodo = 'efectivo';
 let clienteSeleccionado = null;
 let resultadoIndex = -1;
+let busquedaSeq = 0; // Descarta respuestas viejas de sugerencias (race condition)
 
 const redondear = n => Math.round((n + Number.EPSILON) * 100) / 100;
 const formatear = n => {
@@ -44,17 +45,28 @@ function iniciar() {
             resaltarResultado(resultadoIndex);
         } else if (e.key === 'Enter') {
             e.preventDefault();
+            const qEscaneado = input.value.trim();
+            // Protección anti-carrera (igual que en ventas): el Enter del escáner suele
+            // llegar ANTES de que la búsqueda nueva termine. Solo agregamos el ítem
+            // resaltado si coincide con lo escrito; si no, seguimos al lookup exacto.
             if (items.length > 0 && resultadoIndex >= 0) {
-                const item = items[resultadoIndex];
-                const idx = parseInt(item.dataset.idx, 10);
-                agregarDesdeGrid(idx);
-                input.value = '';
-                resultados.innerHTML = '';
-                resultadoIndex = -1;
-                input.focus();
-                return;
+                const idxSel = parseInt(items[resultadoIndex].dataset.idx, 10);
+                const sel = gridProductos[idxSel];
+                const qNorm = qEscaneado.toLowerCase();
+                const coincide = qEscaneado === ''
+                    || (sel && sel.cod_prod && String(sel.cod_prod).toLowerCase() === qNorm)
+                    || (sel && sel.descripcion && String(sel.descripcion).toLowerCase().includes(qNorm));
+                if (coincide) {
+                    agregarDesdeGrid(idxSel);
+                    input.value = '';
+                    resultados.innerHTML = '';
+                    resultadoIndex = -1;
+                    input.focus();
+                    return;
+                }
+                // No coincide: cae al buscarPorCodigo (match exacto por código) de abajo
             }
-            const cod = input.value.trim();
+            const cod = qEscaneado;
             if (!cod) return;
             // Formato cantidad*código (ej: 3*7790123 → agrega 3 unidades)
             const m = cod.match(/^(\d+(?:[.,]\d+)?)\*(.+)$/);
@@ -193,12 +205,23 @@ function buscarPorCodigo(codigo, resultados, cantidad) {
                 input.focus();
                 toast('Agregado: ' + data.producto.descripcion + (cantidad && cantidad !== 1 ? ' x' + cantidad : ''), 'ok');
             } else {
+                // Fallback a la primera sugerencia SOLO si realmente coincide con el
+                // código buscado (evita agregar un producto de una consulta vieja
+                // cuando el escáner manda un código que no existe).
                 const primerSugerencia = resultados && resultados.querySelector('.search-result-item');
                 if (primerSugerencia && primerSugerencia.dataset.idx !== undefined) {
-                    agregarDesdeGrid(parseInt(primerSugerencia.dataset.idx, 10));
-                    input.value = '';
-                    input.focus();
-                    return;
+                    const cand = gridProductos[parseInt(primerSugerencia.dataset.idx, 10)];
+                    const codNorm = String(codigo).toLowerCase();
+                    const coincideFallback = cand && (
+                        (cand.cod_prod && String(cand.cod_prod).toLowerCase() === codNorm) ||
+                        (cand.descripcion && String(cand.descripcion).toLowerCase().includes(codNorm))
+                    );
+                    if (coincideFallback) {
+                        agregarDesdeGrid(parseInt(primerSugerencia.dataset.idx, 10));
+                        input.value = '';
+                        input.focus();
+                        return;
+                    }
                 }
                 input.value = '';
                 input.classList.add('error');
@@ -213,9 +236,11 @@ function buscarPorCodigo(codigo, resultados, cantidad) {
 }
 
 function sugerencias(q, contenedor) {
+    const seq = ++busquedaSeq;
     fetch(BASE + 'pages/buscar_producto_ajax.php?q=' + encodeURIComponent(q))
         .then(r => { if (!r.ok) throw new Error(); return r.json(); })
         .then(data => {
+            if (seq !== busquedaSeq) return; // Llegó una búsqueda más nueva: descartamos esta
             if (!contenedor) return;
             contenedor.innerHTML = '';
             if (!Array.isArray(data) || data.length === 0) {
