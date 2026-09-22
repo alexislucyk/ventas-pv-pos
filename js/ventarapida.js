@@ -201,6 +201,10 @@ function buscarPorCodigo(codigo, resultados, cantidad) {
         .then(data => {
             if (data.success && data.producto) {
                 agregarProducto(data.producto, cantidad);
+                // Cerramos la lista de sugerencias: el producto ya fue agregado
+                // por código exacto, la lista vieja ya no es útil.
+                if (resultados) resultados.innerHTML = '';
+                resultadoIndex = -1;
                 input.value = '';
                 input.focus();
                 toast('Agregado: ' + data.producto.descripcion + (cantidad && cantidad !== 1 ? ' x' + cantidad : ''), 'ok');
