@@ -252,6 +252,59 @@ label { font-size: 0.85rem; margin-bottom: 4px; display: block; }
             text-align: center;
             height: 60px !important;
         }
+
+/* --- FIX MODALES (mismo criterio que cuentas_corrientes_detalle.css) --- */
+/* Sin esto, los modales (.modal-custom sin estilos) aparecen al final de la
+   página dentro del flujo del documento en lugar de como overlay centrado. */
+#modalFactura, #modalWhatsApp {
+    position: fixed !important;
+    z-index: 2147483640 !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: 100vh !important;
+    background-color: rgba(0, 0, 0, 0.75) !important;
+    display: none;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+#modalFactura .modal-content-custom, #modalWhatsApp .modal-content-custom {
+    background-color: #1e1e1e !important;
+    margin: 20px auto !important;
+    padding: 15px 20px !important;
+    border: 1px solid #444 !important;
+    border-radius: 12px !important;
+    width: auto !important;
+    min-width: 320px !important;
+    max-width: 92vw !important;
+    color: white !important;
+    box-shadow: 0 15px 60px rgba(0,0,0,1) !important;
+    position: relative !important;
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+/* Panel de WhatsApp: compacto */
+#modalWhatsApp .modal-content-custom {
+    width: 440px !important;
+    max-width: 92vw !important;
+}
+
+/* Panel de detalle de operacion: mas chico que antes (era 900px) */
+#modalFactura .modal-content-custom {
+    width: 700px !important;
+    max-width: 92vw !important;
+}
+
+#modalFactura > div, #modalWhatsApp > div {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    transform: none !important;
+}
         #resultadosBusquedaCC {
             position: absolute;
             z-index: 1000;
