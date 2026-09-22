@@ -268,9 +268,10 @@
 
         .cart-item {
             display: grid;
-            /* Anchos FIJOS: cada fila es un grid independiente; con 'auto' la columna
-               del total medía distinto en cada fila y desalineaba las cantidades. */
-            grid-template-columns: minmax(0, 1fr) 90px 110px 28px;
+            /* Columnas fijas en px para que la alineacion vertical sea identica en todas las filas.
+               La columna 1 (descripcion+cod) tiene ancho fijo tambien; si el texto es largo se corta con ellipsis.
+               Cantidad y quitar centrados verticalmente; total alineado a la derecha. */
+            grid-template-columns: 180px 68px 102px 28px;
             align-items: center;
             gap: 8px;
             padding: 6px 12px;
@@ -280,11 +281,63 @@
 
         .cart-item:hover { background: #191919; }
 
-        .ci-info { min-width: 0; line-height: 1.2; }
+        .ci-info {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.2;
+        }
 
-        .ci-nombre { font-size: 0.78rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ci-nombre {
+            font-size: 0.78rem;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
 
-        .ci-cod { font-size: 0.62rem; color: var(--muted-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ci-cod {
+            font-size: 0.62rem;
+            color: var(--muted-2);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .ci-qty {
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .ci-qty input {
+            width: 100% !important;
+            max-width: 58px;
+            height: 24px;
+            padding: 0 !important;
+            margin: 0 !important;
+            text-align: center;
+            background: var(--panel-alt) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 6px !important;
+            color: var(--text) !important;
+            font-size: 0.8rem;
+            font-weight: 700;
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        .ci-qty input:focus { border-color: #00bcd4; }
+
+        .ci-total {
+            color: var(--warn);
+            font-weight: 700;
+            font-size: 0.85rem;
+            white-space: nowrap;
+            text-align: right;
+            justify-self: end;
+        }
+
+        .ci-total.sin-stock { color: #e74c3c; }
 
         .ci-remove {
             background: none;
@@ -298,29 +351,6 @@
         }
 
         .ci-remove:hover { color: #e74c3c; }
-
-        .ci-qty { min-width: 0; }
-
-        .ci-qty input {
-            width: 100% !important;
-            height: 26px;
-            padding: 0 !important;
-            margin-bottom: 0 !important;
-            text-align: center;
-            background: var(--panel-alt) !important;
-            border: 1px solid var(--border) !important;
-            border-radius: 6px !important;
-            color: var(--text) !important;
-            font-size: 0.8rem;
-            font-weight: 700;
-            outline: none;
-        }
-
-        .ci-qty input:focus { border-color: #00bcd4; }
-
-        .ci-total { color: var(--warn); font-weight: 700; font-size: 0.85rem; white-space: nowrap; text-align: right; justify-self: end; }
-
-        .ci-total.sin-stock { color: #e74c3c; }
 
         /* ===== TOTALES / RESUMEN ===== */
         .pos-totals {
