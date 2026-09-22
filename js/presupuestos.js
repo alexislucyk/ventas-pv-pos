@@ -76,6 +76,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- LÓGICA DE BÚSQUEDA DE PRODUCTOS ---
+    let productoSeleccionadoIdx = -1; // Índice del producto resaltado con las flechas
+
+    // Resalta el producto seleccionado en la lista (navegación con ↑/↓)
+    function resaltarProductoLista() {
+        const opciones = listaProductos.querySelectorAll('.resultado-item');
+        opciones.forEach((it, i) => it.classList.toggle('resaltado', i === productoSeleccionadoIdx));
+        const actual = opciones[productoSeleccionadoIdx];
+        if (actual) actual.scrollIntoView({ block: 'nearest' });
+    }
+
     buscarProducto.addEventListener('input', () => {
         const query = buscarProducto.value;
         if (query.length > 1) {
@@ -83,8 +93,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(res => res.json())
                 .then(data => {
                     listaProductos.innerHTML = '';
-                    data.forEach(prod => {
+                    productoSeleccionadoIdx = -1;
+
+                    if (data.length === 0) {
+                        listaProductos.innerHTML = '<div>No se encontró el producto</div>';
+                        listaProductos.style.display = 'block';
+                        return;
+                    }
+
+                    data.forEach((prod, i) => {
                         const div = document.createElement('div');
+                        div.className = 'resultado-item';
+                        div.dataset.idx = i;
                         div.innerHTML = `[${prod.cod_prod}] ${prod.descripcion} - <strong>$${prod.p_venta}</strong>`;
                         div.onclick = () => agregarProducto(prod);
                         listaProductos.appendChild(div);
@@ -96,11 +116,60 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Navegación con teclado: ↑/↓ resalta, Enter selecciona, Esc cierra
+    buscarProducto.addEventListener('keydown', (e) => {
+        const opciones = listaProductos.querySelectorAll('.resultado-item');
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (opciones.length === 0) return;
+            productoSeleccionadoIdx = (productoSeleccionadoIdx + 1) % opciones.length;
+            resaltarProductoLista();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (opciones.length === 0) return;
+            productoSeleccionadoIdx = (productoSeleccionadoIdx - 1 + opciones.length) % opciones.length;
+            resaltarProductoLista();
+        } else if (e.key === 'Enter') {
+            if (listaProductos.style.display === 'block' && opciones.length > 0) {
+                e.preventDefault();
+                const idx = productoSeleccionadoIdx >= 0 ? productoSeleccionadoIdx : 0;
+                opciones[idx].click(); // Ejecuta agregarProducto(prod)
+            }
+        } else if (e.key === 'Escape') {
+            listaProductos.style.display = 'none';
+            productoSeleccionadoIdx = -1;
+        }
+    });
+
+    // Cierra los dropdowns al hacer clic fuera de ellos
+    document.addEventListener('click', (e) => {
+        if (buscarProducto && !buscarProducto.contains(e.target) && !listaProductos.contains(e.target)) {
+            listaProductos.style.display = 'none';
+        }
+        if (buscarCliente && !buscarCliente.contains(e.target) && !listaClientes.contains(e.target)) {
+            listaClientes.style.display = 'none';
+        }
+    });
+
+    // Enfoca un campo de una fila de la tabla ('cant' o 'precio') y selecciona su contenido
+    function enfocarCampo(index, campo) {
+        const fila = cuerpoPresupuesto.rows[index];
+        if (!fila) return;
+        const inp = fila.querySelector(campo === 'cant' ? '.input-cant' : '.input-precio');
+        if (inp) {
+            inp.focus();
+            if (typeof inp.select === 'function') inp.select();
+        }
+    }
+
     function agregarProducto(p) {
         // Busca usando la misma propiedad que asignas abajo (codigo)
-        const existe = items.find(i => i.codigo === p.cod_prod); 
-        if (existe) {
-            existe.cantidad++;
+        const idxExistente = items.findIndex(i => i.codigo === p.cod_prod);
+        let filaObjetivo;
+        if (idxExistente >= 0) {
+            items[idxExistente].cantidad++;
+            filaObjetivo = idxExistente;
         } else {
             items.push({
                 codigo: p.cod_prod,
@@ -110,11 +179,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 variado: false,
                 cantidad: 1
             });
+            filaObjetivo = items.length - 1;
         }
-        // ... resto de la función
+        // Limpiamos el buscador y ocultamos la lista
         buscarProducto.value = '';
         listaProductos.style.display = 'none';
+        productoSeleccionadoIdx = -1;
         renderizarTabla();
+        // Foco directo en la CANTIDAD del producto recién agregado/modificado
+        enfocarCampo(filaObjetivo, 'cant');
     }
 
     function renderizarTabla() {
@@ -151,8 +224,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <tr style="border-bottom: 1px solid #333;">
                     <td style="padding: 10px;">${item.codigo}</td>
                     <td><input type="text" class="form-control-custom" value="${item.descripcion}" onchange="editarItem(${index}, 'desc', this.value)"></td>
-                    <td><input type="number" class="form-control-custom" value="${item.cantidad}" onchange="editarItem(${index}, 'cant', this.value)"></td>
-                    <td><input type="number" class="form-control-custom" value="${item.precio}" onchange="editarItem(${index}, 'precio', this.value)" ${warnPrecio}></td>
+                    <td><input type="number" class="form-control-custom input-cant" value="${item.cantidad}" onchange="editarItem(${index}, 'cant', this.value)"></td>
+                    <td><input type="number" class="form-control-custom input-precio" value="${item.precio}" onchange="editarItem(${index}, 'precio', this.value)" ${warnPrecio}></td>
                     ${precioActualTd}
                     <td style="text-align: right;">$ ${subtotal.toFixed(2)}</td>
                     <td><button onclick="eliminarItem(${index})" style="background:none; border:none; color:#e74c3c; cursor:pointer;">❌</button></td>
@@ -162,6 +235,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
         totalPresupuestoLabel.innerText = `$ ${totalGeneral.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
     }
+
+    // Navegación de foco con Enter dentro de la tabla:
+    // Cantidad → Precio → vuelve al buscador de productos
+    cuerpoPresupuesto.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        const inp = e.target;
+        if (!inp || !(inp instanceof HTMLInputElement)) return;
+
+        if (inp.classList.contains('input-cant')) {
+            e.preventDefault();
+            const fila = inp.closest('tr');
+            const precio = fila ? fila.querySelector('.input-precio') : null;
+            if (precio) {
+                precio.focus();
+                precio.select();
+            }
+        } else if (inp.classList.contains('input-precio')) {
+            e.preventDefault();
+            buscarProducto.focus();
+        }
+    });
 
     // Funciones globales para los eventos onchange/onclick de la tabla
     window.editarItem = (index, campo, valor) => {
