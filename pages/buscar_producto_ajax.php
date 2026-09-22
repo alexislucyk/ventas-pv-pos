@@ -20,6 +20,24 @@ $busqueda = trim($_GET['q']);
 $param_busqueda = '%' . $busqueda . '%';
 
 try {
+    // 3b. MATCH EXACTO POR CÓDIGO: si existe exactamente UN producto cuyo cod_prod
+    // coincide con la búsqueda (ej: escaneo de código de barras), devolvemos solo
+    // ese producto. Evita que el lector cargue una lista con varios resultados.
+    $es_match_exacto = false;
+    $stmtExact = $pdo->prepare("SELECT COUNT(*) FROM productos p
+                                WHERE p.cod_prod COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci
+                                AND p.empresa_id = ?");
+    $stmtExact->execute([$busqueda, $empresa_id]);
+    $es_match_exacto = ((int)$stmtExact->fetchColumn() === 1);
+
+    if ($es_match_exacto) {
+        $cond_cod = "p.cod_prod COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci";
+        $params_cod = [$busqueda];
+    } else {
+        $cond_cod = "(p.cod_prod LIKE ? OR p.descripcion LIKE ?)";
+        $params_cod = [$param_busqueda, $param_busqueda];
+    }
+
     // 4. CONSULTA SQL CON SENTENCIA PREPARADA
     // Importante: los stocks pueden tener empresa_id distinto al de sesión por migración;
     // por eso el JOIN usa p.empresa_id (la del producto) como fallback para el stock.
@@ -29,24 +47,24 @@ try {
         $sql = "SELECT p.cod_prod, p.descripcion, p.p_compra, p.p_venta, p.moneda, p.rubro, p.unidad_medida, p.es_consignacion,
                        COALESCE((SELECT SUM(s2.stock_actual) FROM stocks s2 WHERE s2.cod_prod COLLATE utf8mb4_unicode_ci = p.cod_prod COLLATE utf8mb4_unicode_ci), 0) AS stock 
                 FROM productos p 
-                WHERE (p.cod_prod LIKE ? OR p.descripcion LIKE ?)
+                WHERE $cond_cod
                 AND p.empresa_id = ?
                 ORDER BY p.descripcion
                 LIMIT 50";
         
         $stmt = $pdo->prepare($sql);
-        $stmt->execute([$param_busqueda, $param_busqueda, $empresa_id]);
+        $stmt->execute(array_merge($params_cod, [$empresa_id]));
     } else {
         $sql = "SELECT p.cod_prod, p.descripcion, p.p_compra, p.p_venta, p.moneda, p.rubro, p.unidad_medida, p.es_consignacion, COALESCE(s.stock_actual, 0) AS stock 
                 FROM productos p 
                 LEFT JOIN stocks s ON p.cod_prod COLLATE utf8mb4_unicode_ci = s.cod_prod COLLATE utf8mb4_unicode_ci AND s.sucursal_id = ?
-                WHERE (p.cod_prod LIKE ? OR p.descripcion LIKE ?)
+                WHERE $cond_cod
                 AND p.empresa_id = ?
                 ORDER BY p.descripcion
                 LIMIT 50";
         
         $stmt = $pdo->prepare($sql);
-        $stmt->execute([$sucursal_id, $param_busqueda, $param_busqueda, $empresa_id]);
+        $stmt->execute(array_merge([$sucursal_id], $params_cod, [$empresa_id]));
     }
 
     $productos = $stmt->fetchAll(PDO::FETCH_ASSOC);

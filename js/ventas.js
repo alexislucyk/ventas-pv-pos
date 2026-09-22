@@ -192,8 +192,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- 1. BUSCADOR DE PRODUCTOS ---
     if (inputBuscarProd) {
+        let busquedaSeq = 0;          // Descarta respuestas viejas (race condition)
+        let debounceTimer = null;     // Agrupa las teclas rápidas del escáner
+
         inputBuscarProd.addEventListener('input', function() {
             const q = this.value.trim();
+            clearTimeout(debounceTimer);
             if (q.length < 2) {
                 resultadosProd.innerHTML = '';
                 productosSugeridos = [];
@@ -201,9 +205,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            fetch(APP_BASE + 'pages/buscar_producto_ajax.php?q=' + encodeURIComponent(q))
+            // Debounce: el escáner manda todos los caracteres casi juntos; buscamos
+            // recién cuando el texto se estabiliza (evita listas de consultas parciales).
+            debounceTimer = setTimeout(() => {
+                const seq = ++busquedaSeq;
+                fetch(APP_BASE + 'pages/buscar_producto_ajax.php?q=' + encodeURIComponent(q))
                 .then(res => res.json())
                 .then(data => {
+                    if (seq !== busquedaSeq) return; // Llegó una búsqueda más nueva: descartamos esta
                     resultadosProd.innerHTML = '';
                     productosSugeridos = [];
                     data.forEach(prod => {
@@ -263,6 +272,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 })
                 .catch(err => console.error("Error en Fetch Productos:", err));
+            }, 150);
         });
 
         inputBuscarProd.addEventListener('keydown', function(e) {
@@ -278,13 +288,49 @@ document.addEventListener('DOMContentLoaded', function() {
                 resultadoIdx = (resultadoIdx - 1 + items.length) % items.length;
                 resaltarResultadosVentas();
             } else if (e.key === 'Enter') {
-                if (productosSugeridos.length > 0 && resultadoIdx >= 0 && resultadoIdx < productosSugeridos.length) {
-                    e.preventDefault();
-                    agregarAlCarrito(productosSugeridos[resultadoIdx]);
+                // Protección para escáner de códigos de barras: solo agregamos el ítem
+                // resaltado si su código/descripción coincide con lo escrito en el
+                // buscador. Con un código exacto el backend ya devuelve un único
+                // resultado, por lo que el primer ítem SIEMPRE coincide. Esto evita
+                // cargar un producto distinto al escaneado.
+                const agregarSeleccionado = () => {
+                    const sel = productosSugeridos[resultadoIdx];
                     inputBuscarProd.value = '';
                     resultadosProd.innerHTML = '';
                     productosSugeridos = [];
                     resultadoIdx = -1;
+                    agregarAlCarrito(sel);
+                };
+
+                if (productosSugeridos.length > 0 && resultadoIdx >= 0 && resultadoIdx < productosSugeridos.length) {
+                    const sel = productosSugeridos[resultadoIdx];
+                    const q = inputBuscarProd.value.trim().toLowerCase();
+                    const coincide = q === ''
+                        || (sel.cod_prod && String(sel.cod_prod).toLowerCase() === q)
+                        || (sel.descripcion && String(sel.descripcion).toLowerCase().includes(q));
+
+                    if (coincide) {
+                        e.preventDefault();
+                        agregarSeleccionado();
+                    } else {
+                        // El texto tipeado no coincide con lo resaltado (típico cuando el
+                        // Enter del escáner llega antes que la última búsqueda). Consultamos
+                        // el match EXACTO por código y, si es único, agregamos ese producto.
+                        e.preventDefault();
+                        const codigoExacto = inputBuscarProd.value.trim();
+                        fetch(APP_BASE + 'pages/buscar_producto_codigo_ajax.php?codigo=' + encodeURIComponent(codigoExacto))
+                            .then(res => res.json())
+                            .then(r => {
+                                if (r && r.success && r.producto) {
+                                    productosSugeridos = [r.producto];
+                                    resultadoIdx = 0;
+                                    agregarSeleccionado();
+                                }
+                                // Si no hay match exacto único, no agregamos nada: queda la
+                                // lista en pantalla para que el usuario elija manualmente.
+                            })
+                            .catch(() => {});
+                    }
                 }
             }
         });
