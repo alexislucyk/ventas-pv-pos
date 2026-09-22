@@ -268,7 +268,9 @@
 
         .cart-item {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) minmax(56px, 90px) auto auto;
+            /* Anchos FIJOS: cada fila es un grid independiente; con 'auto' la columna
+               del total medía distinto en cada fila y desalineaba las cantidades. */
+            grid-template-columns: minmax(0, 1fr) 90px 110px 28px;
             align-items: center;
             gap: 8px;
             padding: 6px 12px;
@@ -292,6 +294,7 @@
             cursor: pointer;
             padding: 2px 4px;
             line-height: 1;
+            justify-self: center;
         }
 
         .ci-remove:hover { color: #e74c3c; }
@@ -315,7 +318,7 @@
 
         .ci-qty input:focus { border-color: #00bcd4; }
 
-        .ci-total { color: var(--warn); font-weight: 700; font-size: 0.85rem; white-space: nowrap; }
+        .ci-total { color: var(--warn); font-weight: 700; font-size: 0.85rem; white-space: nowrap; text-align: right; justify-self: end; }
 
         .ci-total.sin-stock { color: #e74c3c; }
 
