@@ -240,9 +240,9 @@ $pdf->AddPage();
 // ---------- Caja de datos del presupuesto ----------
 $yBox = $pdf->GetY();
 $pdf->SetDrawColor(0, 0, 0);
-$pdf->Rect(14, $yBox, 90, 36, 'D');
-$pdf->Rect(104, $yBox, 92, 36, 'D');
+$pdf->Rect(14, $yBox, 182, 36, 'D');
 
+// Panel izquierdo del cliente (50% ancho)
 $pdf->SetFont('Arial', 'B', 8);
 $pdf->SetTextColor(0, 0, 0);
 $pdf->SetXY(16, $yBox + 3);
@@ -258,7 +258,7 @@ $pdf->Cell(86, 4, to_iso('CUIT/DNI: ' . $clienteDoc), 0, 1, 'L');
 $pdf->SetXY(16, $yBox + 19);
 $pdf->Cell(86, 4, to_iso('Dirección: ' . $clienteDir), 0, 1, 'L');
 
-// Panel derecho del presupuesto
+// Panel derecho del presupuesto (50% ancho)
 $pdf->SetFont('Arial', 'B', 8);
 $pdf->SetXY(106, $yBox + 3);
 $pdf->Cell(88, 4, to_iso('DETALLE'), 0, 1, 'L');
