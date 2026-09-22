@@ -267,21 +267,19 @@
         .cart-empty i { font-size: 2.4rem; opacity: 0.25; display: block; margin-bottom: 10px; }
 
         .cart-item {
-            display: grid;
-            /* Columnas fijas en px para que la alineacion vertical sea identica en todas las filas.
-               La columna 1 (descripcion+cod) tiene ancho fijo tambien; si el texto es largo se corta con ellipsis.
-               Cantidad y quitar centrados verticalmente; total alineado a la derecha. */
-            grid-template-columns: 180px 68px 102px 28px;
+            display: flex;
             align-items: center;
             gap: 8px;
             padding: 6px 12px;
             border-bottom: 1px solid #282828;
             transition: background 0.12s;
+            width: 100%;
         }
 
         .cart-item:hover { background: #191919; }
 
         .ci-info {
+            flex: 1;
             min-width: 0;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -305,13 +303,14 @@
         }
 
         .ci-qty {
-            min-width: 0;
+            width: 70px;
+            flex-shrink: 0;
             overflow: hidden;
         }
 
         .ci-qty input {
             width: 100% !important;
-            max-width: 58px;
+            max-width: 60px;
             height: 24px;
             padding: 0 !important;
             margin: 0 !important;
@@ -324,22 +323,34 @@
             font-weight: 700;
             outline: none;
             box-sizing: border-box;
+            min-width: 0;
+            -webkit-appearance: none;
+            -moz-appearance: textfield;
+        }
+
+        .ci-qty input::-webkit-outer-spin-button,
+        .ci-qty input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
         }
 
         .ci-qty input:focus { border-color: #00bcd4; }
 
         .ci-total {
+            width: 110px;
+            flex-shrink: 0;
             color: var(--warn);
             font-weight: 700;
             font-size: 0.85rem;
             white-space: nowrap;
             text-align: right;
-            justify-self: end;
         }
 
         .ci-total.sin-stock { color: #e74c3c; }
 
         .ci-remove {
+            width: 30px;
+            flex-shrink: 0;
             background: none;
             border: none;
             color: #666;
@@ -347,7 +358,6 @@
             cursor: pointer;
             padding: 2px 4px;
             line-height: 1;
-            justify-self: center;
         }
 
         .ci-remove:hover { color: #e74c3c; }
