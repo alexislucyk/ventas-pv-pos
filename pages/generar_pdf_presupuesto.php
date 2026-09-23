@@ -93,7 +93,7 @@ class PresupuestoPDF extends FPDF
         $x = ($this->logo) ? 38 : 14;
 
         if ($this->logo) {
-            $this->Image($this->logo, 12, 4, 22, 22);
+            $this->Image($this->logo, 12, 4, 30, 17);
         }
 
         // Empresa
