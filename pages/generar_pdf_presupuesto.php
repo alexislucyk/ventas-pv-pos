@@ -90,10 +90,10 @@ class PresupuestoPDF extends FPDF
     public function Header()
     {
         $this->SetTextColor(0, 0, 0);
-        $x = ($this->logo) ? 32 : 14;
+        $x = ($this->logo) ? 38 : 14;
 
         if ($this->logo) {
-            $this->Image($this->logo, 12, 4, 17, 17);
+            $this->Image($this->logo, 12, 4, 22, 22);
         }
 
         // Empresa
