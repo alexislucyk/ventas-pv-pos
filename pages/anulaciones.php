@@ -150,10 +150,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
                             $monto_pagado_total = (float)$pago_cuota['monto'] + (float)($pago_cuota['descuento'] ?? 0);
                             
                             // Registrar EGRESO en movimientos para revertir el INGRESO original del pago
-            $detalle_reversion = "REVERSIÓN PAGO CUOTA {$nro_cuota_actual} - VENTA N° {$n_doc} (ANULACIÓN TOTAL)";
-                            $pdo->prepare("INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado, empresa_id, sucursal_id) 
-                                           VALUES ('EGRESO', ?, ?, ?, NOW(), ?, 0, ?, ?)")
-                                ->execute([$monto_pagado_total, $pago_cuota['metodo_pago'], $detalle_reversion, $usuario_actual]);
+                            // (se cargan monto_efectivo/monto_transferencia para que la caja
+                            // sepa si el reintegro sale del cajón o no)
+                            $detalle_reversion = "REVERSIÓN PAGO CUOTA {$nro_cuota_actual} - VENTA N° {$n_doc} (ANULACIÓN TOTAL)";
+                            $metodo_pago_cuota = strtoupper((string)$pago_cuota['metodo_pago']);
+                            $monto_efectivo_cuota = ($metodo_pago_cuota === 'EFECTIVO') ? $monto_pagado_total : 0;
+                            $monto_transf_cuota = ($metodo_pago_cuota === 'TRANSFERENCIA') ? $monto_pagado_total : 0;
+                            $pdo->prepare("INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado, empresa_id, sucursal_id, monto_efectivo, monto_transferencia) 
+                                           VALUES ('EGRESO', ?, ?, ?, NOW(), ?, 0, ?, ?, ?, ?)")
+                                ->execute([$monto_pagado_total, $metodo_pago_cuota, $detalle_reversion, $usuario_actual, $empresa_id, $sucursal_id, $monto_efectivo_cuota, $monto_transf_cuota]);
                             
                             // Eliminar el registro de pago de la cuota
                             $pdo->prepare("DELETE FROM cuotas_pagos WHERE id = ?")->execute([$pago_cuota['id']]);
@@ -192,7 +197,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
                 $metodo_pago_reintegro = 'TRANSFERENCIA';
             }
 
-            $pdo->prepare("INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado, empresa_id, sucursal_id) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)")
+            // Desglose efectivo/transferencia del reintegro: sólo la parte en
+            // efectivo sale del cajón (se descuenta del efectivo esperado).
+            $monto_efectivo_reintegro = ($metodo_pago_reintegro === 'EFECTIVO')
+                ? $monto_egreso_caja
+                : (($metodo_pago_reintegro === 'MIXTO')
+                    ? min((float)$venta['pago_efectivo'], (float)$monto_egreso_caja)
+                    : 0);
+            $monto_transf_reintegro = ($metodo_pago_reintegro === 'TRANSFERENCIA')
+                ? $monto_egreso_caja
+                : (($metodo_pago_reintegro === 'MIXTO')
+                    ? max(0, (float)$monto_egreso_caja - $monto_efectivo_reintegro)
+                    : 0);
+
+            $pdo->prepare("INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado, empresa_id, sucursal_id, monto_efectivo, monto_transferencia) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)")
                 ->execute([
                     'EGRESO',
                     $monto_egreso_caja,
@@ -201,7 +219,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['n_documento_anular'])
                     $fecha_hoy,
                     $usuario_actual,
                     $empresa_id,
-                    $sucursal_id
+                    $sucursal_id,
+                    $monto_efectivo_reintegro,
+                    $monto_transf_reintegro
                 ]);
         }
 

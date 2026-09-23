@@ -20,9 +20,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($monto > 0 && !empty($detalle)) {
         try {
-            $sql = "INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado, empresa_id, sucursal_id) 
-                    VALUES (?, ?, ?, ?, NOW(), ?, 0, ?, ?)";
-            $pdo->prepare($sql)->execute([$tipo, $monto, $metodo, $detalle, $usuario, $empresa_id, $sucursal_id]);
+            // Se cargan monto_efectivo/monto_transferencia para que la caja sepa
+            // si el movimiento toca el cajón (sólo EFECTIVO lo afecta).
+            $metodo = strtoupper($metodo);
+            $monto_efectivo = ($metodo === 'EFECTIVO') ? $monto : 0;
+            $monto_transferencia = ($metodo === 'TRANSFERENCIA') ? $monto : 0;
+
+            $sql = "INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado, empresa_id, sucursal_id, monto_efectivo, monto_transferencia) 
+                    VALUES (?, ?, ?, ?, NOW(), ?, 0, ?, ?, ?, ?)";
+            $pdo->prepare($sql)->execute([$tipo, $monto, $metodo, $detalle, $usuario, $empresa_id, $sucursal_id, $monto_efectivo, $monto_transferencia]);
             
             $mensaje = "✅ Movimiento registrado correctamente.";
         } catch (Exception $e) {

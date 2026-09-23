@@ -35,10 +35,11 @@ try {
     // Se excluye el movimiento de FONDO INICIAL (es_fondo_inicial = 1): su monto
     // ya se suma aparte desde estado_caja.saldo_inicial ($saldo_inicial), por lo
     // que incluirlo aquí duplicaría el fondo reservado de la caja anterior.
+    // El efectivo usa la FÓRMULA ÚNICA de funciones_caja.php (sólo la parte en
+    // efectivo de las ventas MIXTAS; las transferencias se informan aparte).
     $sql_resumen = "SELECT 
-                        SUM(CASE WHEN metodo_pago = 'EFECTIVO' THEN monto ELSE 0 END) as efectivo,
-                        SUM(CASE WHEN metodo_pago = 'TRANSFERENCIA' THEN monto ELSE 0 END) as transferencia,
-                        SUM(CASE WHEN metodo_pago = 'MIXTO' THEN monto ELSE 0 END) as mixto
+                        " . SQL_INGRESO_EFECTIVO . " as efectivo,
+                        " . SQL_INGRESO_TRANSFERENCIA . " as transferencia
                     FROM movimientos 
                     WHERE tipo = 'INGRESO' 
                       AND cerrado = 0 "
@@ -52,9 +53,12 @@ try {
 
     $resumen['efectivo'] = (float)($resumen['efectivo'] ?? 0);
     $resumen['transferencia'] = (float)($resumen['transferencia'] ?? 0);
-    $resumen['mixto'] = (float)($resumen['mixto'] ?? 0);
 
-    $sql_egresos = "SELECT SUM(monto) as total_egresos 
+    // Egresos: `$egresos` son los que salen del cajón (efectivo) y
+    // `$egresos_no_efectivo` los pagados por transferencia/tarjeta/cheque/ajuste,
+    // que no afectan el efectivo esperado.
+    $sql_egresos = "SELECT " . SQL_EGRESO_EFECTIVO . " as egresos,
+                           " . SQL_EGRESO_NO_EFECTIVO . " as egresos_no_efectivo
                     FROM movimientos 
                     WHERE tipo = 'EGRESO' 
                       AND cerrado = 0 
@@ -63,15 +67,20 @@ try {
                       AND sucursal_id = ?";
     $stmt_eg = $pdo->prepare($sql_egresos);
     $stmt_eg->execute([$apertura, $empresa_id, $sucursal_id]);
-    $egresos = $stmt_eg->fetchColumn() ?: 0;
+    $fila_egresos = $stmt_eg->fetch(PDO::FETCH_ASSOC);
+    $egresos = (float)($fila_egresos['egresos'] ?? 0);
+    $egresos_no_efectivo = (float)($fila_egresos['egresos_no_efectivo'] ?? 0);
 
+    // Se excluye el movimiento de FONDO INICIAL del listado: se muestra aparte
+    // como fila de APERTURA (su monto ya está en el saldo inicial).
     $sql_movs = "SELECT tipo, metodo_pago, detalle, monto, fecha, usuario 
                  FROM movimientos 
                  WHERE cerrado = 0 
                    AND fecha >= ?
                    AND empresa_id = ? 
-                   AND sucursal_id = ?
-                 ORDER BY id DESC LIMIT 10";
+                   AND sucursal_id = ?"
+                 . SQL_FILTRO_SIN_FONDO_INICIAL .
+                 "ORDER BY id DESC LIMIT 10";
     $stmt_m = $pdo->prepare($sql_movs);
     $stmt_m->execute([$apertura, $empresa_id, $sucursal_id]);
     $lista_movimientos = $stmt_m->fetchAll(PDO::FETCH_ASSOC);
@@ -91,7 +100,7 @@ try {
 
     // Incluir saldo inicial en el cálculo del total de caja física
     $saldo_inicial = (float)($estado['saldo_inicial'] ?? 0);
-    $total_caja_fisica = $saldo_inicial + ($resumen['efectivo'] + $resumen['mixto']) - $egresos;
+    $total_caja_fisica = $saldo_inicial + $resumen['efectivo'] - $egresos;
 
 } catch (Exception $e) {
     die("Error: " . $e->getMessage());
@@ -206,6 +215,11 @@ function fmt_moneda($monto) {
             <div class="metric red">
                 <div class="m-label"><i class="fas fa-arrow-up-from-bracket"></i> Egresos / Gastos</div>
                 <div class="m-value red"><?php echo fmt_moneda($egresos); ?></div>
+                <?php if ($egresos_no_efectivo > 0): ?>
+                    <div class="m-note warn" title="Pagos realizados por transferencia, tarjeta, cheque o ajuste: no salen del cajón, no afectan el efectivo esperado">
+                        <i class="fas fa-info-circle"></i> No afectan la caja: <?php echo fmt_moneda($egresos_no_efectivo); ?>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -219,7 +233,7 @@ function fmt_moneda($monto) {
                 </div>
             </div>
             <div class="panel-body">
-                <?php if (empty($lista_movimientos)): ?>
+                <?php if (empty($lista_movimientos) && $saldo_inicial <= 0): ?>
                 <div class="empty-state">
                     <i class="fas fa-inbox"></i>
                     Sin movimientos en el período actual
@@ -237,6 +251,16 @@ function fmt_moneda($monto) {
                         </tr>
                     </thead>
                     <tbody>
+                        <tr class="row-apertura" title="Saldo inicial de la apertura: ya está incluido en el efectivo en caja">
+                            <td><?php echo date('d/m/Y', strtotime($estado['fecha_apertura'])); ?></td>
+                            <td class="usuario-cell"><i class="fas fa-user-circle" style="margin-right: 5px;"></i><?php echo htmlspecialchars($estado['usuario_apertura'] ?? ''); ?></td>
+                            <td>
+                                <span class="badge-tipo ingreso"><i class="fas fa-lock-open"></i> APERTURA</span>
+                            </td>
+                            <td><span class="metodo-tag">EFECTIVO</span></td>
+                            <td>Saldo inicial de la sesión (fondo de apertura)</td>
+                            <td><span class="monto-mov pos">+ <?php echo number_format($saldo_inicial, 2, ',', '.'); ?></span></td>
+                        </tr>
                         <?php foreach ($lista_movimientos as $m): $es_ingreso = ($m['tipo'] == 'INGRESO'); ?>
                         <tr>
                             <td><?php echo date('d/m/Y', strtotime($m['fecha'])); ?></td>

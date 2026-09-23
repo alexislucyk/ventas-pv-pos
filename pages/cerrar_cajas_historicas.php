@@ -123,12 +123,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmar_cierre'])) 
                     // Calcular totales de movimientos para esa fecha.
                     // Se excluye el movimiento de FONDO INICIAL: ese monto se
                     // registra aparte como saldo_inicial (evita duplicarlo).
+                    // Se usa la FÓRMULA ÚNICA de funciones_caja.php: sólo el
+                    // efectivo que realmente entró/salió del cajón.
                     $sql_totales = "SELECT 
-                        SUM(CASE WHEN tipo = 'INGRESO' AND (metodo_pago = 'EFECTIVO' OR metodo_pago = 'MIXTO') 
-                                 THEN monto ELSE 0 END) as ingresos_efectivo,
-                        SUM(CASE WHEN tipo = 'INGRESO' AND metodo_pago = 'TRANSFERENCIA' 
-                                 THEN monto ELSE 0 END) as ingresos_transf,
-                        SUM(CASE WHEN tipo = 'EGRESO' THEN monto ELSE 0 END) as egresos
+                        " . SQL_INGRESO_EFECTIVO . " as ingresos_efectivo,
+                        " . SQL_INGRESO_TRANSFERENCIA . " as ingresos_transf,
+                        " . SQL_EGRESO_EFECTIVO . " as egresos,
+                        " . SQL_EGRESO_NO_EFECTIVO . " as egresos_no_efectivo
                     FROM movimientos 
                     WHERE empresa_id = :empresa_id 
                       AND sucursal_id = :sucursal_id

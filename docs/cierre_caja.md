@@ -107,6 +107,20 @@ Agrega campos para desglose de métodos de pago:
 - `ingresos_tarjetas`
 - `ingresos_otros`
 
+### Migración 45: Limpieza de tablas obsoletas
+**Archivo:** `migrations/45_limpiar_tablas_obsoletas.sql`
+- Elimina tablas en desuso
+
+### Migración 46: Observaciones en estado_caja
+**Archivo:** `migrations/46_estado_caja_observaciones.sql`
+- Agrega la columna `observaciones` a `estado_caja`
+- Permite registrar notas al abrir caja
+
+### Migración 47: Montos con decimales
+**Archivo:** `migrations/47_monto_movimientos_decimal.sql` (ejecutor: `procesos/ejecutar_migracion_47.php`)
+- Convierte `movimientos.monto`, `monto_efectivo` y `monto_transferencia` a `DECIMAL(10,2)`
+- Permite registrar centavos en ventas, egresos y fondos (evita redondeos que producían diferencias de caja)
+
 ## Flujo de Trabajo
 
 ### 1. Apertura de Caja
@@ -304,6 +318,23 @@ Al cerrar caja se genera un informe con:
 - [ ] Calendario visual para selección de fechas
 - [ ] Desglose de billetes en reporte de cierre
 - [ ] Impresión de informe de cierre en PDF
+
+## Pruebas automatizadas
+
+Scripts de verificación del ciclo de cierre. Corren contra la BD real pero **no
+dejan datos**: trabajan dentro de una transacción que siempre se revierte.
+
+- **`procesos/_test_ciclo_cierre_fondo.php`** — Simula el ciclo completo:
+  1. Apertura caja 1 (fondo 0) con ventas en efectivo/transferencia/mixta (con centavos) y egresos
+  2. Cierre 1: esperado/real y diferencia = 0; `fondo_reservado_vuelto` guardado
+  3. Sugerencia del fondo para la próxima apertura
+  4. Apertura caja 2 con ese fondo: el fondo **no** se duplica ni genera diferencia; su movimiento `es_fondo_inicial` se cierra con la sesión
+- **`procesos/_test_sql_consultas.php`** — Valida que las consultas de `caja_dashboard.php`, `cierre_caja.php`, la sugerencia de fondo de `abrir_caja.php` y `obtener_resumen_caja()` ejecuten sin errores
+
+```bash
+php procesos/_test_ciclo_cierre_fondo.php
+php procesos/_test_sql_consultas.php
+```
 
 ## Soporte
 

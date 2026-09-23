@@ -57,10 +57,11 @@ try {
                 // Obtener cantidad de movimientos para esta caja.
                 // Los ingresos excluyen el movimiento de FONDO INICIAL: ese monto
                 // se informa aparte como saldo inicial (evita duplicarlo).
+                // El efectivo y los egresos usan la FÓRMULA ÚNICA de
+                // funciones_caja.php (sólo lo que toca el cajón).
                 $sql_mov = "SELECT COUNT(*) as cantidad, 
-                                   SUM(CASE WHEN tipo = 'INGRESO' AND (metodo_pago = 'EFECTIVO' OR metodo_pago = 'MIXTO') 
-                                            THEN monto ELSE 0 END) as ing_efectivo,
-                                   SUM(CASE WHEN tipo = 'EGRESO' THEN monto ELSE 0 END) as egresos
+                                   " . SQL_INGRESO_EFECTIVO . " as ing_efectivo,
+                                   " . SQL_EGRESO_EFECTIVO . " as egresos
                             FROM movimientos 
                             WHERE empresa_id = :empresa_id 
                               AND sucursal_id = :sucursal_id

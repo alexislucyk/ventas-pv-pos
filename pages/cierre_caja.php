@@ -69,11 +69,16 @@ if ($mov_pendientes_previos > 0) {
 // Se excluye el movimiento de FONDO INICIAL (es_fondo_inicial = 1): su monto
 // ya está incluido en $saldo_inicial (estado_caja.saldo_inicial), así que
 // sumarlo aquí duplicaría el fondo reservado de la caja anterior.
+// El efectivo y los egresos usan la FÓRMULA ÚNICA de funciones_caja.php:
+// sólo la plata que realmente entra/sale del cajón (parte en efectivo de las
+// ventas MIXTAS; los egresos por transferencia/tarjeta/cheque/ajuste no se
+// descuentan del efectivo esperado).
 try {
     $sql_sistema = "SELECT 
-        SUM(CASE WHEN tipo = 'INGRESO' AND (metodo_pago = 'EFECTIVO' OR metodo_pago = 'MIXTO') THEN monto ELSE 0 END) as ingresos_efectivo,
-        SUM(CASE WHEN tipo = 'INGRESO' AND metodo_pago = 'TRANSFERENCIA' THEN monto ELSE 0 END) as ingresos_transf,
-        SUM(CASE WHEN tipo = 'EGRESO' THEN monto ELSE 0 END) as egresos
+        " . SQL_INGRESO_EFECTIVO . " as ingresos_efectivo,
+        " . SQL_INGRESO_TRANSFERENCIA . " as ingresos_transf,
+        " . SQL_EGRESO_EFECTIVO . " as egresos,
+        " . SQL_EGRESO_NO_EFECTIVO . " as egresos_no_efectivo
     FROM movimientos 
     WHERE cerrado = 0 
       AND empresa_id = :empresa_id 
@@ -92,30 +97,35 @@ try {
 
     $ingresos_efectivo = $sistema['ingresos_efectivo'] ?: 0;
     $ingresos_transf = $sistema['ingresos_transf'] ?: 0;
+    // Egresos de caja (los que salen del cajón en efectivo)
     $egresos = $sistema['egresos'] ?: 0;
+    // Egresos que NO tocan el cajón (transferencia, tarjeta, cheque, ajuste):
+    // se informan pero no afectan el efectivo esperado.
+    $egresos_no_efectivo = $sistema['egresos_no_efectivo'] ?: 0;
     
     // Saldo que DEBERÍA haber en efectivo (incluye saldo inicial)
     $saldo_inicial = (float)($estado['saldo_inicial'] ?? 0);
-    $saldo_esperado = $saldo_inicial + $ingresos_efectivo - $egresos;
+    $saldo_esperado = round($saldo_inicial + $ingresos_efectivo - $egresos, 2);
 
 } catch (Exception $e) {
     die("Error al calcular totales: " . $e->getMessage());
 }
 
 // Totales del período por método de pago (excluyendo el FONDO INICIAL: se
-// muestra aparte como "Saldo Inicial" para no duplicar el fondo de apertura)
+// muestra aparte como "Saldo Inicial" para no duplicar el fondo de apertura).
+// `egresos` = total del período (informativo) y `egresos_caja` = sólo los que
+// salen del cajón (los que usa el cálculo del esperado).
 $sql_metodos = "SELECT 
-    SUM(CASE WHEN tipo = 'INGRESO' AND (metodo_pago = 'EFECTIVO' OR metodo_pago = 'MIXTO') 
-             THEN monto ELSE 0 END) as efectivo,
-    SUM(CASE WHEN tipo = 'INGRESO' AND metodo_pago = 'TRANSFERENCIA' 
-             THEN monto ELSE 0 END) as transferencia,
+    " . SQL_INGRESO_EFECTIVO . " as efectivo,
+    " . SQL_INGRESO_TRANSFERENCIA . " as transferencia,
     SUM(CASE WHEN tipo = 'INGRESO' AND metodo_pago = 'CHEQUE' 
              THEN monto ELSE 0 END) as cheques,
     SUM(CASE WHEN tipo = 'INGRESO' AND metodo_pago = 'TARJETA' 
              THEN monto ELSE 0 END) as tarjetas,
     SUM(CASE WHEN tipo = 'INGRESO' AND metodo_pago NOT IN ('EFECTIVO', 'TRANSFERENCIA', 'CHEQUE', 'TARJETA', 'MIXTO') 
              THEN monto ELSE 0 END) as otros,
-    SUM(CASE WHEN tipo = 'EGRESO' THEN monto ELSE 0 END) as egresos
+    SUM(CASE WHEN tipo = 'EGRESO' THEN monto ELSE 0 END) as egresos,
+    " . SQL_EGRESO_EFECTIVO . " as egresos_caja
 FROM movimientos 
 WHERE cerrado = 0 
   AND empresa_id = :empresa_id 
@@ -273,7 +283,7 @@ function fmt_moneda($monto) {
                         <div class="valor"><?php echo fmt_moneda($metodos['otros'] ?? 0); ?></div>
                     </div>
                     <div class="metodo-card egresos">
-                        <div class="label"><i class="fas fa-arrow-up-from-bracket"></i> Egresos</div>
+                        <div class="label"><i class="fas fa-arrow-up-from-bracket"></i> Egresos / Gastos</div>
                         <div class="valor"><?php echo fmt_moneda($metodos['egresos'] ?? 0); ?></div>
                     </div>
                 </div>
@@ -325,7 +335,7 @@ function fmt_moneda($monto) {
                         </div>
                     </div>
                     <div class="panel-body">
-                        <?php if ($ingresos_efectivo == 0 && $ingresos_transf == 0 && $egresos == 0): ?>
+                        <?php if ($ingresos_efectivo == 0 && $ingresos_transf == 0 && $egresos == 0 && $egresos_no_efectivo == 0): ?>
                         <div class="alert-box alert-info" style="margin-bottom: 14px;">
                             <i class="fas fa-info-circle"></i>
                             <div>No hay movimientos pendientes de cierre.</div>
@@ -337,9 +347,15 @@ function fmt_moneda($monto) {
                             <span class="v" style="color: var(--success);"><?php echo fmt_moneda($ingresos_efectivo); ?></span>
                         </div>
                         <div class="info-row">
-                            <span class="k">Egresos / Gastos</span>
+                            <span class="k">Egresos de Caja (efectivo)</span>
                             <span class="v" style="color: var(--danger);">- <?php echo fmt_moneda($egresos); ?></span>
                         </div>
+                        <?php if ($egresos_no_efectivo > 0): ?>
+                        <div class="info-row">
+                            <span class="k" style="color: var(--muted-2);">Egresos por transferencia / otros <i class="fas fa-circle-info" title="No salen del cajón: no se descuentan del efectivo esperado"></i></span>
+                            <span class="v" style="color: var(--muted-2);"><?php echo fmt_moneda($egresos_no_efectivo); ?></span>
+                        </div>
+                        <?php endif; ?>
 
                         <div class="compare-grid" style="margin-top: 16px;">
                             <div class="compare-box esperado">
@@ -377,8 +393,13 @@ function fmt_moneda($monto) {
                         <div class="fondo-box">
                             <div class="fondo-title"><i class="fas fa-piggy-bank"></i> Fondo Reservado (Vuelto)</div>
                             <label>¿Cuánto dinero se reserva en caja como fondo de vuelto?</label>
-                            <input type="number" name="fondo_vuelto" class="input-field" step="0.01" value="0" placeholder="Ej: 5000">
-                            <p class="help">Este monto se registrará como fondo reservado y se sugerirá como saldo inicial en la próxima apertura de caja.</p>
+                            <input type="number" name="fondo_vuelto" id="fondo_vuelto_input" class="input-field" step="0.01" min="0" value="0" placeholder="Ej: 5000">
+                            <p class="help">Este monto se registrará como fondo reservado (es el dinero que <strong>queda físicamente en el cajón</strong>) y se sugerirá como saldo inicial en la próxima apertura de caja.</p>
+                            <div class="info-row" style="margin-top: 10px;">
+                                <span class="k" style="font-weight: 600;">Efectivo a retirar de la caja</span>
+                                <span class="v" style="font-weight: 700; color: #ffc107;" id="a_retirar_display">$ 0,00</span>
+                            </div>
+                            <p class="help" id="a_retirar_help">Es el efectivo contado menos el fondo reservado: retirá esta plata y dejá en el cajón exactamente el fondo.</p>
                         </div>
                     </div>
                     <button type="submit" class="btn-cierre">
@@ -397,6 +418,29 @@ function fmt_moneda($monto) {
         const inputHiddenReal = document.getElementById('saldo_real_input');
         const displayDif = document.getElementById('box_diferencia');
         const esperado = parseFloat(document.getElementById('saldo_esperado_val').dataset.valor);
+        const inputFondo = document.getElementById('fondo_vuelto_input');
+        const displayRetirar = document.getElementById('a_retirar_display');
+        const helpRetirar = document.getElementById('a_retirar_help');
+
+        /**
+         * Muestra cuánto efectivo hay que retirar del cajón: contado - fondo.
+         * Lo que queda en el cajón debe ser EXACTAMENTE el fondo reservado, que
+         * es el saldo inicial con el que se abrirá la próxima caja.
+         */
+        function actualizarRetiro(totalReal) {
+            const fondo = parseFloat(inputFondo.value) || 0;
+
+            if (fondo > totalReal + 0.005) {
+                displayRetirar.innerText = '$ 0,00';
+                helpRetirar.innerHTML = '<span style="color:#e74c3c;">El fondo reservado no puede ser mayor al efectivo contado ($ '
+                    + fmtMonto(totalReal) + ').</span>';
+                return;
+            }
+
+            displayRetirar.innerText = '$ ' + fmtMonto(Math.max(totalReal - fondo, 0));
+            helpRetirar.innerHTML = 'Retirá esta plata y dejá en el cajón exactamente el fondo reservado ($ '
+                + fmtMonto(fondo) + '): es el saldo inicial con el que se abrirá la próxima caja.';
+        }
 
         const pasoConteo = document.getElementById('stepConteo');
         const pasoVerif = document.getElementById('stepVerif');
@@ -432,6 +476,7 @@ function fmt_moneda($monto) {
             inputHiddenReal.value = totalReal;
 
             setPasos(totalReal > 0);
+            actualizarRetiro(totalReal);
 
             let diferencia = totalReal - esperado;
 
@@ -453,6 +498,12 @@ function fmt_moneda($monto) {
         inputs.forEach(input => {
             input.addEventListener('input', calcularTotales);
         });
+
+        // El fondo reservado afecta el "Efectivo a retirar": recalcular al tipear
+        if (inputFondo) {
+            inputFondo.addEventListener('input', calcularTotales);
+        }
+        calcularTotales();
     </script>
 </body>
 </html>

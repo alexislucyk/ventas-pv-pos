@@ -69,90 +69,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new Exception("El total calculado de billetes ($ $total_calculado) no coincide con el saldo real ($ $saldo_real_efectivo).");
         }
         
-        // Usar función auxiliar para cerrar caja (con rango de fechas si aplica)
-        $resultado = cerrar_caja($pdo, $empresa_id, $sucursal_id, $usuario, $fondo_vuelto_manana, $fecha_desde, $fecha_hasta);
+        // Usar función auxiliar para cerrar caja (con rango de fechas si aplica).
+        // Se le pasa el conteo físico y las observaciones para que guarde
+        // saldo_real_efectivo y diferencia en la MISMA transacción, con los
+        // totales que ya calculó. Antes se recalculaba acá con otra consulta
+        // (movimientos ya cerrados del rango) y la diferencia guardada no
+        // coincidía con real - esperado.
+        $resultado = cerrar_caja(
+            $pdo, $empresa_id, $sucursal_id, $usuario,
+            $fondo_vuelto_manana, $fecha_desde, $fecha_hasta,
+            $saldo_real_efectivo, $observaciones
+        );
         
         if (!$resultado['success']) {
             throw new Exception($resultado['mensaje']);
         }
         
-        // Actualizar cierre con datos del formulario
+        // Valores finales del cierre tal como quedaron guardados
         $cierre_id = $resultado['cierre_id'];
-        
-        // Recalcular saldo esperado y diferencia (incluyendo saldo inicial)
-        $estado_cierre = obtener_estado_caja($pdo, $empresa_id, $sucursal_id);
-        $saldo_inicial = (float)($estado_cierre['saldo_inicial'] ?? 0);
-        
-        // Recalcular saldo esperado y diferencia (incluyendo saldo inicial).
-        // Se excluye el movimiento de FONDO INICIAL (es_fondo_inicial = 1): su
-        // monto ya está en $saldo_inicial, así que sumarlo duplicaría el fondo
-        // reservado de la caja anterior que se dejó como cambio.
-        $sql_totales = "SELECT 
-            SUM(CASE WHEN tipo = 'INGRESO' AND (metodo_pago = 'EFECTIVO' OR metodo_pago = 'MIXTO') 
-                     THEN monto ELSE 0 END) as ingresos_efectivo,
-            SUM(CASE WHEN tipo = 'EGRESO' THEN monto ELSE 0 END) as egresos
-        FROM movimientos 
-        WHERE cerrado = 1 
-          AND empresa_id = :empresa_id 
-          AND sucursal_id = :sucursal_id"
-          . SQL_FILTRO_SIN_FONDO_INICIAL .
-          "AND DATE(fecha) BETWEEN :fecha_desde AND :fecha_hasta";
-        
-        $stmt_totales = $pdo->prepare($sql_totales);
-        $stmt_totales->execute([
-            ':empresa_id' => $empresa_id, 
-            ':sucursal_id' => $sucursal_id,
-            ':fecha_desde' => $fecha_desde,
-            ':fecha_hasta' => $fecha_hasta
-        ]);
-        $totales = $stmt_totales->fetch(PDO::FETCH_ASSOC);
-        
-        $saldo_esperado = $saldo_inicial + (float)($totales['ingresos_efectivo'] ?? 0) - (float)($totales['egresos'] ?? 0);
-        $diferencia = $saldo_real_efectivo - $saldo_esperado;
-        
-        // Actualizar con valores correctos
-        $sql_update = "UPDATE cierres_caja 
-                       SET saldo_real_efectivo = :saldo_real,
-                           diferencia = :diferencia,
-                           observaciones = :observaciones
-                       WHERE id = :id";
-        
-        $stmt_update = $pdo->prepare($sql_update);
-        $stmt_update->execute([
-            ':saldo_real' => $saldo_real_efectivo,
-            ':diferencia' => $diferencia,
-            ':observaciones' => $observaciones,
-            ':id' => $cierre_id
-        ]);
-        
-        // Registrar en log de auditoría
-        $sql_audit = "INSERT INTO cierres_caja_audit 
-                      (cierre_id, accion, usuario, datos_nuevos)
-                      VALUES (:cierre_id, 'CREADO', :usuario, :datos)";
-        
-        $datos_audit = json_encode([
-            'saldo_real' => $saldo_real_efectivo,
-            'diferencia' => $diferencia,
-            'fondo_vuelto' => $fondo_vuelto_manana,
-            'observaciones' => $observaciones
-        ]);
-        
-        $stmt_audit = $pdo->prepare($sql_audit);
-        $stmt_audit->execute([
-            ':cierre_id' => $cierre_id,
-            ':usuario' => $usuario,
-            ':datos' => $datos_audit
-        ]);
+        $saldo_esperado = (float)($resultado['saldo_esperado'] ?? 0);
+        $saldo_real_final = (float)($resultado['saldo_real'] ?? $saldo_real_efectivo);
+        $diferencia = (float)($resultado['diferencia'] ?? ($saldo_real_final - $saldo_esperado));
         
         // Mensaje de éxito
-        $msj_tipo = ($diferencia == 0) ? "✅ Caja cerrada correctamente." : "⚠️ Caja cerrada con diferencia de $ " . number_format($diferencia, 2, ',', '.');
+        $msj_tipo = (abs($diferencia) < 0.01)
+            ? "✅ Caja cerrada correctamente. Fondo reservado: $ " . number_format($fondo_vuelto_manana, 2, ',', '.')
+            : "⚠️ Caja cerrada con diferencia de $ " . number_format($diferencia, 2, ',', '.');
         $_SESSION['status_msj'] = $msj_tipo;
         
         header("Location: " . url('caja-dashboard'));
         exit();
         
     } catch (Exception $e) {
-        // El rollback ya se maneja dentro de cerrar_caja()
         error_log("Error en cierre de caja: " . $e->getMessage());
         die("❌ Error crítico: " . $e->getMessage());
     }

@@ -24,6 +24,78 @@ if (!defined('SQL_FILTRO_SIN_FONDO_INICIAL')) {
 }
 
 /**
+ * FÓRMULA ÚNICA DE EFECTIVO REAL DE CAJA
+ * ======================================
+ * El "Saldo Esperado" de un cierre sólo puede construirse con el dinero que
+ * REALMENTE entra y sale del cajón:
+ *
+ *   saldo_esperado = saldo_inicial + INGRESOS_EFECTIVO - EGRESOS_EFECTIVO
+ *
+ * Reglas:
+ *  - INGRESO 'EFECTIVO' .......... monto completo (hay flujos históricos que no
+ *                                 cargan monto_efectivo, p. ej. cobros de cta.
+ *                                 cte. o movimientos manuales).
+ *  - INGRESO 'MIXTO' ............. sólo la parte cobrada en efectivo. Se usa
+ *                                 monto_efectivo (ventas nuevas) y, si viene 0,
+ *                                 se calcula monto - monto_transferencia.
+ *  - INGRESO 'TRANSFERENCIA' ..... NO entra al cajón (se informa aparte).
+ *  - EGRESO 'EFECTIVO' ........... sí sale del cajón.
+ *  - EGRESO 'MIXTO' .............. sólo la parte en efectivo (reintegros de
+ *                                 ventas mixtas anuladas).
+ *  - EGRESO 'TRANSFERENCIA' /
+ *    'TARJETA' / 'CHEQUE' /
+ *    'AJUSTE' .................... NO salen del cajón. Antes se restaban del
+ *                                 efectivo y generaban faltantes falsos
+ *                                 (p. ej. una anulación por transferencia de
+ *                                 $100.000 dejaba el esperado en negativo).
+ *
+ * Estos fragmentos se usan dentro de un SUM(...) en las consultas de cierre,
+ * dashboard y cierres históricos: cambiar la fórmula acá la cambia en todos.
+ */
+if (!defined('SQL_INGRESO_EFECTIVO')) {
+    define('SQL_INGRESO_EFECTIVO', "
+        SUM(CASE
+                WHEN tipo = 'INGRESO' AND metodo_pago = 'EFECTIVO' THEN monto
+                WHEN tipo = 'INGRESO' AND metodo_pago = 'MIXTO'
+                     THEN COALESCE(NULLIF(monto_efectivo, 0),
+                                   GREATEST(monto - COALESCE(monto_transferencia, 0), 0))
+                ELSE 0
+            END) ");
+}
+
+if (!defined('SQL_EGRESO_EFECTIVO')) {
+    define('SQL_EGRESO_EFECTIVO', "
+        SUM(CASE
+                WHEN tipo = 'EGRESO' AND metodo_pago = 'EFECTIVO' THEN monto
+                WHEN tipo = 'EGRESO' AND metodo_pago = 'MIXTO'
+                     THEN COALESCE(NULLIF(monto_efectivo, 0),
+                                   GREATEST(monto - COALESCE(monto_transferencia, 0), 0))
+                ELSE 0
+            END) ");
+}
+
+/** Egresos que NO salen del cajón (transferencia, tarjeta, cheque, ajuste). */
+if (!defined('SQL_EGRESO_NO_EFECTIVO')) {
+    define('SQL_EGRESO_NO_EFECTIVO', "
+        SUM(CASE
+                WHEN tipo = 'EGRESO' AND metodo_pago NOT IN ('EFECTIVO', 'MIXTO') THEN monto
+                ELSE 0
+            END) ");
+}
+
+/** Ingresos por transferencia (transferencia pura + parte digital de las mixtas). */
+if (!defined('SQL_INGRESO_TRANSFERENCIA')) {
+    define('SQL_INGRESO_TRANSFERENCIA', "
+        SUM(CASE
+                WHEN tipo = 'INGRESO' AND metodo_pago = 'TRANSFERENCIA' THEN monto
+                WHEN tipo = 'INGRESO' AND metodo_pago = 'MIXTO'
+                     THEN COALESCE(NULLIF(monto_transferencia, 0),
+                                   GREATEST(monto - COALESCE(monto_efectivo, 0), 0))
+                ELSE 0
+            END) ");
+}
+
+/**
  * Obtener el estado de caja para una empresa/sucursal.
  * 
  * MODELO POR SESIÓN: una caja permanece ABIERTA hasta que el usuario la cierra
@@ -118,6 +190,26 @@ function estado_caja_tiene_observaciones($pdo) {
     if ($tiene === null) {
         try {
             $stmt = $pdo->query("SHOW COLUMNS FROM estado_caja LIKE 'observaciones'");
+            $tiene = (bool)$stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            $tiene = false;
+        }
+    }
+    return $tiene;
+}
+
+/**
+ * Verificar si cierres_caja soporta la columna `observaciones`.
+ * Se cachea en memoria para no repetir la consulta.
+ *
+ * @param PDO $pdo Conexión a base de datos
+ * @return bool
+ */
+function cierres_caja_tiene_observaciones($pdo) {
+    static $tiene = null;
+    if ($tiene === null) {
+        try {
+            $stmt = $pdo->query("SHOW COLUMNS FROM cierres_caja LIKE 'observaciones'");
             $tiene = (bool)$stmt->fetch(PDO::FETCH_ASSOC);
         } catch (Exception $e) {
             $tiene = false;
@@ -252,9 +344,17 @@ function abrir_caja($pdo, $empresa_id, $sucursal_id, $saldo_inicial, $usuario, $
  * @param float $fondo_vuelto Fondo para el día siguiente (opcional)
  * @param string $fecha_desde Fecha/hora de inicio del cierre (formato Y-m-d H:i:s, opcional)
  * @param string $fecha_hasta Fecha/hora de fin del cierre (formato Y-m-d H:i:s, opcional)
+ * @param float|null $saldo_real Efectivo contado físicamente (opcional). Si se
+ *                               informa, se guarda junto con la diferencia en la
+ *                               MISMA transacción del cierre: así el esperado, la
+ *                               diferencia y los totales salen de una única
+ *                               consulta y no pueden quedar incoherentes.
+ * @param string $observaciones Observaciones del cierre (opcional)
  * @return array Resultado de la operación
  */
-function cerrar_caja($pdo, $empresa_id, $sucursal_id, $usuario, $fondo_vuelto = 0, $fecha_desde = null, $fecha_hasta = null) {
+function cerrar_caja($pdo, $empresa_id, $sucursal_id, $usuario, $fondo_vuelto = 0, $fecha_desde = null, $fecha_hasta = null, $saldo_real = null, $observaciones = '') {
+    // Se inicializa para que el catch sepa si la transacción es de esta función
+    $transaccion_propia = false;
     try {
         $fecha_cierre = date('Y-m-d H:i:s');
         
@@ -290,24 +390,32 @@ function cerrar_caja($pdo, $empresa_id, $sucursal_id, $usuario, $fondo_vuelto = 
         // NOTA: Se permite cerrar la caja múltiples veces por día por el mismo usuario
         // No hay validación de cierre único
         
-        // Iniciar transacción
-        $pdo->beginTransaction();
+        // Iniciar transacción (sólo si no hay una activa: permite llamar a
+        // cerrar_caja() dentro de una transacción mayor, p. ej. en pruebas)
+        $transaccion_propia = !$pdo->inTransaction();
+        if ($transaccion_propia) {
+            $pdo->beginTransaction();
+        }
         
         // Calcular totales del período especificado por método de pago.
         // Se excluye el movimiento de FONDO INICIAL (es_fondo_inicial = 1):
         // el saldo inicial ya se suma aparte desde estado_caja.saldo_inicial.
+        // IMPORTANTE: el efectivo y los egresos usan la FÓRMULA ÚNICA de
+        // funciones_caja.php (SQL_INGRESO_EFECTIVO / SQL_EGRESO_EFECTIVO):
+        // sólo cuenta la plata que realmente entra/sale del cajón (la parte en
+        // efectivo de las ventas MIXTAS, y los egresos que no son de caja no se
+        // descuentan del efectivo esperado).
         $sql_totales = "SELECT 
-            SUM(CASE WHEN tipo = 'INGRESO' AND (metodo_pago = 'EFECTIVO' OR metodo_pago = 'MIXTO') 
-                     THEN monto ELSE 0 END) as ingresos_efectivo,
-            SUM(CASE WHEN tipo = 'INGRESO' AND metodo_pago = 'TRANSFERENCIA' 
-                     THEN monto ELSE 0 END) as ingresos_transf,
+            " . SQL_INGRESO_EFECTIVO . " as ingresos_efectivo,
+            " . SQL_INGRESO_TRANSFERENCIA . " as ingresos_transf,
             SUM(CASE WHEN tipo = 'INGRESO' AND metodo_pago = 'CHEQUE' 
                      THEN monto ELSE 0 END) as ingresos_cheques,
             SUM(CASE WHEN tipo = 'INGRESO' AND metodo_pago = 'TARJETA' 
                      THEN monto ELSE 0 END) as ingresos_tarjetas,
             SUM(CASE WHEN tipo = 'INGRESO' AND metodo_pago NOT IN ('EFECTIVO', 'TRANSFERENCIA', 'CHEQUE', 'TARJETA', 'MIXTO') 
                      THEN monto ELSE 0 END) as ingresos_otros,
-            SUM(CASE WHEN tipo = 'EGRESO' THEN monto ELSE 0 END) as egresos
+            " . SQL_EGRESO_EFECTIVO . " as egresos,
+            " . SQL_EGRESO_NO_EFECTIVO . " as egresos_no_efectivo
         FROM movimientos 
         WHERE cerrado = 0 
           AND empresa_id = :empresa_id 
@@ -330,16 +438,27 @@ function cerrar_caja($pdo, $empresa_id, $sucursal_id, $usuario, $fondo_vuelto = 
         $ing_cheques = (float)($totales['ingresos_cheques'] ?? 0);
         $ing_tarjetas = (float)($totales['ingresos_tarjetas'] ?? 0);
         $ing_otros = (float)($totales['ingresos_otros'] ?? 0);
+        // Egresos que salen del cajón (los demás no afectan el efectivo esperado)
         $egresos = (float)($totales['egresos'] ?? 0);
+        $egresos_no_efectivo = (float)($totales['egresos_no_efectivo'] ?? 0);
         
         // Incluir saldo inicial en el cálculo del saldo esperado
         $saldo_inicial = (float)($estado['saldo_inicial'] ?? 0);
         $saldo_esperado = $saldo_inicial + $ing_efectivo - $egresos;
+        $saldo_esperado = round($saldo_esperado, 2);
+        
+        // Conteo físico: si no se informa, se toma el esperado (el formulario de
+        // cierre lo envía siempre; el valor queda actualizado más abajo).
+        $saldo_real = ($saldo_real === null) ? $saldo_esperado : round((float)$saldo_real, 2);
+        $diferencia = round($saldo_real - $saldo_esperado, 2);
         
         // Obtener número de cierre
         $numero_cierre = obtener_numero_cierre($pdo, $empresa_id, $sucursal_id);
         
-        // Insertar en cierres_caja con todos los métodos de pago
+        // Insertar en cierres_caja con todos los métodos de pago.
+        // saldo_real_efectivo y diferencia se guardan ya calculados con el MISMO
+        // criterio con el que se obtuvo el esperado (no se recalculan después
+        // con otra consulta).
         $sql_cierre = "INSERT INTO cierres_caja 
                        (empresa_id, sucursal_id, fecha_cierre, fecha_desde, fecha_hasta, 
                         saldo_inicial, ingresos_efectivo, ingresos_transf, ingresos_cheques,
@@ -352,7 +471,6 @@ function cerrar_caja($pdo, $empresa_id, $sucursal_id, $usuario, $fondo_vuelto = 
                                :saldo_esperado, :saldo_real, :diferencia,
                                :fondo_vuelto, :numero_cierre, :usuario)";
         
-        // Por ahora usamos saldo_esperado como saldo_real (se debe actualizar con el conteo físico)
         $stmt_cierre = $pdo->prepare($sql_cierre);
         $stmt_cierre->execute([
             ':empresa_id' => $empresa_id,
@@ -360,7 +478,7 @@ function cerrar_caja($pdo, $empresa_id, $sucursal_id, $usuario, $fondo_vuelto = 
             ':fecha_cierre' => $fecha_cierre,
             ':fecha_desde' => $fecha_desde,
             ':fecha_hasta' => $fecha_hasta,
-            ':saldo_inicial' => $estado['saldo_inicial'],
+            ':saldo_inicial' => $saldo_inicial,
             ':ingresos_efectivo' => $ing_efectivo,
             ':ingresos_transf' => $ing_transf,
             ':ingresos_cheques' => $ing_cheques,
@@ -368,8 +486,8 @@ function cerrar_caja($pdo, $empresa_id, $sucursal_id, $usuario, $fondo_vuelto = 
             ':ingresos_otros' => $ing_otros,
             ':egresos' => $egresos,
             ':saldo_esperado' => $saldo_esperado,
-            ':saldo_real' => $saldo_esperado, // Se actualiza en el formulario de cierre
-            ':diferencia' => 0, // Se calcula en el formulario
+            ':saldo_real' => $saldo_real,
+            ':diferencia' => $diferencia,
             ':fondo_vuelto' => $fondo_vuelto,
             ':numero_cierre' => $numero_cierre,
             ':usuario' => $usuario
@@ -411,6 +529,17 @@ function cerrar_caja($pdo, $empresa_id, $sucursal_id, $usuario, $fondo_vuelto = 
         // La próxima caja se apertura manualmente y pages/abrir_caja.php sugerirá
         // este fondo como saldo inicial.
         
+        // Observaciones del cierre (la columna existe desde el inicio, pero se
+        // verifica por las dudas para no romper el cierre si falta).
+        $observaciones = trim((string)$observaciones);
+        if ($observaciones !== '' && cierres_caja_tiene_observaciones($pdo)) {
+            $stmt_obs = $pdo->prepare("UPDATE cierres_caja SET observaciones = :obs WHERE id = :id");
+            $stmt_obs->execute([
+                ':obs' => $observaciones,
+                ':id' => $cierre_id
+            ]);
+        }
+        
         // Registrar en log de auditoría
         $sql_audit = "INSERT INTO cierres_caja_audit 
                       (cierre_id, accion, usuario, datos_nuevos)
@@ -422,33 +551,58 @@ function cerrar_caja($pdo, $empresa_id, $sucursal_id, $usuario, $fondo_vuelto = 
             'fecha_cierre' => $fecha_cierre,
             'fecha_desde' => $fecha_desde,
             'fecha_hasta' => $fecha_hasta,
+            'saldo_inicial' => $saldo_inicial,
             'ingresos_efectivo' => $ing_efectivo,
             'ingresos_transf' => $ing_transf,
             'ingresos_cheques' => $ing_cheques,
             'ingresos_tarjetas' => $ing_tarjetas,
             'ingresos_otros' => $ing_otros,
             'egresos' => $egresos,
+            'egresos_no_efectivo' => $egresos_no_efectivo,
             'saldo_esperado' => $saldo_esperado,
-            'fondo_vuelto' => $fondo_vuelto
+            'saldo_real' => $saldo_real,
+            'diferencia' => $diferencia,
+            'fondo_vuelto' => $fondo_vuelto,
+            'observaciones' => $observaciones
         ]);
         
-        $stmt_audit = $pdo->prepare($sql_audit);
-        $stmt_audit->execute([
-            ':cierre_id' => $cierre_id,
-            ':usuario' => $usuario,
-            ':datos' => $datos_audit
-        ]);
+        try {
+            $stmt_audit = $pdo->prepare($sql_audit);
+            $stmt_audit->execute([
+                ':cierre_id' => $cierre_id,
+                ':usuario' => $usuario,
+                ':datos' => $datos_audit
+            ]);
+        } catch (Exception $e) {
+            // La auditoría no debe abortar el cierre
+            error_log('Aviso: no se pudo registrar auditoría del cierre ' . $cierre_id . ': ' . $e->getMessage());
+        }
         
-        $pdo->commit();
+        if ($transaccion_propia) {
+            $pdo->commit();
+        }
         
         return [
             'success' => true,
             'mensaje' => 'Caja cerrada correctamente.',
-            'cierre_id' => $cierre_id
+            'cierre_id' => $cierre_id,
+            'fondo_vuelto' => (float)$fondo_vuelto,
+            'saldo_inicial' => $saldo_inicial,
+            'ingresos_efectivo' => $ing_efectivo,
+            'egresos_efectivo' => $egresos,
+            'egresos_no_efectivo' => $egresos_no_efectivo,
+            'saldo_esperado' => $saldo_esperado,
+            'saldo_real' => $saldo_real,
+            'diferencia' => $diferencia
         ];
         
     } catch (Exception $e) {
-        $pdo->rollBack();
+        // Se revierte sólo si la transacción pertenece a esta función (el error
+        // puede haber ocurrido antes de beginTransaction o la transacción puede
+        // ser de otro llamador).
+        if ($transaccion_propia && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         return [
             'success' => false,
             'mensaje' => 'Error al cerrar caja: ' . $e->getMessage()
@@ -486,12 +640,14 @@ function obtener_resumen_caja($pdo, $empresa_id, $sucursal_id, $fecha = null) {
     
     // Solo movimientos abiertos (cerrado = 0), excluyendo el fondo inicial:
     // el saldo inicial se agrega aparte (estado_caja.saldo_inicial) para no duplicar.
+    // El efectivo y los egresos de caja usan la FÓRMULA ÚNICA de este archivo
+    // (parte en efectivo de las ventas MIXTAS; los egresos por transferencia,
+    // tarjeta, cheque o ajuste no salen del cajón).
     $sql = "SELECT 
-        SUM(CASE WHEN tipo = 'INGRESO' AND (metodo_pago = 'EFECTIVO' OR metodo_pago = 'MIXTO') 
-                 THEN monto ELSE 0 END) as efectivo,
-        SUM(CASE WHEN tipo = 'INGRESO' AND metodo_pago = 'TRANSFERENCIA' 
-                 THEN monto ELSE 0 END) as transferencia,
-        SUM(CASE WHEN tipo = 'EGRESO' THEN monto ELSE 0 END) as egresos
+        " . SQL_INGRESO_EFECTIVO . " as efectivo,
+        " . SQL_INGRESO_TRANSFERENCIA . " as transferencia,
+        " . SQL_EGRESO_EFECTIVO . " as egresos,
+        " . SQL_EGRESO_NO_EFECTIVO . " as egresos_no_efectivo
     FROM movimientos 
     WHERE cerrado = 0 
       AND empresa_id = :empresa_id 
@@ -511,6 +667,7 @@ function obtener_resumen_caja($pdo, $empresa_id, $sucursal_id, $fecha = null) {
     $resumen['efectivo'] = (float)($resumen['efectivo'] ?? 0);
     $resumen['transferencia'] = (float)($resumen['transferencia'] ?? 0);
     $resumen['egresos'] = (float)($resumen['egresos'] ?? 0);
+    $resumen['egresos_no_efectivo'] = (float)($resumen['egresos_no_efectivo'] ?? 0);
     $resumen['caja_fisica'] = $resumen['efectivo'] - $resumen['egresos'];
     
     return $resumen;

@@ -24,11 +24,18 @@ if ($caja_abierta) {
     exit();
 }
 
-// Obtener el fondo reservado del último cierre (modelo por sesión: el cierre más reciente)
-$sql_fondo_ultimo = "SELECT fondo_reservado_vuelto 
+// Obtener el fondo reservado del último cierre REAL (modelo por sesión).
+// Se excluyen los CIERRES HISTÓRICOS (usuario 'Sistema (Cierre Histórico)'):
+// esos registros guardan fondo_reservado_vuelto = 0 y, como su fecha_cierre
+// puede ser posterior al último cierre real, dejaban la sugerencia en 0 aunque
+// el día anterior se hubiera dejado cambio en el cajón. Eso hacía que la caja
+// siguiente se abriera en 0 mientras el cajón tenía el cambio, y el cierre
+// siguiente mostraba un sobrante igual al fondo.
+$sql_fondo_ultimo = "SELECT fondo_reservado_vuelto, fecha_cierre, usuario 
                    FROM cierres_caja 
                    WHERE empresa_id = :empresa_id 
                      AND sucursal_id = :sucursal_id 
+                     AND usuario NOT LIKE 'Sistema (Cierre Histórico)%'
                    ORDER BY fecha_cierre DESC, id DESC LIMIT 1";
 
 $stmt_fondo = $pdo->prepare($sql_fondo_ultimo);
@@ -37,8 +44,10 @@ $stmt_fondo->execute([
     ':sucursal_id' => $sucursal_id
 ]);
 
-$fondo_ayer = $stmt_fondo->fetchColumn();
-$fondo_ayer = $fondo_ayer ? (float)$fondo_ayer : 0;
+$fila_fondo = $stmt_fondo->fetch(PDO::FETCH_ASSOC);
+$fondo_ayer = ($fila_fondo && $fila_fondo['fondo_reservado_vuelto'] !== null)
+    ? (float)$fila_fondo['fondo_reservado_vuelto'] : 0;
+$fecha_ultimo_cierre = $fila_fondo['fecha_cierre'] ?? null;
 ?>
 
 <!DOCTYPE html>
@@ -66,8 +75,8 @@ $fondo_ayer = $fondo_ayer ? (float)$fondo_ayer : 0;
             <?php if ($fondo_ayer > 0): ?>
                 <div class="fondo-info">
                     <i class="fas fa-info-circle"></i> 
-                    <strong>Fondo de vuelto del último cierre: $<?php echo number_format($fondo_ayer, 2, ',', '.'); ?></strong>
-                    <p class="small">Este monto se sugiere como saldo inicial para esta apertura.</p>
+                    <strong>Fondo de vuelto del último cierre<?php echo $fecha_ultimo_cierre ? ' (' . date('d/m/Y H:i', strtotime($fecha_ultimo_cierre)) . ')' : ''; ?>: $<?php echo number_format($fondo_ayer, 2, ',', '.'); ?></strong>
+                    <p class="small">Este monto se sugiere como saldo inicial: es el efectivo que quedó físicamente en el cajón. Si dejaste otro monto, corregilo acá (el sistema abrirá la caja con lo que indiques).</p>
                 </div>
             <?php endif; ?>
             
