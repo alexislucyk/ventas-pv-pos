@@ -1,4 +1,9 @@
 <?php
+require_once __DIR__ . '/funciones_pagos_ctacte.php';
+// La función original queda como compatibilidad interna; el cálculo activo usa
+// las imputaciones persistidas para que los pagos no se consuman por otra factura.
+
+
 /**
  * Sistema de Intereses por Mora en Cuentas Corrientes
  * Versión: 1.0
@@ -66,124 +71,16 @@ function obtenerConfiguracionIntereses($pdo, $empresa_id) {
  * @return array
  */
 function calcularInteresesCliente($id_cliente, $pdo, $empresa_id, $fecha_calculo = null) {
-    $fecha_calculo = $fecha_calculo ?? date('Y-m-d');
-    
-    // 1. Obtener configuración de intereses
-    $config = obtenerConfiguracionIntereses($pdo, $empresa_id);
-    
-    if (!$config || !$config['activo']) {
-        return [
-            'interes_total' => 0, 
-            'detalle' => [],
-            'config' => $config
-        ];
+    if (!tablaImputacionesCcExiste($pdo)) {
+        throw new RuntimeException('Falta aplicar la migración 48 de imputaciones de cuenta corriente.');
     }
-    
-    // 2. Obtener movimientos deudores vencidos CON SALDO PENDIENTE
-    // Excluir movimientos de intereses para evitar intereses sobre intereses
-    $sql = "
-        SELECT 
-            c.id,
-            c.fecha,
-            c.fecha_vencimiento,
-            c.debe,
-            c.haber,
-            c.movimiento,
-            c.n_documento,
-            DATEDIFF(:fecha_calc1, c.fecha_vencimiento) as dias_mora
-        FROM ctacte c
-        WHERE c.id_cliente = :id_cliente
-        AND c.empresa_id = :empresa_id
-        AND (c.debe - c.haber) > 0
-        AND c.fecha_vencimiento IS NOT NULL
-        AND c.fecha_vencimiento < :fecha_calc2
-        AND LOWER(c.movimiento) NOT LIKE 'inter%por%mora%'
-        ORDER BY c.fecha_vencimiento ASC
-    ";
-    
-    $stmt = $pdo->prepare($sql);
-    $params = [
-        ':id_cliente' => $id_cliente,
-        ':empresa_id' => $empresa_id,
-        ':fecha_calc1' => $fecha_calculo,
-        ':fecha_calc2' => $fecha_calculo
-    ];
-    
-    $stmt->execute($params);
-    $movimientos = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // 3. Calcular saldo pendiente considerando pagos acumulados (FIFO)
-    // Obtener todos los pagos del cliente
-    $sql_pagos = "
-        SELECT 
-            id,
-            fecha,
-            haber
-        FROM ctacte
-        WHERE id_cliente = :id_cliente
-        AND empresa_id = :empresa_id
-        AND haber > 0
-        AND movimiento NOT LIKE 'INTERÉS POR MORA%'
-        ORDER BY fecha ASC, id ASC
-    ";
-    
-    $stmt_pagos = $pdo->prepare($sql_pagos);
-    $stmt_pagos->execute([
-        ':id_cliente' => $id_cliente,
-        ':empresa_id' => $empresa_id
-    ]);
-    $pagos = $stmt_pagos->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Aplicar pagos a facturas usando FIFO
-    $interes_total = 0;
-    $detalle = [];
-    $pagos_restantes = array_column($pagos, 'haber');
-    $total_pagos = count($pagos_restantes);
-    
-    foreach ($movimientos as $mov) {
-        // Aplicar días de gracia
-        $dias_mora = max(0, $mov['dias_mora'] - $config['dias_gracia']);
-        
-        if ($dias_mora > 0) {
-            // Calcular saldo pendiente de esta factura
-            $saldo_factura = $mov['debe'];
-            
-            // Aplicar pagos disponibles (FIFO)
-            for ($i = 0; $i < $total_pagos && $saldo_factura > 0; $i++) {
-                if ($pagos_restantes[$i] > 0) {
-                    $pago_aplicado = min($saldo_factura, $pagos_restantes[$i]);
-                    $saldo_factura -= $pago_aplicado;
-                    $pagos_restantes[$i] -= $pago_aplicado;
-                }
-            }
-            
-            // Solo calcular intereses si queda saldo pendiente
-            if ($saldo_factura > 0) {
-                $interes = calcularInteresMora($saldo_factura, $dias_mora, $config['tasa_mensual']);
-                
-                if ($interes > 0) {
-                    $interes_total += $interes;
-                    $detalle[] = [
-                        'id_movimiento' => $mov['id'],
-                        'n_documento' => $mov['n_documento'],
-                        'movimiento' => $mov['movimiento'],
-                        'fecha' => $mov['fecha'],
-                        'fecha_vencimiento' => $mov['fecha_vencimiento'],
-                        'saldo_pendiente' => $saldo_factura,
-                        'dias_mora' => $dias_mora,
-                        'tasa_aplicada' => $config['tasa_mensual'],
-                        'interes_calculado' => $interes
-                    ];
-                }
-            }
-        }
-    }
-    
-    return [
-        'interes_total' => round($interes_total, 2),
-        'detalle' => $detalle,
-        'config' => $config
-    ];
+
+    return calcularInteresesClienteImputado(
+        (int)$id_cliente,
+        $pdo,
+        (int)$empresa_id,
+        $fecha_calculo
+    );
 }
 
 /**

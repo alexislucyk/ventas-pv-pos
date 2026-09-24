@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 include 'infosesion.php';
 require_once '../config/validar_permisos.php';
 //restringirPagina('developer', 'admin');
@@ -247,9 +247,9 @@ if ($accion === 'listar') {
             <h1>📦 Gestión de Productos</h1>
 <?php if ($accion === 'listar'): ?>
             <div class="page-actions">
-                      <button type="button" class="btn" onclick="abrirModalMasivo()" style="background-color: #6f42c1; color: white;"><i class="fas fa-bolt"></i> Aumento Masivo</button>
-                      <button type="button" class="btn" onclick="abrirModalMultiples()" style="background-color: #ff9800; color: white;"><i class="fas fa-layer-group"></i> Carga Múltiple</button>
-                      <button type="button" class="btn" onclick="abrirModalPdfPrecios()" style="background-color: #00bcd4; color: white;"><i class="fas fa-file-pdf"></i> Listado PDF</button>
+                      <button type="button" class="btn btn-violet" onclick="abrirModalMasivo()"><i class="fas fa-bolt"></i> Aumento Masivo</button>
+                      <button type="button" class="btn btn-amber" onclick="abrirModalMultiples()"><i class="fas fa-layer-group"></i> Carga Múltiple</button>
+                      <button type="button" class="btn btn-cyan" onclick="abrirModalPdfPrecios()"><i class="fas fa-file-pdf"></i> Listado PDF</button>
                       <a href="<?php echo URL_BASE; ?>productos?accion=crear" class="btn btn-success">+ Nuevo Producto</a>
                   </div>
             <?php endif; ?>
@@ -267,11 +267,11 @@ if ($accion === 'listar') {
                 <div class="pagination-bar">
                     <div class="search-box">
                         <input type="text" id="filtroProductos" class="form-control" placeholder="Buscar por código, descripción, rubro o proveedor..." value="<?php echo htmlspecialchars($busqueda); ?>">
-                        <button type="button" onclick="buscarProductos()" class="btn btn-primary" style="padding: 8px 16px; white-space: nowrap;">
+                        <button type="button" onclick="buscarProductos()" class="btn btn-primary btn-wide">
                             <i class="fas fa-search"></i> Buscar
                         </button>
                         <?php if ($busqueda !== ''): ?>
-                            <a href="<?php echo URL_BASE; ?>productos" class="btn btn-secondary" style="padding: 8px 12px;">
+                            <a href="<?php echo URL_BASE; ?>productos" class="btn btn-secondary btn-compact">
                                 <i class="fas fa-times"></i> Limpiar
                             </a>
                         <?php endif; ?>
@@ -285,17 +285,17 @@ if ($accion === 'listar') {
                     </div>
                 </div>
 
-                <div id="tabsPosesion" style="display: flex; gap: 8px; margin-bottom: 10px;">
+                <div id="tabsPosesion" class="d-flex gap-8 mb-10">
                     <button type="button" class="btn btn-sm tab-pos tab-pos-activa" data-tab="todos" onclick="filtrarPosesion(this)">Todos</button>
-                    <button type="button" class="btn btn-sm tab-pos" data-tab="propios" onclick="filtrarPosesion(this)" style="border-color: #2ecc71; color: #2ecc71;">Propios (<span id="cantPropios">0</span>)</button>
-                    <button type="button" class="btn btn-sm tab-pos" data-tab="consignacion" onclick="filtrarPosesion(this)" style="border-color: #f1c40f; color: #f1c40f;">🤝 Consignación (<span id="cantConsignacion">0</span>)</button>
+                    <button type="button" class="btn btn-sm tab-pos tab-pos-ok" data-tab="propios" onclick="filtrarPosesion(this)">Propios (<span id="cantPropios">0</span>)</button>
+                    <button type="button" class="btn btn-sm tab-pos tab-pos-warn" data-tab="consignacion" onclick="filtrarPosesion(this)">🤝 Consignación (<span id="cantConsignacion">0</span>)</button>
                 </div>
                 
                 <div class="table-container">
                     <table id="tablaProductos">
                         <thead>
                             <tr>
-                                <th style="width: 30px;"><input type="checkbox" id="selectAll" title="Seleccionar todos los visibles"></th>
+                                <th class="w-30"><input type="checkbox" id="selectAll" title="Seleccionar todos los visibles"></th>
                                 <th>Código</th>
                                 <th>Descripción</th>
                                 <th>Rubro</th>
@@ -318,9 +318,9 @@ if ($accion === 'listar') {
                                 <td><?php echo htmlspecialchars($p['unidad_medida'] ?? 'Unidad'); ?></td>
                                 <td>
                                     <?php if (!empty($p['es_consignacion'])): ?>
-                                        <span style="background: rgba(241, 196, 15, 0.15); color: #f1c40f; padding: 3px 8px; border-radius: 10px; font-size: 0.75em; font-weight: bold; white-space: nowrap;">🤝 Consignación<?php echo $p['comision_proveedor'] !== null ? ' ' . number_format($p['comision_proveedor'], 0) . '%' : ''; ?></span>
+                                        <span class="tag-warn">🤝 Consignación<?php echo $p['comision_proveedor'] !== null ? ' ' . number_format($p['comision_proveedor'], 0) . '%' : ''; ?></span>
                                     <?php else: ?>
-                                        <span style="background: rgba(46, 204, 113, 0.15); color: #2ecc71; padding: 3px 8px; border-radius: 10px; font-size: 0.75em; font-weight: bold;">Propio</span>
+                                        <span class="tag-ok">Propio</span>
                                     <?php endif; ?>
                                 </td>
                                 <td class="text-right"><?php echo number_format($p['stock'], 2, ',', '.'); ?></td>
@@ -341,8 +341,8 @@ if ($accion === 'listar') {
 
                 <!-- Mensaje cuando no hay resultados -->
                 <?php if (empty($productos)): ?>
-                <div style="text-align: center; padding: 30px; color: #888;">
-                    <i class="fas fa-box-open" style="font-size: 2rem; margin-bottom: 10px;"></i>
+                <div class="empty-state">
+                    <i class="fas fa-box-open empty-icon"></i>
                     <p>No se encontraron productos<?php echo $busqueda !== '' ? ' para: <strong>' . htmlspecialchars($busqueda) . '</strong>' : ''; ?>.</p>
                 </div>
                 <?php endif; ?>
@@ -372,24 +372,24 @@ if ($accion === 'listar') {
                         $inicio_rango = max(1, $pagina_actual - $rango);
                         $fin_rango = min($total_paginas, $pagina_actual + $rango);
                         ?>
-                        <a href="<?php echo $buildPageUrl(1); ?>" class="btn btn-sm btn-secondary" <?php echo $pagina_actual <= 1 ? 'style="opacity:0.4;pointer-events:none"' : ''; ?>>« Primero</a>
-                        <a href="<?php echo $buildPageUrl(max(1, $pagina_actual - 1)); ?>" class="btn btn-sm btn-secondary" <?php echo $pagina_actual <= 1 ? 'style="opacity:0.4;pointer-events:none"' : ''; ?>>‹ Ant.</a>
+                        <a href="<?php echo $buildPageUrl(1); ?>" class="btn btn-sm btn-secondary<?php echo $pagina_actual <= 1 ? ' is-disabled' : ''; ?>">« Primero</a>
+                        <a href="<?php echo $buildPageUrl(max(1, $pagina_actual - 1)); ?>" class="btn btn-sm btn-secondary<?php echo $pagina_actual <= 1 ? ' is-disabled' : ''; ?>">‹ Ant.</a>
 
                         <?php for ($i = $inicio_rango; $i <= $fin_rango; $i++): ?>
-                            <a href="<?php echo $buildPageUrl($i); ?>" class="btn btn-sm <?php echo $i == $pagina_actual ? 'btn-info' : 'btn-secondary'; ?>" style="<?php echo $i == $pagina_actual ? 'background-color:#00bcd4;color:#000;font-weight:bold;' : ''; ?>"><?php echo $i; ?></a>
+                            <a href="<?php echo $buildPageUrl($i); ?>" class="btn btn-sm <?php echo $i == $pagina_actual ? 'btn-info' : 'btn-secondary'; ?>"><?php echo $i; ?></a>
                         <?php endfor; ?>
 
-                        <a href="<?php echo $buildPageUrl(min($total_paginas, $pagina_actual + 1)); ?>" class="btn btn-sm btn-secondary" <?php echo $pagina_actual >= $total_paginas ? 'style="opacity:0.4;pointer-events:none"' : ''; ?>>Sig. ›</a>
-                        <a href="<?php echo $buildPageUrl($total_paginas); ?>" class="btn btn-sm btn-secondary" <?php echo $pagina_actual >= $total_paginas ? 'style="opacity:0.4;pointer-events:none"' : ''; ?>>Último »</a>
+                        <a href="<?php echo $buildPageUrl(min($total_paginas, $pagina_actual + 1)); ?>" class="btn btn-sm btn-secondary<?php echo $pagina_actual >= $total_paginas ? ' is-disabled' : ''; ?>">Sig. ›</a>
+                        <a href="<?php echo $buildPageUrl($total_paginas); ?>" class="btn btn-sm btn-secondary<?php echo $pagina_actual >= $total_paginas ? ' is-disabled' : ''; ?>">Último »</a>
                     </div>
                     <?php endif; ?>
                 </div>
             </div>
 
         <?php elseif ($accion === 'crear' || $accion === 'editar'): ?>
-            <div class="card" style="max-width: 800px; margin: 0 auto;">
+            <div class="card card-center">
                 <h2><?php echo ($accion === 'crear') ? 'Nuevo Registro' : 'Editando: ' . htmlspecialchars($producto_editar['descripcion']); ?></h2>
-                <hr style="border: 0; border-top: 1px solid #444; margin-bottom: 20px;">
+                <hr class="hr-line">
                 
                 <form method="POST">
                     <input type="hidden" name="accion_post" value="<?php echo $accion; ?>">
@@ -402,8 +402,8 @@ if ($accion === 'listar') {
                         </div>
                         <div>
                             <label>Rubro / Categoría</label>
-                            <div style="display: flex; gap: 5px; align-items: stretch;">
-                                <select name="rubro" id="select_rubro" style="flex: 1; margin-bottom: 0 !important;">
+                            <div class="select-row">
+                                <select name="rubro" id="select_rubro" class="select-grow">
                                     <option value="">-- Seleccionar --</option>
                                     <?php foreach ($rubros_list as $r): ?>
                                         <option value="<?php echo $r['nombre']; ?>" <?php echo (isset($producto_editar['rubro']) && $producto_editar['rubro'] == $r['nombre']) ? 'selected' : ''; ?>>
@@ -411,12 +411,12 @@ if ($accion === 'listar') {
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
-                                <button type="button" class="btn btn-success" onclick="abrirModalRubro()" title="Agregar nuevo rubro" style="width: 45px; display: flex; align-items: center; justify-content: center; padding: 0; margin-bottom: 0;">+</button>
+                                <button type="button" class="btn btn-success btn-plus" onclick="abrirModalRubro()" title="Agregar nuevo rubro">+</button>
                             </div>
                         </div>
                     </div>
 
-                    <div style="margin-bottom: 15px;">
+                    <div class="mb-15">
                         <label>Descripción del Producto</label>
                         <input type="text" name="descripcion" required value="<?php echo isset($producto_editar['descripcion']) ? $producto_editar['descripcion'] : ''; ?>">
                     </div>
@@ -437,10 +437,10 @@ if ($accion === 'listar') {
                     </div>
 
                     <div class="flex-row">
-                        <div style="flex: 2;">
+                        <div class="flex-2">
                             <label>Proveedor Principal</label>
-                            <div style="display: flex; gap: 5px; align-items: stretch;">
-                                <select name="proveedor" id="select_proveedor" style="flex: 1; margin-bottom: 0 !important;">
+                            <div class="select-row">
+                                <select name="proveedor" id="select_proveedor" class="select-grow">
                                     <option value="">-- Seleccionar Proveedor --</option>
                                     <?php foreach ($proveedores_list as $prov): ?>
                                         <option value="<?php echo $prov['razon']; ?>" <?php echo (isset($producto_editar['proveedor']) && $producto_editar['proveedor'] == $prov['razon']) ? 'selected' : ''; ?>>
@@ -448,10 +448,10 @@ if ($accion === 'listar') {
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
-                                <button type="button" class="btn btn-success" onclick="agregarNuevoProveedor()" title="Agregar nuevo proveedor" style="width: 45px; display: flex; align-items: center; justify-content: center; padding: 0; margin-bottom: 0;">+</button>
+                                <button type="button" class="btn btn-success btn-plus" onclick="agregarNuevoProveedor()" title="Agregar nuevo proveedor">+</button>
                             </div>
                         </div>
-                        <div style="flex: 1;">
+                        <div class="flex-1">
                             <label>Unidad de Medida</label>
                             <select name="unidad_medida">
                                 <?php
@@ -462,41 +462,41 @@ if ($accion === 'listar') {
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div style="flex: 1;">
+                        <div class="flex-1">
                             <label>Moneda</label>
                             <select name="moneda">
                                 <option value="pesos" <?php echo (!isset($producto_editar['moneda']) || $producto_editar['moneda'] == 'pesos') ? 'selected' : ''; ?>>Pesos ($)</option>
                                 <option value="dolar" <?php echo (isset($producto_editar['moneda']) && $producto_editar['moneda'] == 'dolar') ? 'selected' : ''; ?>>Dólar (U$S)</option>
                             </select>
                         </div>
-                        <div style="flex: 1;">
+                        <div class="flex-1">
                             <label>Fecha Ult. Compra</label>
                             <input type="date" name="fecha_ult_compra" value="<?php echo isset($producto_editar['fecha_ult_compra']) ? $producto_editar['fecha_ult_compra'] : date('Y-m-d'); ?>">
                         </div>
                     </div>
 
-                    <div class="flex-row" style="margin-top: 15px; align-items: flex-end;">
-                        <div style="flex: 1;">
+                    <div class="flex-row flex-row-end">
+                        <div class="flex-1">
                             <label>Posesión de la Mercadería</label>
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 0;">
-                                <input type="checkbox" name="es_consignacion" id="chk_consignacion" value="1" style="width: 18px; height: 18px; margin: 0;"
+                            <label class="chk-label">
+                                <input type="checkbox" name="es_consignacion" id="chk_consignacion" value="1" class="chk-box"
                                     <?php echo (!empty($producto_editar['es_consignacion'])) ? 'checked' : ''; ?>>
                                 <span id="chk_consignacion_txt">🤝 En Consignación (es del proveedor)</span>
                             </label>
-                            <small style="color: #888; display: block; margin-top: 4px;">Los productos en consignación no son de tu propiedad: se liquidan al proveedor según se venden.</small>
+                            <small class="hint">Los productos en consignación no son de tu propiedad: se liquidan al proveedor según se venden.</small>
                         </div>
-                        <div style="flex: 1;" id="row_comision_proveedor">
+                        <div class="flex-1" id="row_comision_proveedor">
                             <label>Comisión del Proveedor (%)</label>
                             <input type="number" name="comision_proveedor" id="input_comision_proveedor" min="1" max="99" step="0.01"
                                    value="<?php echo isset($producto_editar['comision_proveedor']) && $producto_editar['comision_proveedor'] !== null ? $producto_editar['comision_proveedor'] : '50'; ?>"
                                    placeholder="50 = reparto 50/50">
-                            <small style="color: #888; display: block; margin-top: 4px;">% de la ganancia que se lleva el proveedor. Ej: 50 = 50/50.</small>
+                            <small class="hint">% de la ganancia que se lleva el proveedor. Ej: 50 = 50/50.</small>
                         </div>
                     </div>
 
-                    <div style="margin-top: 30px; display: flex; gap: 10px;">
-                        <button type="submit" class="btn btn-primary" style="flex: 2;">💾 Guardar Cambios</button>
-                        <a href="<?php echo URL_BASE; ?>productos" class="btn btn-secondary" style="flex: 1; text-align: center;">Cancelar</a>
+                    <div class="form-footer">
+                        <button type="submit" class="btn btn-primary flex-2">💾 Guardar Cambios</button>
+                        <a href="<?php echo URL_BASE; ?>productos" class="btn btn-secondary flex-1 text-center">Cancelar</a>
                     </div>
                 </form>
             </div>
@@ -859,22 +859,22 @@ if ($accion === 'listar') {
 
     <!-- Modal Personalizado para Nuevo Rubro -->
     <div id="modalNuevoRubro" class="modal">
-        <div class="modal-content" style="max-width: 450px; border-top: 4px solid #00bcd4;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #444; padding-bottom: 10px;">
-                <h3 style="margin: 0; color: #00bcd4;"><i class="fas fa-tags"></i> Crear Nuevo Rubro</h3>
-                <span style="cursor: pointer; font-size: 24px; color: #888;" onclick="cerrarModalRubro()">&times;</span>
+        <div class="modal-content">
+            <div class="modal-head">
+                <h3 class="text-accent"><i class="fas fa-tags"></i> Crear Nuevo Rubro</h3>
+                <span class="modal-x" onclick="cerrarModalRubro()">&times;</span>
             </div>
             
-            <div style="margin-bottom: 20px;">
-                <label style="color: #eee; margin-bottom: 10px;">Nombre de la Categoría / Rubro:</label>
-                <input type="text" id="input_nombre_rubro" class="input-field" placeholder="Ej: Herramientas, Iluminación..." style="margin-top: 5px;">
+            <div class="mb-20">
+                <label class="modal-label">Nombre de la Categoría / Rubro:</label>
+                <input type="text" id="input_nombre_rubro" class="input-field mt-5" placeholder="Ej: Herramientas, Iluminación...">
             </div>
 
-            <div style="display: flex; gap: 10px;">
-                <button type="button" class="btn btn-primary" style="flex: 2; height: 45px; font-weight: bold;" onclick="confirmarNuevoRubro()">
+            <div class="d-flex gap-10">
+                <button type="button" class="btn btn-primary btn-tall" onclick="confirmarNuevoRubro()">
                     💾 Guardar Rubro
                 </button>
-                <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="cerrarModalRubro()">
+                <button type="button" class="btn btn-secondary flex-1" onclick="cerrarModalRubro()">
                     Cancelar
                 </button>
             </div>
@@ -883,36 +883,36 @@ if ($accion === 'listar') {
 
     <!-- Modal Personalizado para Nuevo Proveedor Rápido -->
     <div id="modalNuevoProveedorRapido" class="modal">
-        <div class="modal-content" style="max-width: 450px; border-top: 4px solid #e67e22;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #444; padding-bottom: 10px;">
-                <h3 style="margin: 0; color: #e67e22;"><i class="fas fa-truck"></i> Registrar Proveedor</h3>
-                <span style="cursor: pointer; font-size: 24px; color: #888;" onclick="cerrarModalProveedorRapido()">&times;</span>
+        <div class="modal-content">
+            <div class="modal-head">
+                <h3 class="text-orange"><i class="fas fa-truck"></i> Registrar Proveedor</h3>
+                <span class="modal-x" onclick="cerrarModalProveedorRapido()">&times;</span>
             </div>
             
-            <div style="margin-bottom: 15px;">
+            <div class="mb-15">
                 <label>Código Proveedor*</label>
                 <input type="text" id="input_cod_prov" class="input-field" value="<?php echo $nuevo_cod_prov_sugerido; ?>">
                 
                 <label>Razón Social*</label>
                 <input type="text" id="input_razon_prov" class="input-field" placeholder="Nombre de la empresa">
                 
-                <div style="display: flex; gap: 10px;">
-                    <div style="flex: 1;">
+                <div class="d-flex gap-10">
+                    <div class="flex-1">
                         <label>CUIT</label>
                         <input type="text" id="input_cuit_prov" class="input-field" placeholder="00-00000000-0">
                     </div>
-                    <div style="flex: 1;">
+                    <div class="flex-1">
                         <label>Teléfono</label>
                         <input type="text" id="input_tel_prov" class="input-field">
                     </div>
                 </div>
             </div>
 
-            <div style="display: flex; gap: 10px;">
-                <button type="button" class="btn btn-primary" style="flex: 2; height: 45px; font-weight: bold; background-color: #e67e22;" onclick="confirmarNuevoProveedorRapido()">
+            <div class="d-flex gap-10">
+                <button type="button" class="btn btn-primary btn-tall btn-orange" onclick="confirmarNuevoProveedorRapido()">
                     💾 Guardar Proveedor
                 </button>
-                <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="cerrarModalProveedorRapido()">
+                <button type="button" class="btn btn-secondary flex-1" onclick="cerrarModalProveedorRapido()">
                     Cancelar
                 </button>
             </div>
@@ -921,17 +921,17 @@ if ($accion === 'listar') {
 
     <!-- Modal Aumento Masivo de Precios -->
     <div id="modalMasivo" class="modal">
-        <div class="modal-content" style="max-width: 550px; border-top: 4px solid #6f42c1;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #444; padding-bottom: 10px;">
-                <h3 style="margin: 0; color: #a29bfe;"><i class="fas fa-bolt"></i> Actualización Masiva de Precios</h3>
-                <span style="cursor: pointer; font-size: 24px; color: #888;" onclick="cerrarModalMasivo()">&times;</span>
+        <div class="modal-content">
+            <div class="modal-head">
+                <h3 class="text-violet"><i class="fas fa-bolt"></i> Actualización Masiva de Precios</h3>
+                <span class="modal-x" onclick="cerrarModalMasivo()">&times;</span>
             </div>
             
             <form method="POST" onsubmit="event.preventDefault(); const form=this; confirmarAccion('Aumento Masivo', '¿Estás seguro de aplicar este cambio de precios a todos los productos seleccionados?', 'APLICAR CAMBIOS', 'btn-primary', () => form.submit());">
                 <input type="hidden" name="accion_post" value="aumento_masivo">
                 <input type="hidden" name="seleccionados_ids" id="seleccionados_ids">
                 
-                <div id="infoSeleccionMasiva" class="alert alert-info" style="display:none; margin-bottom: 15px; border-color: #6f42c1; color: #a29bfe; font-size: 0.9em; background: rgba(111, 66, 193, 0.1);"></div>
+                <div id="infoSeleccionMasiva" class="alert alert-info alert-violet"></div>
 
                 <div class="flex-row" id="filtrosMasivosGrupo">
                     <div>
@@ -971,12 +971,12 @@ if ($accion === 'listar') {
                     </div>
                 </div>
 
-                <div style="margin-bottom: 20px;">
+                <div class="mb-20">
                     <label>Valor (Importante: use punto para decimales)</label>
                     <input type="text" name="masivo_valor" class="input-field" placeholder="Ej: 15.5 o 500" required>
                 </div>
 
-                <button type="submit" class="btn btn-primary" style="width: 100%; background-color: #6f42c1; font-weight: bold; padding: 15px;">
+                <button type="submit" class="btn btn-primary btn-violet-block">
                     APLICAR CAMBIOS MASIVOS
 </button>
              </form>
@@ -984,19 +984,19 @@ if ($accion === 'listar') {
      </div>
 
      <!-- Modal Carga Múltiple de Productos (nuevo diseño) -->
-     <div id="modalMultiples" class="modal" style="display: none;">
-         <div class="modal-content" style="max-width: 920px; border-top: 4px solid #ff9800;">
-             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #444; padding-bottom: 10px;">
-                 <h3 style="margin: 0; color: #ff9800;"><i class="fas fa-layer-group"></i> Carga Múltiple de Productos</h3>
-                 <span style="cursor: pointer; font-size: 24px; color: #888;" onclick="cerrarModalMultiples()">&times;</span>
+     <div id="modalMultiples" class="modal">
+         <div class="modal-content">
+             <div class="modal-head">
+                 <h3 class="text-amber"><i class="fas fa-layer-group"></i> Carga Múltiple de Productos</h3>
+                 <span class="modal-x" onclick="cerrarModalMultiples()">&times;</span>
              </div>
 
              <form id="formMultiples" method="POST" action="<?php echo URL_BASE; ?>productos">
                  <input type="hidden" name="accion_post" value="carga_multiple">
 
                  <!-- Fila 1 -->
-                 <div style="display: flex; gap: 15px; margin-bottom: 10px;">
-                     <div style="flex: 1;">
+                 <div class="d-flex gap-15 mb-10">
+                     <div class="flex-1">
                          <label>Proveedor</label>
                          <select name="prov_multiple" id="prov_multiple" required>
                              <option value="">-- Seleccionar Proveedor --</option>
@@ -1006,7 +1006,7 @@ if ($accion === 'listar') {
                          </select>
                      </div>
 
-                     <div style="flex: 1;">
+                     <div class="flex-1">
                          <label>Rubro / Categoría</label>
                          <select name="rubro_multiple" id="rubro_multiple" required>
                              <option value="">-- Seleccionar Rubro --</option>
@@ -1016,7 +1016,7 @@ if ($accion === 'listar') {
                          </select>
                      </div>
 
-                     <div style="flex: 1;">
+                     <div class="flex-1">
                          <label>Moneda</label>
                          <select name="moneda_multiple" id="moneda_multiple" required>
                              <option value="pesos">Pesos ($)</option>
@@ -1026,56 +1026,56 @@ if ($accion === 'listar') {
                  </div>
 
                 <!-- Fila 2: porcentaje al lado derecho de la misma columna de moneda -->
-                 <div style="display: flex; gap: 15px; margin-bottom: 15px;">
-                     <div style="flex: 1;">
-                         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 20px; margin-bottom: 0;">
-                             <input type="checkbox" id="consignacion_multiple" style="width: 18px; height: 18px; margin: 0;" onchange="document.getElementById('row_comision_multiple').style.display = this.checked ? '' : 'none';">
+                 <div class="d-flex gap-15 mb-15">
+                     <div class="flex-1">
+                         <label class="chk-label mt-20">
+                             <input type="checkbox" id="consignacion_multiple" class="chk-box" onchange="document.getElementById('row_comision_multiple').style.display = this.checked ? '' : 'none';">
                              <span>🤝 En Consignación</span>
                          </label>
-                         <small style="color: #888; display: block; margin-top: 4px;">Aplica a TODOS los productos de esta carga</small>
+                         <small class="hint">Aplica a TODOS los productos de esta carga</small>
                      </div>
-                     <div style="flex: 1; display: none;" id="row_comision_multiple">
+                     <div class="flex-1" style="display: none;" id="row_comision_multiple">
                          <label>Comisión del Proveedor (%)</label>
-                         <input type="number" step="0.01" min="1" max="99" id="comision_multiple" value="50" style="width: 100%; padding: 6px;">
-                         <small style="color: #888;">Ej: 50 = reparto 50/50</small>
+                         <input type="number" step="0.01" min="1" max="99" id="comision_multiple" value="50" class="inp-sm">
+                         <small class="text-muted">Ej: 50 = reparto 50/50</small>
                      </div>
-                     <div style="flex: 1; margin-left: auto;">
+                     <div class="flex-1 ml-auto">
                          <label>Porcentaje (%)</label>
-                         <input type="number" step="0.01" name="porcentaje_multiple" id="porcentaje_multiple" value="60" style="width: 100%; padding: 6px;">
-                         <small style="color: #888;">Se aplicará a compra para calcular venta</small>
+                         <input type="number" step="0.01" name="porcentaje_multiple" id="porcentaje_multiple" value="60" class="inp-sm">
+                         <small class="text-muted">Se aplicará a compra para calcular venta</small>
                      </div>
                  </div>
 
                  <!-- Acrílla dinámica -->
-                 <div style="margin-bottom: 15px;">
+                 <div class="mb-15">
                      <label>Productos</label>
-                     <div style="background: #222; border: 1px solid #444; border-radius: 4px; padding: 10px;">
-                         <table id="tablaMultiples" style="width: 100%; border-collapse: collapse;">
+                     <div class="table-frame">
+                         <table id="tablaMultiples">
                              <thead>
-                                 <tr style="border-bottom: 1px solid #444;">
-                                     <th style="padding: 8px; color: #aaa; font-size: 0.85em; width: 160px;">Código</th>
-                                     <th style="padding: 8px; color: #aaa; font-size: 0.85em; width: 420px;">Descripción</th>
-                                     <th style="padding: 8px; color: #aaa; font-size: 0.85em; width: 180px;">Compra</th>
-                                     <th style="padding: 8px; color: #aaa; font-size: 0.85em; width: 180px;">Venta</th>
-                                     <th style="padding: 8px; color: #aaa; font-size: 0.85em; width: 160px;">Stock</th>
-                                     <th style="padding: 8px; color: #aaa; font-size: 0.85em; width: 68px;">Acciones</th>
+                                 <tr class="tr-line">
+                                     <th class="th-cell w-160">Código</th>
+                                     <th class="th-cell w-420">Descripción</th>
+                                     <th class="th-cell w-180">Compra</th>
+                                     <th class="th-cell w-180">Venta</th>
+                                     <th class="th-cell w-160">Stock</th>
+                                     <th class="th-cell w-68">Acciones</th>
                                  </tr>
                              </thead>
                              <tbody id="cuerpoMultiples">
                                  <tr>
-                                     <td style="padding: 5px; width: 160px;"><input type="text" class="prod-cod" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" data-enter-next="prod-descrip"></td>
-                                     <td style="padding: 5px; width: 420px;"><input type="text" class="prod-descrip" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" data-enter-next="prod-compra"></td>
-                                     <td style="padding: 5px; width: 180px;"><input type="number" class="prod-compra" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" onchange="calcularVenta(this)" data-enter-next="prod-venta"></td>
-                                     <td style="padding: 5px; width: 180px;"><input type="number" class="prod-venta" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" data-enter-next="prod-stock"></td>
-                                     <td style="padding: 5px; width: 160px;"><input type="number" class="prod-stock" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" value="0" data-enter-next="__nueva_fila__"></td>
-                                     <td style="padding: 5px; text-align: center; width: 68px;"><button type="button" class="btn btn-success btn-sm" onclick="agregarFila()" title="Agregar fila"><i class="fas fa-plus"></i></button></td>
+                                     <td class="td-cell w-160"><input type="text" class="prod-cod input-cell" data-enter-next="prod-descrip"></td>
+                                     <td class="td-cell w-420"><input type="text" class="prod-descrip input-cell" data-enter-next="prod-compra"></td>
+                                     <td class="td-cell w-180"><input type="number" class="prod-compra input-cell" onchange="calcularVenta(this)" data-enter-next="prod-venta"></td>
+                                     <td class="td-cell w-180"><input type="number" class="prod-venta input-cell" data-enter-next="prod-stock"></td>
+                                     <td class="td-cell w-160"><input type="number" class="prod-stock input-cell" value="0" data-enter-next="__nueva_fila__"></td>
+                                     <td class="td-cell w-68 text-center"><button type="button" class="btn btn-success btn-sm" onclick="agregarFila()" title="Agregar fila"><i class="fas fa-plus"></i></button></td>
                                  </tr>
                              </tbody>
                          </table>
                      </div>
                  </div>
 
-                 <div style="margin-top: 20px; text-align: right;">
+                 <div class="mt-20 ta-right">
                      <button type="button" class="btn btn-success" onclick="guardarMultiples(); return false;"><i class="fas fa-save"></i> Guardar Productos</button>
                      <button type="button" class="btn btn-secondary" onclick="cerrarModalMultiples(); return false;">Cancelar</button>
                  </div>
@@ -1131,12 +1131,12 @@ function cerrarModalMultiples() {
           document.getElementById('modalMultiples').style.display = 'none';
           document.getElementById('formMultiples').reset();
           document.getElementById('cuerpoMultiples').innerHTML = '<tr>' + 
-              '<td style="padding: 5px; width: 160px;"><input type="text" class="prod-cod" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;"></td>' +
-              '<td style="padding: 5px; width: 420px;"><input type="text" class="prod-descrip" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;"></td>' +
-              '<td style="padding: 5px; width: 180px;"><input type="number" class="prod-compra" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" onchange="calcularVenta(this)"></td>' +
-              '<td style="padding: 5px; width: 180px;"><input type="number" class="prod-venta" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;"></td>' +
-              '<td style="padding: 5px; width: 160px;"><input type="number" class="prod-stock" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" value="0"></td>' +
-              '<td style="padding: 5px; text-align: center; width: 68px;"><button type="button" class="btn btn-success btn-sm" onclick="agregarFila()" title="Agregar fila"><i class="fas fa-plus"></i></button></td>' +
+              '<td class="td-cell w-160"><input type="text" class="prod-cod input-cell"></td>' +
+              '<td class="td-cell w-420"><input type="text" class="prod-descrip input-cell"></td>' +
+              '<td class="td-cell w-180"><input type="number" class="prod-compra input-cell" onchange="calcularVenta(this)"></td>' +
+              '<td class="td-cell w-180"><input type="number" class="prod-venta input-cell"></td>' +
+              '<td class="td-cell w-160"><input type="number" class="prod-stock input-cell" value="0"></td>' +
+              '<td class="td-cell w-68 text-center"><button type="button" class="btn btn-success btn-sm" onclick="agregarFila()" title="Agregar fila"><i class="fas fa-plus"></i></button></td>' +
           '</tr>'; 
       }
       
@@ -1150,13 +1150,13 @@ function cerrarModalMultiples() {
           const tr = document.createElement('tr');
 
 
-          tr.innerHTML = '<td style="padding: 5px; width: 160px;"><input type="text" class="prod-cod" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" data-enter-next="prod-descrip"></td>' +
-              '<td style="padding: 5px; width: 420px;"><input type="text" class="prod-descrip" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" data-enter-next="prod-compra"></td>' +
-              '<td style="padding: 5px; width: 180px;"><input type="number" class="prod-compra" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" onchange="calcularVenta(this)" data-enter-next="prod-venta"></td>' +
-              '<td style="padding: 5px; width: 180px;"><input type="number" class="prod-venta" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" data-enter-next="prod-stock"></td>' +
-              '<td style="padding: 5px; width: 160px;"><input type="number" class="prod-stock" style="width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444;" value="0" data-enter-next="__nueva_fila__"></td>' +
-              '<td style="padding: 5px; text-align: center; width: 68px; white-space: nowrap;">'
-                + '<div style="display:flex; gap:6px; justify-content:center; align-items:center;">'
+          tr.innerHTML = '<td class="td-cell w-160"><input type="text" class="prod-cod input-cell" data-enter-next="prod-descrip"></td>' +
+              '<td class="td-cell w-420"><input type="text" class="prod-descrip input-cell" data-enter-next="prod-compra"></td>' +
+              '<td class="td-cell w-180"><input type="number" class="prod-compra input-cell" onchange="calcularVenta(this)" data-enter-next="prod-venta"></td>' +
+              '<td class="td-cell w-180"><input type="number" class="prod-venta input-cell" data-enter-next="prod-stock"></td>' +
+              '<td class="td-cell w-160"><input type="number" class="prod-stock input-cell" value="0" data-enter-next="__nueva_fila__"></td>' +
+              '<td class="td-cell w-68 text-center text-nowrap">'
+                + '<div class="cell-actions">'
                 + '<button type="button" class="btn btn-success btn-sm" onclick="agregarFila()" title="Agregar fila"><i class="fas fa-plus"></i></button>'
                 + '<button type="button" class="btn btn-danger btn-sm" onclick="eliminarFila(this)" title="Eliminar fila"><i class="fas fa-times"></i></button>'
                 + '</div>'
@@ -1271,62 +1271,62 @@ function cerrarModalMultiples() {
 
     <!-- Modal OCULTO: Consignación Masiva (sin botón visible en la UI)
          Disparadores: Ctrl+Alt+C  |  doble clic en el encabezado "Posesión" -->
-    <div id="modalConsignacionMasiva" class="modal" style="display: none;">
-        <div class="modal-content" style="max-width: 500px; border-top: 4px solid #f1c40f;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #444; padding-bottom: 10px;">
-                <h3 style="margin: 0; color: #f1c40f;"><i class="fas fa-handshake"></i> Consignación Masiva</h3>
-                <span style="cursor: pointer; font-size: 24px; color: #888;" onclick="cerrarModalConsignacionMasiva()">&times;</span>
+    <div id="modalConsignacionMasiva" class="modal">
+        <div class="modal-content">
+            <div class="modal-head">
+                <h3 class="text-warning"><i class="fas fa-handshake"></i> Consignación Masiva</h3>
+                <span class="modal-x" onclick="cerrarModalConsignacionMasiva()">&times;</span>
             </div>
 
-            <div id="infoConsignaMasiva" class="alert alert-info" style="margin-bottom: 15px;"></div>
+            <div id="infoConsignaMasiva" class="alert alert-info mb-15"></div>
 
-            <div style="margin-bottom: 15px;">
+            <div class="mb-15">
                 <label>Acción sobre los productos seleccionados</label>
-                <div style="display: flex; gap: 10px;">
-                    <button type="button" class="btn btn-primary" style="flex: 1; background-color: #f1c40f; color: #222; font-weight: bold;" onclick="aplicarConsignacionMasiva('marcar')">🤝 Marcar como Consignación</button>
-                    <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="aplicarConsignacionMasiva('desmarcar')">Desmarcar (Propio)</button>
+                <div class="d-flex gap-10">
+                    <button type="button" class="btn btn-primary flex-1 btn-gold" onclick="aplicarConsignacionMasiva('marcar')">🤝 Marcar como Consignación</button>
+                    <button type="button" class="btn btn-secondary flex-1" onclick="aplicarConsignacionMasiva('desmarcar')">Desmarcar (Propio)</button>
                 </div>
             </div>
 
             <div>
                 <label>Comisión del Proveedor (%) — solo para "Marcar"</label>
                 <input type="number" id="com_consigna_masiva" class="input-field" min="1" max="99" step="0.01" value="50">
-                <small style="color: #888; display: block; margin-top: 4px;">Ej: 50 = reparto 50/50. Dejá el valor actual si ya lo definiste por producto.</small>
+                <small class="hint">Ej: 50 = reparto 50/50. Dejá el valor actual si ya lo definiste por producto.</small>
             </div>
         </div>
     </div>
 
     <!-- Modal Generar Listado PDF -->
-    <div id="modalPdfPrecios" class="modal" style="display: none;">
-        <div class="modal-content" style="max-width: 500px; border-top: 4px solid #00bcd4;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #444; padding-bottom: 10px;">
-                <h3 style="margin: 0; color: #00bcd4;"><i class="fas fa-file-pdf"></i> Generar Listado de Precios</h3>
-                <span style="cursor: pointer; font-size: 24px; color: #888;" onclick="cerrarModalPdfPrecios()">&times;</span>
+    <div id="modalPdfPrecios" class="modal">
+        <div class="modal-content">
+            <div class="modal-head">
+                <h3 class="text-accent"><i class="fas fa-file-pdf"></i> Generar Listado de Precios</h3>
+                <span class="modal-x" onclick="cerrarModalPdfPrecios()">&times;</span>
             </div>
             
-            <label style="color: #aaa; display: block; margin-bottom: 5px;">Seleccione el tipo de listado:</label>
-            <div class="radio-group" style="display: flex; flex-direction: column; gap: 8px; margin: 10px 0;">
-                <label style="display: flex; align-items: center; gap: 10px; color: #e0e0e0; cursor: pointer; font-size: 1rem; margin: 0;">
-                    <input type="radio" name="tipo_listado" value="todo" checked onchange="toggleFiltroPdf()" style="width: auto; accent-color: #00bcd4;">
+            <label class="text-faint">Seleccione el tipo de listado:</label>
+            <div class="radio-group">
+                <label class="radio-label">
+                    <input type="radio" name="tipo_listado" value="todo" checked onchange="toggleFiltroPdf()" class="radio-input">
                     <i class="fas fa-list"></i> Listar todos los productos
                 </label>
-                <label style="display: flex; align-items: center; gap: 10px; color: #e0e0e0; cursor: pointer; font-size: 1rem; margin: 0;">
-                    <input type="radio" name="tipo_listado" value="busqueda" onchange="toggleFiltroPdf()" style="width: auto; accent-color: #00bcd4;">
+                <label class="radio-label">
+                    <input type="radio" name="tipo_listado" value="busqueda" onchange="toggleFiltroPdf()" class="radio-input">
                     <i class="fas fa-search"></i> Según búsqueda actual
                 </label>
-                <label style="display: flex; align-items: center; gap: 10px; color: #e0e0e0; cursor: pointer; font-size: 1rem; margin: 0;">
-                    <input type="radio" name="tipo_listado" value="rubro" onchange="toggleFiltroPdf()" style="width: auto; accent-color: #00bcd4;">
+                <label class="radio-label">
+                    <input type="radio" name="tipo_listado" value="rubro" onchange="toggleFiltroPdf()" class="radio-input">
                     <i class="fas fa-tag"></i> Por Rubro / Categoría
                 </label>
-                <label style="display: flex; align-items: center; gap: 10px; color: #e0e0e0; cursor: pointer; font-size: 1rem; margin: 0;">
-                    <input type="radio" name="tipo_listado" value="proveedor" onchange="toggleFiltroPdf()" style="width: auto; accent-color: #00bcd4;">
+                <label class="radio-label">
+                    <input type="radio" name="tipo_listado" value="proveedor" onchange="toggleFiltroPdf()" class="radio-input">
                     <i class="fas fa-truck"></i> Por Proveedor
                 </label>
             </div>
 
-            <div class="filtro-condicional" id="filtro_rubro_pdf" style="display: none;">
-                <label style="color: #aaa; display: block; margin-bottom: 5px; margin-top: 15px;">Seleccione el Rubro:</label>
-                <select id="select_rubro_pdf" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 1rem; box-sizing: border-box;">
+            <div class="filtro-condicional" id="filtro_rubro_pdf">
+                <label class="text-faint mt-15">Seleccione el Rubro:</label>
+                <select id="select_rubro_pdf" class="sel-md">
                     <option value="">-- Seleccionar --</option>
                     <?php foreach ($rubros_list as $r): ?>
                         <option value="<?php echo htmlspecialchars($r['nombre']); ?>"><?php echo htmlspecialchars($r['nombre']); ?></option>
@@ -1334,9 +1334,9 @@ function cerrarModalMultiples() {
                 </select>
             </div>
 
-            <div class="filtro-condicional" id="filtro_proveedor_pdf" style="display: none;">
-                <label style="color: #aaa; display: block; margin-bottom: 5px; margin-top: 15px;">Seleccione el Proveedor:</label>
-                <select id="select_proveedor_pdf" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 1rem; box-sizing: border-box;">
+            <div class="filtro-condicional" id="filtro_proveedor_pdf">
+                <label class="text-faint mt-15">Seleccione el Proveedor:</label>
+                <select id="select_proveedor_pdf" class="sel-md">
                     <option value="">-- Seleccionar --</option>
                     <?php foreach ($proveedores_pdf_list as $p): ?>
                         <option value="<?php echo htmlspecialchars($p['proveedor']); ?>"><?php echo htmlspecialchars($p['proveedor']); ?></option>
@@ -1344,9 +1344,9 @@ function cerrarModalMultiples() {
                 </select>
             </div>
 
-            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 25px;">
-                <button type="button" class="btn btn-secondary" onclick="cerrarModalPdfPrecios()" style="padding: 10px 20px; background: #444; color: #ccc; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 0.95rem;">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="generarPdfPrecios()" style="padding: 10px 20px; background: #00bcd4; color: #fff; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 0.95rem;"><i class="fas fa-file-pdf"></i> Generar PDF</button>
+            <div class="modal-actions-end">
+                <button type="button" class="btn btn-secondary btn-lg-ghost" onclick="cerrarModalPdfPrecios()">Cancelar</button>
+                <button type="button" class="btn btn-primary btn-lg-accent" onclick="generarPdfPrecios()"><i class="fas fa-file-pdf"></i> Generar PDF</button>
             </div>
         </div>
     </div>

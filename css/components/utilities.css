@@ -22,3 +22,49 @@
     100% { left: 100%; }
 }
 
+/* ==================== FASE 5 — UTILITARIAS GLOBALES ====================
+ * Clases reutilizables para eliminar atributos style= inline (roadmap FASE 5).
+ * Todas verificadas sin colisiones con módulos existentes.
+ * ===================================================================== */
+
+/* — Display / Flex — */
+.d-none     { display: none; }
+.d-flex     { display: flex; }
+.flex-1     { flex: 1; }
+.flex-2     { flex: 2; }
+.gap-8      { gap: 8px; }
+.gap-10     { gap: 10px; }
+.gap-15     { gap: 15px; }
+
+/* — Spacing — */
+.mb-10      { margin-bottom: 10px; }
+.mb-15      { margin-bottom: 15px; }
+.mb-20      { margin-bottom: 20px; }
+.mt-5       { margin-top: 5px; }
+.mt-15      { margin-top: 15px; }
+.mt-20      { margin-top: 20px; }
+.mt-30      { margin-top: 30px; }
+.ml-auto    { margin-left: auto; }
+
+/* — Texto / color — */
+.text-center   { text-align: center; }
+.ta-right      { text-align: right; }      /* sin tipografía mono (a diferencia de .text-right) */
+.text-nowrap   { white-space: nowrap; }
+.text-muted    { color: var(--text-muted); }   /* #888 */
+.text-faint    { color: var(--text-faint); }   /* #aaa */
+.text-accent   { color: var(--accent); }       /* #00bcd4 */
+.text-orange   { color: var(--warning-deep); } /* #e67e22 */
+.text-violet   { color: #a29bfe; }
+.text-amber    { color: var(--warning-bs); }   /* #ff9800 */
+.fw-bold       { font-weight: bold; }
+
+/* — Anchos de columna (tablas) — */
+.w-30   { width: 30px; }
+.w-68   { width: 68px; }
+.w-160  { width: 160px; }
+.w-180  { width: 180px; }
+.w-420  { width: 420px; }
+
+/* — Estados — */
+.is-disabled { opacity: 0.4; pointer-events: none; }
+

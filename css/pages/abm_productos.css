@@ -153,3 +153,89 @@ table tbody td:last-child { border-right: 1px solid #333; border-radius: 0 8px 8
         justify-content: center;
     }
 }
+
+/* ============================================================
+ * FASE 5 — Clases que reemplazan atributos style= inline
+ * Piloto: pages/abm_productos.php (169 style= originales)
+ * ============================================================ */
+
+/* — Toolbar de acciones — */
+.btn-violet  { background-color: #6f42c1; color: white; }
+.btn-amber   { background-color: #ff9800; color: white; }
+.btn-cyan    { background-color: #00bcd4; color: white; }
+.btn-wide    { padding: 8px 16px; white-space: nowrap; }
+.btn-compact { padding: 8px 12px; }
+
+/* — Pestañas de posesión — */
+.tab-pos-ok   { border-color: #2ecc71; color: #2ecc71; }
+.tab-pos-warn { border-color: #f1c40f; color: #f1c40f; }
+
+/* — Select + botón (rubro / proveedor) — */
+.select-row  { display: flex; gap: 5px; align-items: stretch; }
+.select-grow { flex: 1; margin-bottom: 0 !important; }
+.btn-plus    { width: 45px; display: flex; align-items: center; justify-content: center; padding: 0; margin-bottom: 0; }
+
+/* — Formulario — */
+.card-center   { max-width: 800px; margin: 0 auto; }
+.hr-line       { border: 0; border-top: 1px solid #444; margin-bottom: 20px; }
+.flex-row-end  { margin-top: 15px; align-items: flex-end; }
+.flex-row > .flex-2 { flex: 2; }   /* gana a .flex-row > div (flex:1) */
+.alert.mb-15   { margin-bottom: 15px; }   /* gana a .alert (mb:20px) */
+.chk-label     { display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 0; }
+.chk-box       { width: 18px; height: 18px; margin: 0; }
+.hint          { color: #888; display: block; margin-top: 4px; }
+.form-footer   { margin-top: 30px; display: flex; gap: 10px; }
+.empty-state   { text-align: center; padding: 30px; color: #888; }
+.empty-icon    { font-size: 2rem; margin-bottom: 10px; }
+
+/* — Modales (encabezado, cierre, etiquetas) — */
+.modal-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #444;
+    padding-bottom: 10px;
+}
+.modal-head h3 { margin: 0; }
+.modal-x       { cursor: pointer; font-size: 24px; color: #888; }
+.modal-label   { color: #eee; margin-bottom: 10px; }
+.modal-actions-end { display: flex; gap: 10px; justify-content: flex-end; margin-top: 25px; }
+
+/* — Variantes de .modal-content por modal (scope por id) — */
+#modalNuevoRubro .modal-content          { max-width: 450px; border-top: 4px solid #00bcd4; }
+#modalNuevoProveedorRapido .modal-content { max-width: 450px; border-top: 4px solid #e67e22; }
+#modalMasivo .modal-content              { max-width: 550px; border-top: 4px solid #6f42c1; }
+#modalMultiples .modal-content           { max-width: 920px; border-top: 4px solid #ff9800; }
+#modalConsignacionMasiva .modal-content  { max-width: 500px; border-top: 4px solid #f1c40f; }
+#modalPdfPrecios .modal-content          { max-width: 500px; border-top: 4px solid #00bcd4; }
+
+/* — Botones de modal — */
+.btn-tall        { flex: 2; height: 45px; font-weight: bold; }
+.btn-orange      { background-color: #e67e22; }
+.btn-gold        { background-color: #f1c40f; color: #222; font-weight: bold; }
+.btn-violet-block { width: 100%; background-color: #6f42c1; font-weight: bold; padding: 15px; }
+.btn-lg-ghost    { padding: 10px 20px; background: #444; color: #ccc; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 0.95rem; }
+.btn-lg-accent   { padding: 10px 20px; background: #00bcd4; color: #fff; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 0.95rem; }
+.alert-violet    { display: none; margin-bottom: 15px; border-color: #6f42c1; color: #a29bfe; font-size: 0.9em; background: rgba(111, 66, 193, 0.1); }
+
+/* — Modal PDF: filtros y radios — */
+.radio-group   { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+.radio-label   { display: flex; align-items: center; gap: 10px; color: #e0e0e0; cursor: pointer; font-size: 1rem; margin: 0; }
+.radio-input   { width: auto; accent-color: #00bcd4; }
+.filtro-condicional { display: none; }   /* JS alterna style.display block/none */
+.sel-md        { width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 1rem; box-sizing: border-box; }
+
+/* — Badges pill (consignación) — */
+.tag-warn { background: rgba(241, 196, 15, 0.15); color: #f1c40f; padding: 3px 8px; border-radius: 10px; font-size: 0.75em; font-weight: bold; white-space: nowrap; }
+.tag-ok   { background: rgba(46, 204, 113, 0.15); color: #2ecc71; padding: 3px 8px; border-radius: 10px; font-size: 0.75em; font-weight: bold; }
+
+/* — Carga múltiple: tabla — */
+.inp-sm      { width: 100%; padding: 6px; }
+.input-cell  { width: 100%; padding: 6px; background: #1a1a1a; color: #fff; border: 1px solid #444; }
+.table-frame { background: #222; border: 1px solid #444; border-radius: 4px; padding: 10px; }
+#tablaMultiples { width: 100%; border-collapse: collapse; }
+.tr-line     { border-bottom: 1px solid #444; }
+.th-cell     { padding: 8px; color: #aaa; font-size: 0.85em; }
+.td-cell     { padding: 5px; }
+.cell-actions { display: flex; gap: 6px; justify-content: center; align-items: center; }

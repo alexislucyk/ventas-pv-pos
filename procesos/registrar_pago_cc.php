@@ -1,6 +1,7 @@
 <?php
 // Corregimos la ruta de infosesion ya que estamos en /procesos/
 include '../pages/infosesion.php';
+require_once '../funciones/funciones_pagos_ctacte.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 
 $empresa_id = $_SESSION['empresa_id'] ?? null;
@@ -52,56 +53,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $cero = 0;
 
     try {
-        $sql = "
-            INSERT INTO ctacte (id_cliente, movimiento, n_documento, debe, haber, fecha, usuario, empresa_id)
-            VALUES (:id_cliente, :movimiento, :n_doc, :debe, :haber, :fecha, :usuario, :empresa_id)
-        ";
-        
-        $stmt = $pdo->prepare($sql);
-        
-        $stmt->bindValue(':id_cliente', $id_cliente, PDO::PARAM_INT);
-        $stmt->bindValue(':movimiento', $movimiento, PDO::PARAM_STR);
-        $stmt->bindValue(':n_doc', $n_recibo, PDO::PARAM_STR);
-        $stmt->bindValue(':debe', $cero, PDO::PARAM_INT);
-        $stmt->bindValue(':haber', $monto_pago, PDO::PARAM_STR); 
-        $stmt->bindParam(':fecha', $fecha_movimiento, PDO::PARAM_STR);
-        $stmt->bindValue(':usuario', $usuario, PDO::PARAM_STR);
-        $stmt->bindValue(':empresa_id', $empresa_id, PDO::PARAM_INT);
-        
-        $stmt->execute();
-
-        $id_movimiento_generado = $pdo->lastInsertId();
-
         $detalle_mov = "PAGO RECIBIDO - CLIENTE #$id_cliente" . (!empty($n_recibo) ? " (Recibo $n_recibo)" : "");
-        
         if ($condicion_pago === 'Cheque' && !empty($chq_nro)) {
             $detalle_mov .= " | CHQ N° $chq_nro (Vto: " . date('d/m/y', strtotime($chq_vto)) . ")";
         }
 
-        $sql_mov = "INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado, empresa_id, sucursal_id) 
-                    VALUES ('INGRESO', ?, ?, ?, ?, ?, 0, ?, ?)";
-        $pdo->prepare($sql_mov)->execute([
-            $monto_pago,
-            strtoupper($condicion_pago),
-            $detalle_mov,
-            $fecha_movimiento,
-            $usuario,
-            $empresa_id,
-            $sucursal_id
-        ]);
+        $resultado = registrarPagoCuentaCorriente($pdo, [
+            'id_cliente' => (int)$id_cliente,
+            'empresa_id' => (int)$empresa_id,
+            'monto_pago' => (float)$monto_pago,
+            'n_recibo' => (string)$n_recibo,
+            'fecha' => $fecha_movimiento,
+            'usuario' => $usuario,
+            'origen' => 'formulario'
+        ], $_POST['imputaciones'] ?? [], function($pagoId) use ($pdo, $monto_pago, $condicion_pago, $detalle_mov, $fecha_movimiento, $usuario, $empresa_id, $sucursal_id) {
+            $pdo->prepare("INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado, empresa_id, sucursal_id)
+                           VALUES ('INGRESO', ?, ?, ?, ?, ?, 0, ?, ?)")
+                ->execute([$monto_pago, strtoupper($condicion_pago), $detalle_mov, $fecha_movimiento, $usuario, $empresa_id, $sucursal_id]);
+        });
 
         $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
-        
         if ($isAjax) {
             if (ob_get_length()) ob_clean();
             header('Content-Type: application/json');
-            echo json_encode(['success' => true, 'id_movimiento' => $id_movimiento_generado]);
+            echo json_encode(['success' => true, 'id_movimiento' => $resultado['pago_id'], 'imputaciones' => $resultado]);
         } else {
-            header('Location: ../pages/vista_recibo.php?id_mov=' . $id_movimiento_generado);
+            header('Location: ../pages/vista_recibo.php?id_mov=' . $resultado['pago_id']);
         }
         exit();
-
-    } catch (PDOException $e) {
+    } catch (Throwable $e) {
         error_log("Error al registrar pago CC: " . $e->getMessage());
         $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
         

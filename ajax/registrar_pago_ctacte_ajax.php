@@ -4,6 +4,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 require '../config/db_config.php';
+require_once '../funciones/funciones_pagos_ctacte.php';
 header('Content-Type: application/json');
 
 // VALIDACIÓN DE PERMISOS
@@ -46,50 +47,25 @@ if (!$id_cliente || $monto_pago <= 0) {
 }
 
 try {
-    $pdo->beginTransaction();
-
-    $sql = "
-        INSERT INTO ctacte (id_cliente, movimiento, n_documento, debe, haber, fecha, usuario)
-        VALUES (:id_cliente, :movimiento, :n_doc, :debe, :haber, :fecha, :usuario)
-    ";
-    
-    $stmt = $pdo->prepare($sql);
-    
-    $stmt->bindValue(':id_cliente', $id_cliente, PDO::PARAM_INT);
-    $stmt->bindValue(':movimiento', $movimiento, PDO::PARAM_STR);
-    $stmt->bindValue(':n_doc', $n_recibo, PDO::PARAM_STR);
-    $stmt->bindValue(':debe', $cero, PDO::PARAM_INT);
-    $stmt->bindValue(':haber', $monto_pago, PDO::PARAM_STR);
-    $stmt->bindParam(':fecha', $fecha_movimiento, PDO::PARAM_STR);
-    $stmt->bindParam(':usuario', $usuario, PDO::PARAM_STR);
-    
-    $stmt->execute();
-
-    $id_movimiento_generado = $pdo->lastInsertId();
-
-    // Registrar en tabla de movimientos de caja si es efectivo o transferencia
-    if ($condicion_pago === 'Efectivo' || $condicion_pago === 'Transferencia') {
-        $sql_mov_caja = "INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado) 
-                         VALUES ('INGRESO', ?, ?, ?, ?, ?, 0)";
-        $pdo->prepare($sql_mov_caja)->execute([
-            $monto_pago,
-            $condicion_pago,
-            "PAGO CTA. CTE. CLIENTE #$id_cliente (Recibo $n_recibo)",
-            $fecha_movimiento,
-            $usuario
-        ]);
-    }
-
-    $pdo->commit();
-    echo json_encode(['success' => true, 'id_movimiento' => $id_movimiento_generado]);
-
-} catch (PDOException $e) {
+    $resultado = registrarPagoCuentaCorriente($pdo, [
+        'id_cliente' => (int)$id_cliente,
+        'empresa_id' => (int)($_SESSION['empresa_id'] ?? 0),
+        'monto_pago' => (float)$monto_pago,
+        'n_recibo' => (string)$n_recibo,
+        'fecha' => $fecha_movimiento,
+        'usuario' => $usuario,
+        'origen' => 'ajax'
+    ], $data['imputaciones'] ?? [], function($pagoId) use ($pdo, $monto_pago, $condicion_pago, $n_recibo, $id_cliente, $fecha_movimiento, $usuario) {
+        if ($condicion_pago === 'Efectivo' || $condicion_pago === 'Transferencia') {
+            $pdo->prepare("INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado, empresa_id, sucursal_id)
+                           VALUES ('INGRESO', ?, ?, ?, ?, ?, 0, ?, ?)")
+                ->execute([$monto_pago, $condicion_pago, "PAGO CTA. CTE. CLIENTE #$id_cliente (Recibo $n_recibo)", $fecha_movimiento, $usuario, (int)($_SESSION['empresa_id'] ?? 0), (int)($_SESSION['sucursal_id'] ?? 1)]);
+        }
+    });
+    echo json_encode(['success' => true, 'id_movimiento' => $resultado['pago_id'], 'imputaciones' => $resultado]);
+} catch (Throwable $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
     error_log("Error al registrar pago CC (AJAX): " . $e->getMessage());
-    echo json_encode(['success' => false, 'error' => 'Error en la base de datos: ' . $e->getMessage()]);
-} catch (Exception $e) {
-    if ($pdo->inTransaction()) $pdo->rollBack();
-    error_log("Error general al registrar pago CC (AJAX): " . $e->getMessage());
-    echo json_encode(['success' => false, 'error' => 'Ocurrió un error inesperado: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }
 ?>

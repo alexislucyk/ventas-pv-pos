@@ -508,9 +508,7 @@ try {
             return mostrarToast("El cliente no tiene un teléfono registrado.", "error");
         }
         
-        const saldoAbs = Math.abs(saldo).toLocaleString('es-AR', {minimumFractionDigits: 2});
-        const tipoSaldo = saldo > 0 ? "deudor de $" : "a favor de $";
-        const msg = `Hola ${nombre}, te informamos que tu estado de cuenta en <?php echo $nombre_empresa_sistema; ?> registra un saldo ${tipoSaldo}${saldoAbs}. ¡Saludos!`;
+        const msg = `Hola ${nombre}, ¿cómo estás? Te escribimos desde <?php echo $nombre_empresa_sistema; ?> para recordarte que podés regularizar tu cuenta corriente cuando te resulte cómodo. ¡Muchas gracias por tu colaboración! ¡Saludos!`;
         
         document.getElementById('wa_destino_tel').value = telefono;
         document.getElementById('wa_destino_msg').value = msg;

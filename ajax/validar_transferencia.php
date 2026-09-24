@@ -8,6 +8,7 @@
 include '../pages/infosesion.php';
 require '../config/db_config.php';
 require_once '../funciones/funciones_caja.php';
+require_once '../funciones/funciones_pagos_ctacte.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -123,6 +124,13 @@ try {
                 echo json_encode(['success' => false, 'message' => 'Reversar solo aplica a pagos recibidos de cuenta corriente.']);
                 exit();
             }
+            // Eliminar primero las imputaciones ligadas al recibo, para no dejar
+            // metadatos huérfanos al revertir un pago por transferencia.
+            $pdo->prepare("DELETE i FROM ctacte_pagos_imputaciones i
+                           INNER JOIN ctacte p ON p.id = i.pago_movimiento_id
+                           WHERE p.empresa_id = ? AND p.id_cliente = ? AND p.n_documento = ?
+                             AND p.movimiento = 'Pago Cta.Cte.' AND p.haber = ?")
+                ->execute([$empresa_id, $idCliente, $nroDoc, $montoTransf]);
             // Eliminar el haber de cta.cte. registrado
             $stmtDelCC = $pdo->prepare("DELETE FROM ctacte
                                         WHERE empresa_id = ? AND id_cliente = ? AND n_documento = ?
