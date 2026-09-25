@@ -497,7 +497,15 @@ if (!function_exists('actualizaciones_git_disponible')) {
             if ($cache !== null) return $cache;
         }
 
-        $version_local = defined('APP_VERSION') ? APP_VERSION : actualizaciones_version_local_bd($pdo);
+        // La BD es la fuente de verdad de la versión local: la mantiene al día
+        // el propio actualizador tras cada actualización exitosa. La constante
+        // APP_VERSION (definida en .env) es sólo un respaldo para bases sin el
+        // registro 'app_version', porque requiere un ajuste manual y tiende a
+        // quedar desfasada respecto de los tags de Git.
+        $version_local = actualizaciones_version_local_bd($pdo);
+        if (empty($version_local) || '0.0.0' === $version_local) {
+            $version_local = defined('APP_VERSION') ? APP_VERSION : '0.0.0';
+        }
 
         $github    = actualizaciones_consulta_github();
         // Best-effort: registrar la raíz como safe.directory en la config global de git
