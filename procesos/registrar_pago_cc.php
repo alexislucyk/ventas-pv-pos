@@ -17,6 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     $usuario = $_SESSION['usuario_nombre'] ?? 'Sistema';
     $condicion_pago = $_POST['condicion_pago'] ?? 'Efectivo';
+    $modo_imputacion = ($_POST['modo_imputacion'] ?? 'facturas') === 'a_cuenta' ? 'a_cuenta' : 'facturas';
     $n_recibo_raw = trim($_POST['n_recibo'] ?? '');
 
     $chq_nro = trim($_POST['chq_nro'] ?? '');
@@ -53,11 +54,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $cero = 0;
 
     try {
-        $detalle_mov = "PAGO RECIBIDO - CLIENTE #$id_cliente" . (!empty($n_recibo) ? " (Recibo $n_recibo)" : "");
+        $detalle_mov = "PAGO RECIBIDO - CLIENTE #$id_cliente" . (!empty($n_recibo) ? " (Recibo $n_recibo)" : '');
+        if ($modo_imputacion === 'a_cuenta') {
+            $detalle_mov .= ' | SALDO A FAVOR';
+        }
         if ($condicion_pago === 'Cheque' && !empty($chq_nro)) {
             $detalle_mov .= " | CHQ N° $chq_nro (Vto: " . date('d/m/y', strtotime($chq_vto)) . ")";
         }
 
+        $imputaciones = ($modo_imputacion === 'a_cuenta')
+            ? []
+            : ((isset($_POST['imputaciones']) && is_array($_POST['imputaciones'])) ? $_POST['imputaciones'] : []);
         $resultado = registrarPagoCuentaCorriente($pdo, [
             'id_cliente' => (int)$id_cliente,
             'empresa_id' => (int)$empresa_id,
@@ -65,8 +72,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'n_recibo' => (string)$n_recibo,
             'fecha' => $fecha_movimiento,
             'usuario' => $usuario,
-            'origen' => 'formulario'
-        ], $_POST['imputaciones'] ?? [], function($pagoId) use ($pdo, $monto_pago, $condicion_pago, $detalle_mov, $fecha_movimiento, $usuario, $empresa_id, $sucursal_id) {
+            'origen' => $modo_imputacion === 'a_cuenta' ? 'pago_a_cuenta' : 'formulario',
+            'permitir_saldo_a_favor' => true
+        ], $imputaciones, function($pagoId) use ($pdo, $monto_pago, $condicion_pago, $detalle_mov, $fecha_movimiento, $usuario, $empresa_id, $sucursal_id) {
             $pdo->prepare("INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado, empresa_id, sucursal_id)
                            VALUES ('INGRESO', ?, ?, ?, ?, ?, 0, ?, ?)")
                 ->execute([$monto_pago, strtoupper($condicion_pago), $detalle_mov, $fecha_movimiento, $usuario, $empresa_id, $sucursal_id]);

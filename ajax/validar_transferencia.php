@@ -124,6 +124,13 @@ try {
                 echo json_encode(['success' => false, 'message' => 'Reversar solo aplica a pagos recibidos de cuenta corriente.']);
                 exit();
             }
+            // Elimina también cualquier crédito a favor que este pago haya
+            // aplicado posteriormente a facturas del mismo cliente.
+            $pdo->prepare("DELETE a FROM ctacte_creditos_a_favor_aplicaciones a
+                           INNER JOIN ctacte p ON p.id = a.credito_pago_movimiento_id
+                           WHERE p.empresa_id = ? AND p.id_cliente = ? AND p.n_documento = ?
+                             AND p.movimiento = 'Pago Cta.Cte.' AND p.haber = ?")
+                ->execute([$empresa_id, $idCliente, $nroDoc, $montoTransf]);
             // Eliminar primero las imputaciones ligadas al recibo, para no dejar
             // metadatos huérfanos al revertir un pago por transferencia.
             $pdo->prepare("DELETE i FROM ctacte_pagos_imputaciones i

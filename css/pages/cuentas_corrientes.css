@@ -236,7 +236,7 @@ label { font-size: 0.85rem; margin-bottom: 4px; display: block; }
  * Desde: pages/pagos_ctacte.php
  * ---------------------------------------------------------- */
 
-.form-pagos { max-width: 600px; margin: 20px auto; }
+.form-pagos { max-width: 900px; margin: 20px auto; }
         .client-info-box {
             background: #1a1a1a;
             padding: 15px;
@@ -252,6 +252,126 @@ label { font-size: 0.85rem; margin-bottom: 4px; display: block; }
             text-align: center;
             height: 60px !important;
         }
+        .panel-imputacion {
+            background: #1a1a1a;
+            border: 1px solid #3a3a3a;
+            border-left: 4px solid #00bcd4;
+            border-radius: 8px;
+            margin-top: 20px;
+            padding: 15px;
+        }
+        .panel-imputacion-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+            margin-bottom: 12px;
+        }
+        .panel-imputacion-header label {
+            color: #00bcd4;
+            font-weight: bold;
+            font-size: 0.95rem;
+        }
+        .panel-imputacion-header p {
+            margin: 3px 0 0;
+            color: #888;
+            font-size: 0.78rem;
+        }
+        .panel-imputacion-header .btn {
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+        .panel-imputacion-header .btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+        .facturas-imputacion {
+            max-height: 280px;
+            overflow-y: auto;
+            border: 1px solid #333;
+            border-radius: 6px;
+        }
+        .tabla-imputacion {
+            margin: 0;
+        }
+        .tabla-imputacion thead th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            background: #252525;
+            padding: 9px 7px;
+        }
+        .tabla-imputacion tbody td {
+            padding: 8px 7px;
+        }
+        .tabla-imputacion tbody tr:first-child td {
+            border-top: 0;
+        }
+        .tabla-imputacion tbody tr:last-child td {
+            border-bottom: 0;
+        }
+        .tabla-imputacion tbody tr:first-child td:first-child {
+            border-radius: 0;
+        }
+        .tabla-imputacion tbody tr:last-child td:first-child {
+            border-radius: 0;
+        }
+        .chk-factura-pago {
+            width: 16px;
+            height: 16px;
+            accent-color: #00bcd4;
+            cursor: pointer;
+        }
+        .saldo-factura {
+            color: #f1c40f;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        .input-imputacion {
+            min-width: 120px;
+            padding: 6px 8px;
+            margin: 0;
+            text-align: right;
+        }
+        .input-imputacion:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .resumen-imputacion {
+            display: flex;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+            gap: 10px 20px;
+            margin-top: 12px;
+            color: #aaa;
+            font-size: 0.8rem;
+        }
+        .resumen-imputacion strong {
+            color: #fff;
+        }
+        .resumen-imputacion .texto-imputado {
+            color: #2ecc71;
+        }
+        .resumen-imputacion .texto-pendiente {
+            color: #f39c12;
+        }
+        .sin-facturas {
+            color: #888;
+            text-align: center;
+            padding: 20px !important;
+            margin: 0;
+            font-size: 0.85rem;
+        }
+        .error-carga-facturas {
+            color: #e74c3c;
+        }
+        @media (max-width: 700px) {
+            .form-pagos { margin: 10px auto; }
+            .panel-imputacion-header { align-items: stretch; flex-direction: column; }
+            .tabla-imputacion { min-width: 650px; }
+            .resumen-imputacion { justify-content: flex-start; }
+        }
+
 
 /* --- FIX MODALES (mismo criterio que cuentas_corrientes_detalle.css) --- */
 /* Sin esto, los modales (.modal-custom sin estilos) aparecen al final de la
