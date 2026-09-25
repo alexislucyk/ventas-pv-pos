@@ -250,7 +250,7 @@ if (!function_exists('actualizaciones_git_disponible')) {
      * muestre un número falso de "pendientes".
      */
     function actualizaciones_migraciones_pendientes($pdo) {
-        $dir = rtrim(defined('PATH_BASE') ? PATH_BASE : '', '/\\') . '/migrations';
+        $dir = actualizaciones_app_root() . '/migrations';
         if (!is_dir($dir)) return [];
 
         // Máximo número de migración presente en disco
@@ -553,6 +553,74 @@ if (!function_exists('actualizaciones_git_disponible')) {
     }
 }
 
+/**
+     * Raíz real de la aplicación.
+     * No se usa PATH_BASE porque en CLI (y con eval) apunta a rutas inválidas;
+     * este archivo vive en /funciones, por lo que dirname(__DIR__) es la raíz.
+     */
+function actualizaciones_app_root() {
+        return dirname(__DIR__);
+}
+
+/**
+     * Ejecuta las migraciones PHP/SQL de cuenta corriente tras el reset de git.
+     *
+     * El módulo de actualizaciones sólo recorre archivos .sql, pero el backfill
+     * FIFO de las imputaciones requiere PHP. Además fuerza la migración 49 para
+     * cubrir las bases sin contador 'ultima_migracion_aplicada'.
+     *
+     * @return array{0:bool, 1:string} Estado y mensaje.
+     */
+function actualizaciones_migraciones_ctacte(PDO $pdo) {
+        $raiz = actualizaciones_app_root();
+        try {
+            require_once $raiz . '/core/migraciones_ctacte.php';
+            require_once $raiz . '/funciones/funciones_pagos_ctacte.php';
+
+            if (tablaImputacionesCcExiste($pdo)) {
+                $backfill = ejecutarMigracionImputacionesCc($pdo);
+                $msg = "[OK] Imputaciones de cuenta corriente: {$backfill['insertadas']} imputación(es) reconstruidas en {$backfill['pagos']} pago(s) histórico(s).";
+            } else {
+                $msg = '[AVISO] No se pudo reconstruir el backfill: la tabla de imputaciones no existe.';
+            }
+
+            // La 49 sólo contiene DDL, pero se fuerza aquí para cubrir el caso en
+            // que la base no tenga contador ultima_migracion_aplicada (el cálculo
+            // de pendientes asumiría que el esquema ya está al día).
+            if (!tablaCreditosAFavorCcExiste($pdo)) {
+                list($estado49, $msg49) = actualizaciones_aplicar_migracion(
+                    $pdo,
+                    $raiz . '/migrations/49_saldos_a_favor_ctacte.sql'
+                );
+                if ($estado49 === 'error') {
+                    return [false, 'Migración #49 falló: ' . $msg49];
+                }
+                $msg .= " [OK] Migración #49 aplicada ({$estado49}).";
+            } else {
+                $msg .= ' [SKIP] Migración #49 ya aplicada (estructura existente en la BD).';
+            }
+
+            // Registrar el contador hasta la 49 aunque las migraciones se hayan
+            // omitido por estructura existente, para que no vuelvan a listarse.
+            try {
+                $stmt = $pdo->query("SELECT valor FROM configuracion WHERE clave = 'ultima_migracion_aplicada' LIMIT 1");
+                if ((int)$stmt->fetchColumn() < 49) {
+                    $pdo->prepare(
+                        "INSERT INTO configuracion (clave, valor) VALUES ('ultima_migracion_aplicada', '49')
+                         ON DUPLICATE KEY UPDATE valor = '49'"
+                    )->execute();
+                    $msg .= ' [OK] Contador de migraciones fijado en 49.';
+                }
+            } catch (Throwable $e) {
+                $msg .= ' [AVISO] No se pudo actualizar el contador: ' . $e->getMessage();
+            }
+
+            return [true, $msg];
+        } catch (Throwable $e) {
+            return [false, 'Falló la migración de cuenta corriente: ' . $e->getMessage()];
+        }
+}
+
 if (!function_exists('aplicar_actualizacion')) {
 
     /**
@@ -628,6 +696,18 @@ if (!function_exists('aplicar_actualizacion')) {
             } catch (Exception $e) {
                 $log[] = '[AVISO] No se pudo registrar última migración: ' . $e->getMessage();
             }
+        }
+
+        // 4b) Migraciones PHP de cuenta corriente (backfill de imputaciones + 49).
+        // Los archivos .sql crean la estructura, pero el mapeo FIFO de los pagos
+        // históricos requiere PHP: sin esto, las facturas viejas seguirían
+        // apareciendo como pendientes en producción.
+        $log[] = '[PASO] Aplicando migraciones de cuenta corriente...';
+        list($okCta, $msgCta) = actualizaciones_migraciones_ctacte($pdo);
+        $log[] = $msgCta;
+        if (!$okCta) {
+            $log[] = '[ERROR] ' . $msgCta;
+            return ['success' => false, 'log' => $log];
         }
 
         // 5) Actualizar la versión en BD según la última tag de GitHub
