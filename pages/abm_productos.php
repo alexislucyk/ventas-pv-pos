@@ -13,8 +13,49 @@ if (!$empresa_id) {
 
 $accion = isset($_GET['accion']) ? $_GET['accion'] : 'listar';
 $id = isset($_GET['id']) ? $_GET['id'] : null;
-$mensaje = '';
-$producto_editar = array(); 
+// Mensaje de éxito recibido por redirección (patrón PRG) al guardar/eliminar
+$mensaje = (isset($_GET['msg']) && is_string($_GET['msg'])) ? htmlspecialchars($_GET['msg'], ENT_QUOTES, 'UTF-8') : '';
+$producto_editar = array();
+
+/**
+ * URL del listado preservando búsqueda, cantidad de registros y página.
+ * Se usa para volver al listado filtrado después de guardar/eliminar (PRG) y
+ * en los enlaces de acción de la tabla. Así la barra de direcciones nunca queda
+ * con accion=editar|crear|eliminar, que hacía que la búsqueda reabriera el
+ * formulario del último producto editado.
+ */
+if (!function_exists('url_listado_productos')) {
+    function url_listado_productos(array $extra = [])
+    {
+        $params = [];
+
+        $q = trim((string)($_GET['q'] ?? ''));
+        if ($q !== '') {
+            $params['q'] = $q;
+        }
+
+        $registros = (int)($_GET['registros'] ?? 0);
+        if ($registros > 0 && $registros !== 20) {
+            $params['registros'] = $registros;
+        }
+
+        $pagina = (int)($_GET['pagina'] ?? 0);
+        if ($pagina > 1) {
+            $params['pagina'] = $pagina;
+        }
+
+        foreach ($extra as $clave => $valor) {
+            if ($valor === null || $valor === '') {
+                unset($params[$clave]);
+            } else {
+                $params[$clave] = $valor;
+            }
+        }
+
+        $query = http_build_query($params);
+        return URL_BASE . 'productos' . ($query !== '' ? '?' . $query : '');
+    }
+}
 
 try {
     $stmt_prov = $pdo->prepare("SELECT razon FROM proveedores WHERE empresa_id = ? ORDER BY razon ASC");
@@ -96,6 +137,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute($params);
             $mensaje = "✅ Precios actualizados en " . $stmt->rowCount() . " productos.";
             $accion = 'listar';
+            // PRG: volver al listado con URL limpia (evita reaplicar el aumento con F5
+            // y que una nueva búsqueda reabra el formulario por accion=...)
+            header('Location: ' . url_listado_productos(['msg' => $mensaje]));
+            exit();
         } else {
         $cod_prod = trim((string)($_POST['cod_prod'] ?? ''));
         // Normaliza cod_prod para evitar diferencias por espacios (ej: "AAA " vs "AAA")
@@ -152,6 +197,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $mensaje = "✅ Producto creado correctamente.";
             $accion = 'listar';
+            // PRG: redirigir al listado filtrado con URL limpia (sin accion=crear),
+            // así la próxima búsqueda muestra resultados y no reabre el formulario.
+            header('Location: ' . url_listado_productos(['msg' => $mensaje]));
+            exit();
         } elseif ($accion_post === 'editar' && $id_post) {
             $stmt_check = $pdo->prepare("SELECT COUNT(*) FROM productos WHERE empresa_id = ? AND cod_prod = ? AND id != ?");
             $stmt_check->execute([$empresa_id, $cod_prod, $id_post]);
@@ -170,6 +219,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $mensaje = "✅ Producto actualizado correctamente.";
             $accion = 'listar';
+            // PRG: redirigir al listado filtrado con URL limpia (sin accion=editar&id=...),
+            // que es lo que provocaba que al buscar de nuevo se reabriera este formulario.
+            header('Location: ' . url_listado_productos(['msg' => $mensaje]));
+            exit();
         }
         }
     } catch (Exception $e) {
@@ -181,6 +234,10 @@ if ($accion === 'eliminar' && $id) {
     $pdo->prepare('DELETE FROM productos WHERE id = ? AND empresa_id = ?')->execute([$id, $empresa_id]);
     $mensaje = "🗑️ Producto eliminado.";
     $accion = 'listar';
+    // PRG: dejar la URL limpia (antes conservaba accion=eliminar&id=..., lo que
+    // hacía que una nueva búsqueda volviera a apuntar a esa acción de borrado).
+    header('Location: ' . url_listado_productos(['msg' => $mensaje]));
+    exit();
 }
 
 if ($accion === 'editar' && $id) {
@@ -250,7 +307,7 @@ if ($accion === 'listar') {
                       <button type="button" class="btn btn-violet" onclick="abrirModalMasivo()"><i class="fas fa-bolt"></i> Aumento Masivo</button>
                       <button type="button" class="btn btn-amber" onclick="abrirModalMultiples()"><i class="fas fa-layer-group"></i> Carga Múltiple</button>
                       <button type="button" class="btn btn-cyan" onclick="abrirModalPdfPrecios()"><i class="fas fa-file-pdf"></i> Listado PDF</button>
-                      <a href="<?php echo URL_BASE; ?>productos?accion=crear" class="btn btn-success">+ Nuevo Producto</a>
+                      <a href="<?php echo url_listado_productos(['accion' => 'crear']); ?>" class="btn btn-success">+ Nuevo Producto</a>
                   </div>
             <?php endif; ?>
         </div>
@@ -326,8 +383,8 @@ if ($accion === 'listar') {
                                 <td class="text-right"><?php echo number_format($p['stock'], 2, ',', '.'); ?></td>
                                 <td class="text-right text-bold text-success"><?php echo $p['moneda'] == 'dolar' ? 'U$S' : '$'; ?><?php echo number_format($p['p_venta'], 2, ',', '.'); ?></td>
                                 <td>
-                                    <a href="<?php echo URL_BASE; ?>productos?accion=editar&id=<?php echo $p['id']; ?>" class="btn btn-primary btn-sm">Editar</a>
-                                    <a href="<?php echo URL_BASE; ?>productos?accion=eliminar&id=<?php echo $p['id']; ?>" 
+                                    <a href="<?php echo url_listado_productos(['accion' => 'editar', 'id' => $p['id']]); ?>" class="btn btn-primary btn-sm">Editar</a>
+                                    <a href="<?php echo url_listado_productos(['accion' => 'eliminar', 'id' => $p['id']]); ?>" 
                                        class="btn btn-danger btn-sm" 
                                        onclick="event.preventDefault(); const url=this.href; confirmarAccion('Eliminar Producto', '¿Deseas quitar este producto del inventario?', 'ELIMINAR', 'btn-danger', () => window.location.href=url);">
                                        Borrar
@@ -496,7 +553,7 @@ if ($accion === 'listar') {
 
                     <div class="form-footer">
                         <button type="submit" class="btn btn-primary flex-2">💾 Guardar Cambios</button>
-                        <a href="<?php echo URL_BASE; ?>productos" class="btn btn-secondary flex-1 text-center">Cancelar</a>
+                        <a href="<?php echo url_listado_productos(); ?>" class="btn btn-secondary flex-1 text-center">Cancelar</a>
                     </div>
                 </form>
             </div>
@@ -520,6 +577,12 @@ if ($accion === 'listar') {
             if (q === qActual && !paginaActual) {
                 return;
             }
+            // El listado solo usa q/registros: si la URL trae parámetros de una
+            // acción (accion=editar|crear|eliminar, id, msg) se descartan, porque
+            // si no la búsqueda volvía a abrir el formulario de edición guardado.
+            params.delete('accion');
+            params.delete('id');
+            params.delete('msg');
             if (q) {
                 params.set('q', q);
             } else {
@@ -535,6 +598,10 @@ if ($accion === 'listar') {
             const params = new URLSearchParams(window.location.search);
             params.set('registros', sel.value);
             params.delete('pagina'); // Volver a página 1 al cambiar registros
+            // Descartar parámetros de acciones (ver buscarProductos)
+            params.delete('accion');
+            params.delete('id');
+            params.delete('msg');
             window.location.search = params.toString();
         };
 
