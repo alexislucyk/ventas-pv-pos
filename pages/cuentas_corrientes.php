@@ -4,6 +4,8 @@ include 'infosesion.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 require '../config/db_config.php'; 
 
+require_once '../funciones/funciones_intereses.php';
+
 $empresa_id = $_SESSION['empresa_id'] ?? null;
 $sucursal_id = $_SESSION['sucursal_id'] ?? 1;
 if (!$empresa_id) {
@@ -43,6 +45,18 @@ try {
 
 } catch (Exception $e) {
     error_log("Error en CC: " . $e->getMessage());
+}
+
+// --- 2. INTERESES DEVENGADOS (saldo deudor × tasa × días, 2 consultas en total) ---
+$moras_cc = [];
+try {
+    $moras_cc = obtenerResumenInteresesPendientes($pdo, $empresa_id);
+} catch (Exception $e) {
+    error_log("Error al calcular intereses devengados en CC: " . $e->getMessage());
+}
+$mora_total = 0.0;
+foreach ($moras_cc as $mora_cliente) {
+    $mora_total += (float)$mora_cliente['interes'];
 }
 ?>
 
@@ -89,6 +103,10 @@ try {
                 <h3><i class="fas fa-users"></i> Clientes con Saldo</h3>
                 <div class="value"><?php echo count($clientes_cc); ?></div>
             </div>
+            <div class="stat-card" style="border-left-color: #f39c12;">
+                <h3><i class="fas fa-percentage"></i> Intereses Devengados</h3>
+                <div class="value" style="color: #f39c12;">$ <?php echo number_format($mora_total, 2, ',', '.'); ?></div>
+            </div>
         </div>
 
         <div class="card">
@@ -100,12 +118,13 @@ try {
                         <th>CUIT / Documento</th>
                         <th>Teléfono</th>
                         <th class="text-right">Saldo Actual</th>
+                        <th class="text-right">Mora devengada</th>
                         <th style="text-align: center;">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($clientes_cc)): ?>
-                        <tr><td colspan="5" style="text-align: center; padding: 30px; color: #666;">No hay clientes con saldos pendientes.</td></tr>
+                        <tr><td colspan="6" style="text-align: center; padding: 30px; color: #666;">No hay clientes con saldos pendientes.</td></tr>
                     <?php else: ?>
                         <?php foreach ($clientes_cc as $c): ?>
                             <tr class="fila-cliente" data-saldo="<?php echo $c['saldo_actual']; ?>">
@@ -117,6 +136,14 @@ try {
                                         -$ <?php echo number_format($c['saldo_actual'], 2, ',', '.'); ?>
                                     <?php else: ?>
                                         +$ <?php echo number_format(abs($c['saldo_actual']), 2, ',', '.'); ?>
+                                    <?php endif; ?>
+                                </td>
+                                <td class="text-right" style="color: #f39c12;">
+                                    <?php if (isset($moras_cc[$c['id_cliente']])): ?>
+                                        <strong>$ <?php echo number_format($moras_cc[$c['id_cliente']]['interes'], 2, ',', '.'); ?></strong>
+                                        <br><small style="color: #888;"><?php echo (int)$moras_cc[$c['id_cliente']]['dias_mora']; ?> días · saldo $ <?php echo number_format($moras_cc[$c['id_cliente']]['saldo_deudor'], 2, ',', '.'); ?></small>
+                                    <?php else: ?>
+                                        <span style="color: #666;">—</span>
                                     <?php endif; ?>
                                 </td>
                                 <td style="text-align: center;">

@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $id_cliente = $_POST['id_cliente'] ?? null;
 $empresa_id = $_SESSION['empresa_id'] ?? null;
-$usuario_id = $_SESSION['user_id'] ?? null;
+$usuario_id = $_SESSION['usuario_id'] ?? null;
 
 if (!$id_cliente || !$empresa_id) {
     echo json_encode(['success' => false, 'error' => 'Datos incompletos']);
@@ -42,9 +42,13 @@ try {
     if ($resultado['success']) {
         echo json_encode([
             'success' => true,
-            'mensaje' => "Intereses aplicados exitosamente: " . formatearMontoInteres($resultado['monto_aplicado']),
+            'mensaje' => 'Interés aplicado: ' . formatearMontoInteres($resultado['monto_aplicado'])
+                       . ' sobre un saldo deudor de ' . formatearMontoInteres($resultado['saldo_deudor'] ?? 0)
+                       . ' (' . (int)($resultado['dias_mora'] ?? 0) . ' días de mora)',
             'monto' => $resultado['monto_aplicado'],
             'id_movimiento' => $resultado['id_movimiento'],
+            'n_documento' => $resultado['n_documento'] ?? null,
+            'dias_mora' => (int)($resultado['dias_mora'] ?? 0),
             'detalle' => $resultado['detalle']
         ]);
     } else {

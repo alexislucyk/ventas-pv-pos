@@ -64,7 +64,7 @@ try {
               AND c.empresa_id = ?
               AND c.debe > c.haber
               AND DATE(c.fecha) <= CURDATE()
-              AND LOWER(c.movimiento) NOT LIKE 'inter%por%mora%'
+              AND " . condicionSqlNoEsInteresCc($pdo, 'c') . "
             HAVING saldo_disponible > 0.005
             ORDER BY c.fecha ASC, c.id ASC";
 

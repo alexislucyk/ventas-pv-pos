@@ -18,18 +18,31 @@ if (!tiene_permiso('configuracion_ver')) {
     die('❌ No tiene permisos para acceder a esta página.');
 }
 
+require_once '../funciones/funciones_intereses.php';
+
+// ¿Esta base ya tiene aplicada la migración 50 (columnas nuevas de intereses)?
+$tiene_migracion_50 = tablaEsInteresCcExiste($pdo);
+
 $mensaje = '';
 $tipo_mensaje = '';
 
 // Procesar guardado de configuración
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar_configuracion'])) {
-    $tasa_mensual = floatval($_POST['tasa_mensual'] ?? 3.00);
+    // Datos del formulario
+    $tasa_mensual = floatval($_POST['tasa_mensual'] ?? INTERES_CC_TASA_DEFECTO);
     $dias_gracia = intval($_POST['dias_gracia'] ?? 0);
-    $plazo_fiado_dias = intval($_POST['plazo_fiado_dias'] ?? 30);
-    $aplicar_automatico = isset($_POST['aplicar_automatico']) ? 1 : 0;
-    $frecuencia = $_POST['frecuencia'] ?? 'DIARIA';
+    $plazo_fiado_dias = intval($_POST['plazo_fiado_dias'] ?? INTERES_CC_PLAZO_DEFECTO);
+    $modo_calculo = strtoupper(trim($_POST['modo_calculo'] ?? 'DIARIO'));
+    $fecha_vigencia = trim($_POST['fecha_vigencia'] ?? '');
     $activo = isset($_POST['activo']) ? 1 : 0;
-    
+
+    if (!in_array($modo_calculo, ['DIARIO', 'MENSUAL'], true)) {
+        $modo_calculo = 'DIARIO';
+    }
+    if ($fecha_vigencia !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha_vigencia)) {
+        $fecha_vigencia = '';
+    }
+
     // Validaciones
     if ($tasa_mensual < 0 || $tasa_mensual > 100) {
         $mensaje = 'La tasa mensual debe estar entre 0 y 100%';
@@ -42,58 +55,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar_configuracion
         $tipo_mensaje = 'error';
     } else {
         try {
-            // Verificar si existe configuración
-            $sql_check = "SELECT id FROM configuracion_intereses WHERE empresa_id = :empresa_id";
-            $stmt_check = $pdo->prepare($sql_check);
+            // ¿Ya existe una fila de configuración para esta empresa?
+            $stmt_check = $pdo->prepare("SELECT id FROM configuracion_intereses WHERE empresa_id = :empresa_id");
             $stmt_check->execute([':empresa_id' => $empresa_id]);
             $existe = $stmt_check->fetch(PDO::FETCH_ASSOC);
-            
-            if ($existe) {
-                // Actualizar
-                $sql_update = "
-                    UPDATE configuracion_intereses 
-                    SET tasa_mensual = :tasa_mensual,
-                        dias_gracia = :dias_gracia,
-                        plazo_fiado_dias = :plazo_fiado_dias,
-                        aplicar_automatico = :aplicar_automatico,
-                        frecuencia = :frecuencia,
-                        activo = :activo,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE empresa_id = :empresa_id
-                ";
-                $stmt_update = $pdo->prepare($sql_update);
-                $stmt_update->execute([
-                    ':tasa_mensual' => $tasa_mensual,
-                    ':dias_gracia' => $dias_gracia,
-                    ':plazo_fiado_dias' => $plazo_fiado_dias,
-                    ':aplicar_automatico' => $aplicar_automatico,
-                    ':frecuencia' => $frecuencia,
-                    ':activo' => $activo,
-                    ':empresa_id' => $empresa_id
-                ]);
-            } else {
-                // Insertar
-                $sql_insert = "
-                    INSERT INTO configuracion_intereses 
-                    (empresa_id, tasa_mensual, dias_gracia, plazo_fiado_dias, aplicar_automatico, frecuencia, activo)
-                    VALUES
-                    (:empresa_id, :tasa_mensual, :dias_gracia, :plazo_fiado_dias, :aplicar_automatico, :frecuencia, :activo)
-                ";
-                $stmt_insert = $pdo->prepare($sql_insert);
-                $stmt_insert->execute([
-                    ':empresa_id' => $empresa_id,
-                    ':tasa_mensual' => $tasa_mensual,
-                    ':dias_gracia' => $dias_gracia,
-                    ':plazo_fiado_dias' => $plazo_fiado_dias,
-                    ':aplicar_automatico' => $aplicar_automatico,
-                    ':frecuencia' => $frecuencia,
-                    ':activo' => $activo
-                ]);
+
+            $datos = [
+                'tasa_mensual'     => $tasa_mensual,
+                'dias_gracia'      => $dias_gracia,
+                'plazo_fiado_dias' => $plazo_fiado_dias,
+                'activo'           => $activo,
+            ];
+
+            // Columnas de la migración 50: sólo se usan si esta base ya las tiene
+            if ($tiene_migracion_50) {
+                $datos['modo_calculo'] = $modo_calculo;
+                $datos['fecha_vigencia'] = $fecha_vigencia !== '' ? $fecha_vigencia : null;
             }
-            
+
+            $params = $datos;
+            $params['empresa_id'] = $empresa_id;
+
+            if ($existe) {
+                $sets = [];
+                foreach (array_keys($datos) as $col) {
+                    $sets[] = $col . ' = :' . $col;
+                }
+                $sql = "UPDATE configuracion_intereses SET " . implode(', ', $sets)
+                     . ", updated_at = CURRENT_TIMESTAMP WHERE empresa_id = :empresa_id";
+            } else {
+                $cols = array_merge(['empresa_id'], array_keys($datos));
+                $marcas = array_map(function ($col) { return ':' . $col; }, $cols);
+                $sql = "INSERT INTO configuracion_intereses (" . implode(', ', $cols) . ")"
+                     . " VALUES (" . implode(', ', $marcas) . ")";
+            }
+
+            $stmt_guardar = $pdo->prepare($sql);
+            $stmt_guardar->execute($params);
+
             $mensaje = '✅ Configuración guardada exitosamente';
             $tipo_mensaje = 'success';
-            
         } catch (Exception $e) {
             $mensaje = '❌ Error al guardar: ' . $e->getMessage();
             $tipo_mensaje = 'error';
@@ -102,47 +103,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar_configuracion
     }
 }
 
-// Obtener configuración actual
+// Obtener configuración actual (con valores por defecto si falta la fila)
 try {
-    $sql_config = "SELECT * FROM configuracion_intereses WHERE empresa_id = :empresa_id LIMIT 1";
-    $stmt_config = $pdo->prepare($sql_config);
+    $stmt_config = $pdo->prepare("SELECT * FROM configuracion_intereses WHERE empresa_id = :empresa_id LIMIT 1");
     $stmt_config->execute([':empresa_id' => $empresa_id]);
-    $config = $stmt_config->fetch(PDO::FETCH_ASSOC);
-    
-    if (!$config) {
-        // Valores por defecto
-        $config = [
-            'tasa_mensual' => 3.00,
-            'dias_gracia' => 0,
-            'plazo_fiado_dias' => 30,
-            'aplicar_automatico' => 0,
-            'frecuencia' => 'DIARIA',
-            'activo' => 1
-        ];
-    }
+    $config = $stmt_config->fetch(PDO::FETCH_ASSOC) ?: [];
 } catch (Exception $e) {
-    $mensaje = '❌ Error al cargar configuración: ' . $e->getMessage();
-    $tipo_mensaje = 'error';
-    $config = [
-        'tasa_mensual' => 3.00,
-        'dias_gracia' => 0,
-        'plazo_fiado_dias' => 30,
-        'aplicar_automatico' => 0,
-        'frecuencia' => 'DIARIA',
-        'activo' => 1
-    ];
+    if (!$mensaje) {
+        $mensaje = '❌ Error al cargar configuración: ' . $e->getMessage();
+        $tipo_mensaje = 'error';
+    }
+    $config = [];
 }
 
-// Obtener estadísticas
+$config = $config + [
+    'tasa_mensual'     => INTERES_CC_TASA_DEFECTO,
+    'dias_gracia'      => 0,
+    'plazo_fiado_dias' => INTERES_CC_PLAZO_DEFECTO,
+    'modo_calculo'     => 'DIARIO',
+    'fecha_vigencia'   => null,
+    'activo'           => 1,
+];
+
+// Obtener estadísticas del mes actual
 try {
-    require '../funciones/funciones_intereses.php';
     $stats = obtenerEstadisticasIntereses($pdo, $empresa_id);
 } catch (Exception $e) {
     $stats = [
         'total_intereses_generados' => 0,
-        'monto_total_intereses' => 0,
-        'promedio_interes' => 0,
-        'clientes_afectados' => 0
+        'monto_total_intereses'     => 0,
+        'promedio_interes'          => 0,
+        'clientes_afectados'        => 0,
     ];
 }
 ?>
@@ -235,7 +226,7 @@ try {
                                required>
                         <span class="ci-suffix">%</span>
                     </div>
-                    <p class="ci-help">Porcentaje aplicado sobre el saldo moroso cada mes. Ej: 3.00 = 3% mensual</p>
+                    <p class="ci-help">Se aplica sobre el saldo deudor de la cuenta. Ej: 7.00 = 7% mensual</p>
                 </div>
 
                 <div class="ci-field">
@@ -250,7 +241,7 @@ try {
                                required>
                         <span class="ci-suffix">días</span>
                     </div>
-                    <p class="ci-help">Tiempo extra después del vencimiento antes de calcular intereses</p>
+                    <p class="ci-help">Tiempo extra sin recargos después del vencimiento</p>
                 </div>
 
                 <div class="ci-field">
@@ -261,45 +252,41 @@ try {
                                name="plazo_fiado_dias"
                                min="1"
                                max="365"
-                               value="<?php echo htmlspecialchars($config['plazo_fiado_dias'] ?? 30); ?>"
+                               value="<?php echo htmlspecialchars($config['plazo_fiado_dias']); ?>"
                                required>
                         <span class="ci-suffix">días</span>
                     </div>
-                    <p class="ci-help">Las facturas al fiado vencen N días después de la venta. Desde esa fecha se calcula la mora</p>
+                    <p class="ci-help">Las ventas al fiado vencen N días después de la venta</p>
                 </div>
 
                 <div class="ci-field">
-                    <label for="frecuencia">Frecuencia de cálculo</label>
+                    <label for="modo_calculo">Modo de cálculo</label>
                     <div class="ci-input-wrap">
-                        <select id="frecuencia" name="frecuencia">
-                            <option value="DIARIA" <?php echo $config['frecuencia'] === 'DIARIA' ? 'selected' : ''; ?>>
-                                Diaria
+                        <select id="modo_calculo" name="modo_calculo">
+                            <option value="DIARIO" <?php echo strtoupper((string)$config['modo_calculo']) === 'DIARIO' ? 'selected' : ''; ?>>
+                                Diario (prorratea por día)
                             </option>
-                            <option value="SEMANAL" <?php echo $config['frecuencia'] === 'SEMANAL' ? 'selected' : ''; ?>>
-                                Semanal
-                            </option>
-                            <option value="MENSUAL" <?php echo $config['frecuencia'] === 'MENSUAL' ? 'selected' : ''; ?>>
-                                Mensual
+                            <option value="MENSUAL" <?php echo strtoupper((string)$config['modo_calculo']) === 'MENSUAL' ? 'selected' : ''; ?>>
+                                Mensual (sólo meses completos)
                             </option>
                         </select>
                     </div>
-                    <p class="ci-help">Cada cuánto se recalculan los intereses pendientes</p>
+                    <p class="ci-help">Diario: saldo × tasa/30 × días. Mensual: saldo × tasa × meses completos</p>
+                </div>
+
+                <div class="ci-field">
+                    <label for="fecha_vigencia">Fecha de inicio (opcional)</label>
+                    <div class="ci-input-wrap">
+                        <input type="date"
+                               id="fecha_vigencia"
+                               name="fecha_vigencia"
+                               value="<?php echo htmlspecialchars((string)($config['fecha_vigencia'] ?? '')); ?>">
+                    </div>
+                    <p class="ci-help">Vacío = calcula desde el vencimiento más antiguo impago (cálculo completo)</p>
                 </div>
             </div>
 
             <div class="ci-toggles">
-                <label class="ci-switch-row" for="aplicar_automatico">
-                    <div class="ci-switch-text">
-                        <strong><i class="fas fa-robot"></i> Aplicar automáticamente</strong>
-                        <span>Los intereses se aplican solos según la frecuencia configurada</span>
-                    </div>
-                    <input type="checkbox"
-                           id="aplicar_automatico"
-                           name="aplicar_automatico"
-                           <?php echo $config['aplicar_automatico'] ? 'checked' : ''; ?>>
-                    <span class="ci-switch"></span>
-                </label>
-
                 <label class="ci-switch-row" for="activo">
                     <div class="ci-switch-text">
                         <strong><i class="fas fa-power-off"></i> Sistema activo</strong>
@@ -326,11 +313,12 @@ try {
             <div class="ci-card">
                 <h3><i class="fas fa-circle-info"></i> Cómo funciona</h3>
                 <ul class="ci-info-list">
-                    <li><i class="fas fa-percentage"></i><div><strong>Tasa mensual:</strong> porcentaje que se aplica sobre el saldo deudor por cada mes de mora.</div></li>
-                    <li><i class="fas fa-calendar-check"></i><div><strong>Días de gracia:</strong> período sin recargos después del vencimiento.</div></li>
+                    <li><i class="fas fa-scale-balanced"></i><div><strong>Base:</strong> el interés se calcula sobre el saldo deudor de la cuenta, no factura por factura.</div></li>
+                    <li><i class="fas fa-calendar-check"></i><div><strong>Desde cuándo:</strong> desde el vencimiento de la factura impaga más antigua; los pagos cancelan primero la deuda más vieja.</div></li>
+                    <li><i class="fas fa-scissors"></i><div><strong>Sin anatocismo:</strong> los intereses ya aplicados no generan nuevos intereses.</div></li>
+                    <li><i class="fas fa-percentage"></i><div><strong>Tasa mensual:</strong> porcentaje sobre el saldo deudor por día o por mes de mora.</div></li>
                     <li><i class="fas fa-receipt"></i><div><strong>Plazo de fiado:</strong> define la fecha de vencimiento de las ventas en cuenta corriente.</div></li>
-                    <li><i class="fas fa-rotate"></i><div><strong>Frecuencia:</strong> cada cuánto se recalculan los intereses pendientes.</div></li>
-                    <li><i class="fas fa-robot"></i><div><strong>Aplicación automática:</strong> el sistema aplica los intereses sin intervención manual.</div></li>
+                    <li><i class="fas fa-rotate-left"></i><div><strong>Corte:</strong> al aplicar el interés queda marcada la fecha, así los días cobrados no se repiten nunca.</div></li>
                 </ul>
             </div>
 
@@ -338,7 +326,7 @@ try {
                 <h3><i class="fas fa-calculator"></i> Ejemplo de cálculo</h3>
                 <div class="ci-example-grid">
                     <div class="ci-field">
-                        <label for="ejemplo_saldo">Saldo adeudado</label>
+                        <label for="ejemplo_saldo">Saldo deudor</label>
                         <div class="ci-input-wrap">
                             <input type="number" id="ejemplo_saldo" value="10000" min="0" step="100">
                             <span class="ci-suffix">$</span>
@@ -353,14 +341,15 @@ try {
                     </div>
                 </div>
                 <div class="ci-example-result">
-                    <div class="ci-example-row"><span>Tasa mensual</span><span id="ejemplo_tasa"><?php echo htmlspecialchars($config['tasa_mensual']); ?>%</span></div>
-                    <div class="ci-example-row"><span>Días de gracia aplicados</span><span id="ejemplo_gracia"><?php echo htmlspecialchars($config['dias_gracia']); ?> días</span></div>
+                    <div class="ci-example-row"><span>Tasa mensual</span><span id="ejemplo_tasa">0,00%</span></div>
+                    <div class="ci-example-row"><span>Días de gracia aplicados</span><span id="ejemplo_gracia">0 días</span></div>
+                    <div class="ci-example-row"><span>Días que se cobran</span><span id="ejemplo_dias_efectivos">0 días</span></div>
                     <div class="ci-example-row ci-example-total">
                         <span><i class="fas fa-arrow-trend-up"></i> Interés a aplicar</span>
                         <span id="ejemplo_interes">$ 0,00</span>
                     </div>
                 </div>
-                <p class="ci-help">Fórmula: Interés = Saldo × (Tasa / 30 / 100) × días de mora efectivos</p>
+                <p class="ci-help" id="ejemplo_formula">Fórmula: Saldo × (Tasa / 30 / 100) × días de mora</p>
             </div>
         </div>
         </div><!-- /ci-container -->
@@ -379,25 +368,41 @@ try {
         calcularEjemplo();
     });
 
-    // Calculadora de ejemplo en vivo (usa la tasa y días de gracia del formulario)
+    // Calculadora de ejemplo en vivo (usa la tasa, la gracia y el modo del formulario)
     function calcularEjemplo() {
         const saldo = parseFloat(document.getElementById('ejemplo_saldo').value) || 0;
-        const dias = parseFloat(document.getElementById('ejemplo_dias').value) || 0;
+        const dias = parseInt(document.getElementById('ejemplo_dias').value) || 0;
         const tasa = parseFloat(document.getElementById('tasa_mensual').value) || 0;
         const gracia = parseInt(document.getElementById('dias_gracia').value) || 0;
+        const modo = document.getElementById('modo_calculo').value;
 
         const diasEfectivos = Math.max(0, dias - gracia);
-        const interes = saldo * (tasa / 30 / 100) * diasEfectivos;
+        let interes = 0;
+        let formula = '';
+
+        if (modo === 'MENSUAL') {
+            const meses = Math.floor(diasEfectivos / 30);
+            interes = saldo * (tasa / 100) * meses;
+            formula = 'Fórmula: Saldo × (Tasa / 100) × meses completos (' + meses + ')';
+        } else {
+            interes = saldo * (tasa / 30 / 100) * diasEfectivos;
+            formula = 'Fórmula: Saldo × (Tasa / 30 / 100) × días de mora';
+        }
 
         document.getElementById('ejemplo_tasa').textContent = tasa.toFixed(2).replace('.', ',') + '%';
         document.getElementById('ejemplo_gracia').textContent = gracia + ' días';
+        document.getElementById('ejemplo_dias_efectivos').textContent = diasEfectivos + ' días';
         document.getElementById('ejemplo_interes').textContent =
             '$ ' + interes.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        document.getElementById('ejemplo_formula').textContent = formula;
     }
 
-    ['ejemplo_saldo', 'ejemplo_dias', 'tasa_mensual', 'dias_gracia'].forEach(function(id) {
+    ['ejemplo_saldo', 'ejemplo_dias', 'tasa_mensual', 'dias_gracia', 'modo_calculo'].forEach(function(id) {
         const el = document.getElementById(id);
-        if (el) el.addEventListener('input', calcularEjemplo);
+        if (el) {
+            el.addEventListener('input', calcularEjemplo);
+            el.addEventListener('change', calcularEjemplo);
+        }
     });
     </script>
 </body>

@@ -3,6 +3,34 @@
  * Servicios compartidos para pagos e imputaciones de cuenta corriente.
  * La relación persistida es la fuente de verdad para el saldo aplicado.
  */
+/**
+ * Condición SQL que deja afuera los movimientos de interés por mora (no son
+ * facturas: no se imputan ni se pagan). Usa la columna ctacte.es_interes de la
+ * migración 50 y cae al filtro por texto si la base todavía no está migrada.
+ *
+ * @param PDO    $pdo
+ * @param string $alias Alias de la tabla ctacte en la consulta (ej. 'c')
+ * @return string
+ */
+function condicionSqlNoEsInteresCc(PDO $pdo, string $alias = ''): string {
+    static $tieneColumna = null;
+
+    if ($tieneColumna === null) {
+        try {
+            $pdo->query('SELECT es_interes FROM ctacte LIMIT 1');
+            $tieneColumna = true;
+        } catch (PDOException $e) {
+            $tieneColumna = false;
+        }
+    }
+
+    $prefijo = $alias !== '' ? $alias . '.' : '';
+    if ($tieneColumna) {
+        return $prefijo . 'es_interes = 0';
+    }
+    return "LOWER(" . $prefijo . "movimiento) NOT LIKE 'inter%por%mora%'";
+}
+
 function tablaImputacionesCcExiste(PDO $pdo): bool {
     try { $pdo->query('SELECT 1 FROM ctacte_pagos_imputaciones LIMIT 1'); return true; }
     catch (PDOException $e) { return false; }
@@ -65,7 +93,7 @@ function reconciliarSaldosAFavorCc(PDO $pdo, int $empresaId, int $clienteId, ?st
         $creditos->execute([$clienteId, $empresaId, $fechaCorte]);
         $filasCredito = $creditos->fetchAll(PDO::FETCH_ASSOC);
 
-        $lockFacturas = $pdo->prepare("SELECT id FROM ctacte WHERE id_cliente=? AND empresa_id=? AND debe>haber AND DATE(fecha)<=? AND LOWER(movimiento) NOT LIKE 'inter%por%mora%' ORDER BY fecha,id FOR UPDATE");
+        $lockFacturas = $pdo->prepare("SELECT id FROM ctacte WHERE id_cliente=? AND empresa_id=? AND debe>haber AND DATE(fecha)<=? AND " . condicionSqlNoEsInteresCc($pdo) . " ORDER BY fecha,id FOR UPDATE");
         $lockFacturas->execute([$clienteId, $empresaId, $fechaCorte]);
         $idsFacturas = $lockFacturas->fetchAll(PDO::FETCH_COLUMN);
         if (!$idsFacturas) { if ($propia) { $pdo->commit(); } return 0.0; }
@@ -75,7 +103,7 @@ function reconciliarSaldosAFavorCc(PDO $pdo, int $empresaId, int $clienteId, ?st
                     COALESCE((SELECT SUM(i.importe_aplicado) FROM ctacte_pagos_imputaciones i WHERE i.movimiento_deudor_id=c.id AND i.empresa_id=c.empresa_id AND i.id_cliente=c.id_cliente),0) directo,
                     COALESCE((SELECT SUM(a.importe_aplicado) FROM ctacte_creditos_a_favor_aplicaciones a WHERE a.movimiento_deudor_id=c.id AND a.empresa_id=c.empresa_id AND a.id_cliente=c.id_cliente),0) aplicado_credito
              FROM ctacte c
-             WHERE c.id_cliente=? AND c.empresa_id=? AND c.debe>c.haber AND DATE(c.fecha)<=? AND LOWER(c.movimiento) NOT LIKE 'inter%por%mora%'
+             WHERE c.id_cliente=? AND c.empresa_id=? AND c.debe>c.haber AND DATE(c.fecha)<=? AND " . condicionSqlNoEsInteresCc($pdo, 'c') . "
              ORDER BY c.fecha,c.id"
         );
         $facturas->execute([$clienteId, $empresaId, $fechaCorte]);
@@ -113,7 +141,7 @@ function reconciliarSaldosAFavorCc(PDO $pdo, int $empresaId, int $clienteId, ?st
 function saldoDisponibleMovimientoCc(PDO $pdo, int $id, int $empresaId, int $clienteId): float {
 
 
-    $st = $pdo->prepare("SELECT c.debe,c.haber FROM ctacte c WHERE c.id=? AND c.empresa_id=? AND c.id_cliente=? AND c.debe>0 AND LOWER(c.movimiento) NOT LIKE 'inter%por%mora%'");
+    $st = $pdo->prepare("SELECT c.debe,c.haber FROM ctacte c WHERE c.id=? AND c.empresa_id=? AND c.id_cliente=? AND c.debe>0 AND " . condicionSqlNoEsInteresCc($pdo, 'c'));
     $st->execute([$id, $empresaId, $clienteId]);
     $factura = $st->fetch(PDO::FETCH_ASSOC);
     if (!$factura) throw new InvalidArgumentException('La factura indicada no pertenece al cliente o no es pagable.');
@@ -137,92 +165,6 @@ function registrarPagoCuentaCorriente(PDO $pdo,array $datos,array $imputaciones=
 }
 
 
-function calcularInteresesClienteImputado(int $idCliente, PDO $pdo, int $empresaId, ?string $fechaCalculo = null): array {
-    $fechaCalculo = $fechaCalculo ?: date('Y-m-d');
-    reconciliarSaldosAFavorCc($pdo, $empresaId, $idCliente, $fechaCalculo, 'intereses');
-    $config = obtenerConfiguracionIntereses($pdo, $empresaId);
-    if (!$config || !$config['activo']) {
-        return ['interes_total' => 0, 'detalle' => [], 'config' => $config];
-    }
-
-    $st = $pdo->prepare(
-        "SELECT c.id,c.fecha,c.fecha_vencimiento,c.debe,c.haber,c.movimiento,c.n_documento
-         FROM ctacte c
-         WHERE c.id_cliente=? AND c.empresa_id=?
-           AND c.debe>c.haber
-           AND c.fecha_vencimiento IS NOT NULL
-           AND c.fecha_vencimiento<?
-           AND LOWER(c.movimiento) NOT LIKE 'inter%por%mora%'
-         ORDER BY c.fecha_vencimiento,c.id"
-    );
-    $st->execute([$idCliente, $empresaId, $fechaCalculo]);
-
-    $stI = $pdo->prepare(
-        "SELECT a.importe_aplicado,a.fecha_aplicacion
-         FROM (
-             SELECT i.importe_aplicado,i.fecha_imputacion AS fecha_aplicacion
-             FROM ctacte_pagos_imputaciones i
-             WHERE i.movimiento_deudor_id=? AND i.empresa_id=? AND i.id_cliente=? AND i.fecha_imputacion<=?
-             UNION ALL
-             SELECT a.importe_aplicado,a.fecha_aplicacion
-             FROM ctacte_creditos_a_favor_aplicaciones a
-             WHERE a.movimiento_deudor_id=? AND a.empresa_id=? AND a.id_cliente=? AND a.fecha_aplicacion<=?
-         ) a
-         ORDER BY a.fecha_aplicacion"
-    );
-
-    $total = 0.0;
-    $detalle = [];
-    $gracia = max(0, (int)$config['dias_gracia']);
-    $tasa = (float)$config['tasa_mensual'];
-
-    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $factura) {
-        $saldo = round((float)$factura['debe'] - (float)$factura['haber'], 2);
-        $stI->execute([(int)$factura['id'], $empresaId, $idCliente, $fechaCalculo, (int)$factura['id'], $empresaId, $idCliente, $fechaCalculo]);
-        $pagos = $stI->fetchAll(PDO::FETCH_ASSOC);
-
-        $inicio = $factura['fecha_vencimiento'];
-        $interes = 0.0;
-        $graciaAplicada = false;
-        foreach ($pagos as $pago) {
-            $aplicado = min($saldo, (float)$pago['importe_aplicado']);
-            if ($aplicado <= 0.005) {
-                continue;
-            }
-            $corte = min($fechaCalculo, $pago['fecha_aplicacion']);
-            $dias = max(0, (int)floor((strtotime($corte) - strtotime($inicio)) / 86400));
-            $interes += calcularInteresMora($saldo, $graciaAplicada ? $dias : $dias - $gracia, $tasa);
-            $graciaAplicada = true;
-            $saldo = round($saldo - $aplicado, 2);
-            $inicio = $pago['fecha_aplicacion'];
-        }
-
-        // Una factura totalmente imputada no genera interés pendiente. Para una
-        // factura parcial, solo se calcula el saldo que sigue vigente al corte.
-        if ($saldo <= 0.005) {
-            continue;
-        }
-        $dias = max(0, (int)floor((strtotime($fechaCalculo) - strtotime($inicio)) / 86400));
-        $interes += calcularInteresMora($saldo, $graciaAplicada ? $dias : $dias - $gracia, $tasa);
-
-        if ($interes > 0) {
-            $total = round($total + $interes, 2);
-            $detalle[] = [
-                'id_movimiento' => (int)$factura['id'],
-                'n_documento' => $factura['n_documento'],
-                'movimiento' => $factura['movimiento'],
-                'fecha' => $factura['fecha'],
-                'fecha_vencimiento' => $factura['fecha_vencimiento'],
-                'saldo_pendiente' => $saldo,
-                'dias_mora' => $graciaAplicada ? $dias : max(0, $dias - $gracia),
-                'tasa_aplicada' => $tasa,
-                'interes_calculado' => round($interes, 2),
-            ];
-        }
-    }
-
-    return ['interes_total' => round($total, 2), 'detalle' => $detalle, 'config' => $config];
-}
 /**
  * Registra un abono y guarda sus imputaciones. La función es transaccional y
  * bloquea los movimientos涉及的 para impedir sobreasignaciones concurrentes.
@@ -262,7 +204,7 @@ function registrarPagoCuentaCorrienteV2(PDO $pdo, array $datos, array $imputacio
                 WHERE a.movimiento_deudor_id=c.id AND a.empresa_id=c.empresa_id AND a.id_cliente=c.id_cliente),0) AS aplicado_credito
             FROM ctacte c
             WHERE c.id_cliente=? AND c.empresa_id=? AND c.debe>c.haber
-              AND c.fecha<=? AND LOWER(c.movimiento) NOT LIKE 'inter%por%mora%'
+              AND c.fecha<=? AND " . condicionSqlNoEsInteresCc($pdo, 'c') . "
             ORDER BY c.fecha, c.id FOR UPDATE");
         $lock->execute([$idCliente, $empresaId, $fechaPago]);
         $disponibles = $lock->fetchAll(PDO::FETCH_ASSOC);

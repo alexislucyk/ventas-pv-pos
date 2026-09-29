@@ -575,7 +575,8 @@ function actualizaciones_app_root() {
      *
      * El módulo de actualizaciones sólo recorre archivos .sql, pero el backfill
      * FIFO de las imputaciones requiere PHP. Además fuerza la migración 49 para
-     * cubrir las bases sin contador 'ultima_migracion_aplicada'.
+     * cubrir las bases sin contador 'ultima_migracion_aplicada' y garantiza el
+     * esquema de la migración 50 (intereses sobre el saldo deudor).
      *
      * @return array{0:bool, 1:string} Estado y mensaje.
      */
@@ -607,6 +608,14 @@ function actualizaciones_migraciones_ctacte(PDO $pdo) {
             } else {
                 $msg .= ' [SKIP] Migración #49 ya aplicada (estructura existente en la BD).';
             }
+
+            // La 50 (intereses sobre el saldo deudor) se garantiza siempre desde PHP:
+            // completa lo que falte del esquema sentencia por sentencia, sin depender
+            // de que el .sql se haya corrido por el panel, a mano, o de nunca.
+            $esquema50 = garantizarEsquemaInteresesCc($pdo);
+            $msg .= empty($esquema50)
+                ? ' [SKIP] Esquema de intereses (#50) al día.'
+                : ' [OK] Esquema de intereses (#50): ' . implode(', ', $esquema50) . '.';
 
             // Registrar el contador hasta la 49 aunque las migraciones se hayan
             // omitido por estructura existente, para que no vuelvan a listarse.

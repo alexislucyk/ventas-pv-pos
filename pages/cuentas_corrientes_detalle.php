@@ -62,11 +62,23 @@ $id_cliente = (int)$_GET['id_cliente'];
             $intereses = calcularInteresesCliente($id_cliente, $pdo, $empresa_id);
         } catch (Exception $e2) {
             error_log("Error al calcular intereses: " . $e2->getMessage());
-            // Si hay error en intereses, continuar sin ellos
+            // Si hay error en intereses, continuar sin ellos (estructura completa
+            // para que la tarjeta de la página pueda renderizarse igual)
             $intereses = [
-                'interes_total' => 0,
-                'detalle' => [],
-                'config' => []
+                'interes_total'  => 0,
+                'saldo_deudor'   => 0,
+                'saldo_vencido'  => 0,
+                'inicio_mora'    => null,
+                'fecha_corte'    => null,
+                'fecha_base'     => null,
+                'dias_mora'      => 0,
+                'dias_efectivos' => 0,
+                'dias_gracia'    => 0,
+                'tasa_aplicada'  => 0,
+                'modo_calculo'   => 'DIARIO',
+                'motivo'         => 'error',
+                'detalle'        => [],
+                'config'         => [],
             ];
         }
     
@@ -156,24 +168,40 @@ $id_cliente = (int)$_GET['id_cliente'];
             </div>
         </div>
 
-        <!-- Sección de Intereses por Mora -->
+        <!-- Sección de Intereses por Mora (calculados sobre el saldo deudor) -->
         <?php if ($intereses['interes_total'] > 0): ?>
         <div class="card" style="background: #2c2c2c; border-left: 4px solid #f39c12; margin-bottom: 20px;">
             <h3 style="color: #f39c12; margin-bottom: 15px;">
-                <i class="fas fa-percentage"></i> Intereses por Mora Pendientes
+                <i class="fas fa-percentage"></i> Intereses por Mora Devengados
             </h3>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; flex-wrap: wrap;">
                 <div>
                     <p style="margin: 5px 0; color: #fff;">
-                        <strong>Total Intereses:</strong> 
-                        <span style="color: #f39c12; font-size: 1.2rem; font-weight: bold;">
+                        <strong>Interés a aplicar:</strong>
+                        <span style="color: #f39c12; font-size: 1.4rem; font-weight: bold;">
                             $ <?php echo number_format($intereses['interes_total'], 2, ',', '.'); ?>
                         </span>
                     </p>
                     <p style="margin: 5px 0; color: #bbb; font-size: 0.85rem;">
-                        Tasa aplicada: <?php echo $intereses['config']['tasa_mensual']; ?>% mensual
-                        <?php if ($intereses['config']['dias_gracia'] > 0): ?>
-                            | Días de gracia: <?php echo $intereses['config']['dias_gracia']; ?>
+                        Saldo deudor: <strong>$ <?php echo number_format($intereses['saldo_deudor'], 2, ',', '.'); ?></strong>
+                        | Días de mora: <strong><?php echo (int)$intereses['dias_efectivos']; ?></strong>
+                        | Tasa: <strong><?php echo number_format($intereses['tasa_aplicada'], 2, ',', '.'); ?>%</strong>
+                        <span style="color: #888;">(<?php echo $intereses['modo_calculo'] === 'MENSUAL' ? 'por mes completo' : 'prorrateo diario'; ?>)</span>
+                        <?php if (!empty($intereses['dias_gracia'])): ?>
+                            | Gracia: <?php echo (int)$intereses['dias_gracia']; ?> días
+                        <?php endif; ?>
+                    </p>
+                    <p style="margin: 5px 0; color: #888; font-size: 0.8rem;">
+                        <?php if (!empty($intereses['fecha_corte'])): ?>
+                            Se cobra desde el último interés aplicado:
+                            <strong><?php echo date('d/m/Y', strtotime($intereses['fecha_corte'])); ?></strong>
+                        <?php else: ?>
+                            Vencimiento más antiguo impago:
+                            <strong><?php echo $intereses['inicio_mora'] ? date('d/m/Y', strtotime($intereses['inicio_mora'])) : '-'; ?></strong>
+                        <?php endif; ?>
+                        <?php if ($intereses['saldo_vencido'] < $intereses['saldo_deudor']): ?>
+                            <br>Del saldo deudor, $ <?php echo number_format($intereses['saldo_vencido'], 2, ',', '.'); ?>
+                            corresponde a facturas ya vencidas (el resto está dentro del plazo).
                         <?php endif; ?>
                     </p>
                 </div>
@@ -184,33 +212,28 @@ $id_cliente = (int)$_GET['id_cliente'];
                     <i class="fas fa-check"></i> Aplicar Intereses
                 </button>
             </div>
-            
-            <!-- Detalle de cálculo -->
-            <details style="margin-top: 15px;">
-                <summary style="color: #00bcd4; cursor: pointer; font-weight: bold;">Ver detalle de cálculo</summary>
-                <table style="margin-top: 10px; font-size: 0.8rem;">
-                    <thead>
-                        <tr>
-                            <th>Documento</th>
-                            <th>Fecha Venc.</th>
-                            <th>Saldo</th>
-                            <th>Días Mora</th>
-                            <th>Interés</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($intereses['detalle'] as $det): ?>
-                        <tr>
-                            <td><?php echo htmlspecialchars($det['movimiento']); ?></td>
-                            <td><?php echo date('d/m/Y', strtotime($det['fecha_vencimiento'])); ?></td>
-                            <td>$ <?php echo number_format($det['saldo_pendiente'], 2, ',', '.'); ?></td>
-                            <td><?php echo $det['dias_mora']; ?> días</td>
-                            <td style="color: #f39c12; font-weight: bold;">$ <?php echo number_format($det['interes_calculado'], 2, ',', '.'); ?></td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </details>
+        </div>
+        <?php else: ?>
+        <div class="card" style="background: #2c2c2c; border-left: 4px solid #2ecc71; margin-bottom: 20px;">
+            <h3 style="color: #2ecc71; margin-bottom: 10px;">
+                <i class="fas fa-circle-check"></i> Sin intereses pendientes
+            </h3>
+            <p style="margin: 0; color: #bbb; font-size: 0.85rem;">
+                <?php
+                $motivos_sin_mora = [
+                    'sin_saldo_deudor'   => 'La cuenta no tiene saldo deudor.',
+                    'dentro_del_plazo'   => 'La deuda todavía está dentro del plazo de fiado.',
+                    'dias_insuficientes' => 'Los días de mora todavía no alcanzan para generar un interés.',
+                    'inactivo'           => 'El sistema de intereses está pausado en la configuración.',
+                    'error'              => 'No se pudieron calcular los intereses de esta cuenta.',
+                ];
+                echo htmlspecialchars($motivos_sin_mora[$intereses['motivo']] ?? 'No hay mora devengada.');
+                ?>
+                <?php if ($intereses['saldo_deudor'] > 0): ?>
+                    (Saldo deudor: $ <?php echo number_format($intereses['saldo_deudor'], 2, ',', '.'); ?>,
+                    días computados: <?php echo (int)$intereses['dias_efectivos']; ?>)
+                <?php endif; ?>
+            </p>
         </div>
         <?php endif; ?>
         <!-- Fin Sección de Intereses -->
