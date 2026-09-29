@@ -90,6 +90,33 @@ table tbody td:last-child { border-right: 1px solid #333; border-radius: 0 8px 8
     padding-left: 10px !important;
 }
 
+/* ── Alineación de los controles de la barra (input + botones + selector) ──
+   El input y el select heredan "margin-bottom: 15px !important" del estilo global
+   de formularios, que dentro de esta fila flex los desplazaba verticalmente
+   respecto de los botones Buscar/Limpiar. Además los botones quedaban ~5px más
+   bajos que el input/select. Se fija una altura común para los cuatro controles. */
+.pagination-bar #filtroProductos,
+.pagination-bar .per-page-selector select { margin-bottom: 0 !important; }
+
+.pagination-bar #filtroProductos,
+.pagination-bar .per-page-selector select,
+.pagination-bar .search-box .btn {
+    height: 38px;
+    box-sizing: border-box !important;
+}
+
+/* Los botones se centran verticalmente (también los <a>, que si no quedan
+   pegados arriba al fijar altura) y sin el margin-right: 5px de .btn, para que
+   la separación sea la misma que da el gap del .search-box */
+.pagination-bar .search-box .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;              /* espacio ícono-texto (antes lo daba un carácter espacio) */
+    margin: 0;
+    white-space: nowrap;
+}
+
 .per-page-selector {
     flex-shrink: 0;
 }
