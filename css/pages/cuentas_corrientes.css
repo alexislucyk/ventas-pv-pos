@@ -5,6 +5,16 @@
  * Extraído de: pages/cuentas_corrientes.php (bloque <style> línea 56)
  * ============================================================
  */
+/* ── Encabezado de página y acciones ── */
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }
+.page-header h1 {
+    margin: 0;              /* quita el margin-top por defecto del navegador (~17px) */
+    padding-bottom: 6px;    /* antes 8px */
+    margin-bottom: 8px;     /* antes 20px (+ 20px del contenedor) */
+}
+
+/* ── Contenedor .content: separación de la topbar fija ── */
+.content.content-topbar { padding-top: 58px; }
 
 /* ===== CONTENT — Layout unificado (mismo margen que resumen_ventas) ===== */
 /* NOTA: El margin-left lo hereda de css/components/sidebar.css (200px).
@@ -138,7 +148,7 @@ table tbody td:last-child { border-right: 1px solid #333; border-radius: 0 4px 4
 .card { background: #1e1e1e; border-radius: 12px; border: 1px solid #333; padding: 20px; margin-bottom: 15px; }
 .card h2, .card h3 { font-size: 1.1rem; }
 .content { padding: 20px 30px; min-height: 100vh; }
-.content h1 { font-size: 1.6rem; margin-bottom: 20px; padding-bottom: 8px; }
+.content h1 { font-size: 1.6rem; /* márgenes/padding del título: ver .page-header h1 */ }
 
 /* ===== FORMULARIOS / INPUTS ===== */
 .input-field {

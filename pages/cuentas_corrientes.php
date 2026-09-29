@@ -57,9 +57,9 @@ try {
 </head>
 <body>
     <?php include 'sidebar.php'; ?>
-    <div class="content" style="padding-top: 70px;">
+    <div class="content content-topbar">
         <?php include 'topbar.php'; ?>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+        <div class="page-header">
             <h1>📊 Cuentas Corrientes</h1>
             <a href="<?php echo route_file('pages/pagos_ctacte.php'); ?>" class="btn btn-success" style="padding: 10px 18px; text-decoration: none; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;">
                 ➕ Registrar Pago / Cobro
