@@ -535,7 +535,7 @@ foreach ($moras_cc as $mora_cliente) {
             return mostrarToast("El cliente no tiene un teléfono registrado.", "error");
         }
         
-        const msg = `Hola ${nombre}, ¿cómo estás? Te escribimos desde <?php echo $nombre_empresa_sistema; ?> para recordarte que podés regularizar tu cuenta corriente cuando te resulte cómodo. ¡Muchas gracias por tu colaboración! ¡Saludos!`;
+        const msg = `Hola ${nombre}, ¿cómo estás? Te escribimos desde <?php echo $nombre_empresa_sistema; ?> para recordarte que tenés un saldo pendiente en tu cuenta corriente. Agradecemos puedas regularizar a la brevedad. ¡Muchas gracias! ¡Saludos!`;
         
         document.getElementById('wa_destino_tel').value = telefono;
         document.getElementById('wa_destino_msg').value = msg;
