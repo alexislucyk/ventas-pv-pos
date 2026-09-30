@@ -2,6 +2,8 @@
 include 'infosesion.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 
+require_once __DIR__ . '/../funciones/funciones_pagos_ctacte.php';
+
 $empresa_id = $_SESSION['empresa_id'] ?? null;
 $sucursal_id = $_SESSION['sucursal_id'] ?? 1;
 if (!$empresa_id) {
@@ -15,6 +17,8 @@ if (isset($_GET['success'])) {
     $mensaje = '<p style="color: red; font-weight: bold;">❌ Error: ' . htmlspecialchars($_GET['error']) . '</p>';
 }
 
+// El abono se aplica sobre el saldo de la cuenta, así que el saldo de cada
+// cliente se carga junto con el listado: la pantalla ya no pide facturas.
 $clientes_cc = [];
 try {
     $sql_clientes = "SELECT id, CONCAT(apellido, ', ', nombre) as nombre_completo, cuit
@@ -24,6 +28,12 @@ try {
     $stmt_clientes = $pdo->prepare($sql_clientes);
     $stmt_clientes->execute([$empresa_id]);
     $clientes_cc = $stmt_clientes->fetchAll(PDO::FETCH_ASSOC);
+
+    $saldos_cc = saldosCuentaCc($pdo, (int)$empresa_id);
+    foreach ($clientes_cc as &$cliente) {
+        $cliente['saldo'] = $saldos_cc[(int)$cliente['id']] ?? 0.0;
+    }
+    unset($cliente);
 } catch (Exception $e) {
     error_log("Error cargando clientes en pagos_ctacte: " . $e->getMessage());
 }
@@ -54,7 +64,7 @@ if ($id_cliente_inicial) {
         <?php include 'topbar.php'; ?>
         <h1><i class="fas fa-hand-holding-usd"></i> Registrar Pago a Cuenta Corriente</h1>
         
-        <?php echo $mensaje; // Mostrar mensaje de éxito/error ?>
+        <?php echo $mensaje; ?>
 
         <div class="card form-pagos">
             <form id="formRegistroPagoCC" action="<?php echo url('procesos/registrar_pago_cc.php'); ?>" method="POST">
@@ -74,31 +84,19 @@ if ($id_cliente_inicial) {
                 <label>Monto a Abonar ($)</label>
                 <input type="number" id="monto_pago" name="monto_pago" step="0.01" min="0.01" class="input-field input-monto" placeholder="0.00" required>
 
-                <label>Destino del Pago</label>
-                <select name="modo_imputacion" id="modo_imputacion" class="input-field" required>
-                    <option value="facturas">Aplicar a facturas (el excedente queda a favor)</option>
-                    <option value="a_cuenta">Pago a cuenta (todo queda como saldo a favor)</option>
-                </select>
-
-                <section id="panel_imputacion" class="panel-imputacion" style="display: none;">
-                    <div class="panel-imputacion-header">
-                        <div>
-                            <label>Facturas a Imputar</label>
-                            <p>Seleccione las facturas y ajuste los importes. Si el pago supera la deuda, el excedente queda como saldo a favor.</p>
-                        </div>
-                        <button type="button" id="btn_imputar_antiguedad" class="btn btn-secondary">
-                            <i class="fas fa-layer-group"></i> Imputar por antigüedad
-                        </button>
+                <section id="box_saldo" class="saldo-cta-cte" style="display: none;">
+                    <div class="saldo-cta-cte-item">
+                        <span class="saldo-cta-cte-label">Saldo actual de la cuenta</span>
+                        <strong id="saldo_actual_cliente">$ 0,00</strong>
                     </div>
-                    <div id="facturas_imputacion" class="facturas-imputacion">
-                        <p class="sin-facturas">Seleccione un cliente para cargar sus facturas pendientes.</p>
+                    <div class="saldo-cta-cte-item">
+                        <span class="saldo-cta-cte-label">Saldo después del pago</span>
+                        <strong id="saldo_proyectado_cliente">$ 0,00</strong>
                     </div>
-                    <div class="resumen-imputacion">
-                        <span>Deuda imputable: <strong id="saldo_cliente_pendiente">$ 0,00</strong></span>
-                        <span>Saldo a favor actual: <strong id="saldo_a_favor_actual_cliente">$ 0,00</strong></span>
-                        <span>Imputado: <strong id="total_imputado" class="texto-imputado">$ 0,00</strong></span>
-                        <span>A favor de este pago: <strong id="saldo_a_favor_pago" class="texto-pendiente">$ 0,00</strong></span>
-                    </div>
+                    <p class="saldo-cta-cte-nota">
+                        El abono se aplica al saldo de la cuenta: no se asocia a ninguna factura.
+                        Si el pago supera la deuda, la diferencia queda a favor del cliente.
+                    </p>
                 </section>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 10px;">
@@ -150,12 +148,29 @@ if ($id_cliente_inicial) {
     const resDiv = document.getElementById('resultadosBusquedaCC');
     const idHidden = document.getElementById('id_cliente_hidden');
     const inputMonto = document.getElementById('monto_pago');
-    const modoImputacion = document.getElementById('modo_imputacion');
-    const panelImputacion = document.getElementById('panel_imputacion');
-    const contenedorFacturas = document.getElementById('facturas_imputacion');
-    const btnImputarAntiguedad = document.getElementById('btn_imputar_antiguedad');
-    let facturasPendientes = [];
-    let saldoAFavorActual = 0;
+    const boxSaldo = document.getElementById('box_saldo');
+    const saldoActualTexto = document.getElementById('saldo_actual_cliente');
+    const saldoProyectadoTexto = document.getElementById('saldo_proyectado_cliente');
+    let saldoCliente = 0;
+
+    function formatMonto(valor) {
+        return '$ ' + Number(valor || 0).toLocaleString('es-AR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    }
+
+    // El saldo positivo es deuda; negativo es dinero a favor del cliente.
+    function pintarSaldo(elemento, valor) {
+        elemento.textContent = formatMonto(valor);
+        elemento.style.color = valor > 0.005 ? '#f1c40f' : (valor < -0.005 ? '#2ecc71' : '#888');
+    }
+
+    function actualizarSaldoPago() {
+        if (!boxSaldo || boxSaldo.style.display === 'none') return;
+        const monto = Math.round((parseFloat(inputMonto.value) || 0) * 100) / 100;
+        pintarSaldo(saldoProyectadoTexto, saldoCliente - monto);
+    }
 
     inputBusq.addEventListener('input', function() {
         const q = this.value.toLowerCase().trim();
@@ -184,19 +199,6 @@ if ($id_cliente_inicial) {
         }
     });
 
-    function formatMonto(valor) {
-        return '$ ' + Number(valor || 0).toLocaleString('es-AR', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        });
-    }
-
-    function formatFecha(fecha) {
-        if (!fecha) return '-';
-        const partes = String(fecha).split(' ')[0].split('-');
-        return partes.length === 3 ? `${partes[2]}/${partes[1]}/${partes[0]}` : fecha;
-    }
-
     function seleccionarCliente(cliente) {
         inputBusq.value = cliente.nombre_completo;
         idHidden.value = cliente.id;
@@ -204,195 +206,25 @@ if ($id_cliente_inicial) {
         document.getElementById('box_cliente').style.display = 'block';
         document.getElementById('display_nombre_cliente').innerText = cliente.nombre_completo;
         document.getElementById('display_cuit_cliente').innerText = 'CUIT/DNI: ' + (cliente.cuit || 'S/D');
-        cargarFacturasPendientes(cliente.id);
-    }
 
-    function actualizarResumenImputacion() {
-        const monto = Math.round((parseFloat(inputMonto.value) || 0) * 100) / 100;
-        let total = 0;
-        if (modoImputacion.value === 'facturas') {
-            document.querySelectorAll('.chk-factura-pago:checked').forEach(checkbox => {
-                const inputImporte = checkbox.closest('tr').querySelector('.input-imputacion');
-                total = Math.round((total + (parseFloat(inputImporte.value) || 0)) * 100) / 100;
-            });
-        }
-        const saldoCliente = facturasPendientes.reduce((total, factura) => total + factura.saldo_disponible, 0);
-        document.getElementById('saldo_cliente_pendiente').textContent = formatMonto(saldoCliente);
-        document.getElementById('saldo_a_favor_actual_cliente').textContent = formatMonto(saldoAFavorActual);
-        document.getElementById('total_imputado').textContent = formatMonto(total);
-        document.getElementById('saldo_a_favor_pago').textContent = formatMonto(Math.max(0, monto - total));
-    }
-
-
-    function renderizarFacturasPendientes(facturas) {
-        contenedorFacturas.innerHTML = '';
-        facturasPendientes = facturas;
-
-        if (!facturas.length) {
-            const mensaje = document.createElement('p');
-            mensaje.className = 'sin-facturas';
-            mensaje.textContent = 'El cliente no tiene facturas pendientes disponibles para imputar.';
-            contenedorFacturas.appendChild(mensaje);
-            btnImputarAntiguedad.disabled = true;
-            actualizarResumenImputacion();
-            return;
-        }
-
-        btnImputarAntiguedad.disabled = false;
-        const tabla = document.createElement('table');
-        tabla.className = 'tabla-imputacion';
-        tabla.innerHTML = `
-            <thead><tr>
-                <th></th><th>Documento</th><th>Fecha</th><th>Vencimiento</th>
-                <th class="text-right">Saldo</th><th class="text-right">Importe a imputar</th>
-            </tr></thead><tbody></tbody>`;
-        const tbody = tabla.querySelector('tbody');
-
-        facturas.forEach(factura => {
-            const fila = document.createElement('tr');
-            fila.dataset.facturaId = factura.id;
-
-            const celdaSeleccion = document.createElement('td');
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.className = 'chk-factura-pago';
-            checkbox.setAttribute('aria-label', `Seleccionar factura ${factura.n_documento || factura.id}`);
-            celdaSeleccion.appendChild(checkbox);
-
-            const celdaDocumento = document.createElement('td');
-            celdaDocumento.textContent = `${factura.movimiento || 'Factura'} ${factura.n_documento || '#' + factura.id}`;
-            const celdaFecha = document.createElement('td');
-            celdaFecha.textContent = formatFecha(factura.fecha);
-            const celdaVencimiento = document.createElement('td');
-            celdaVencimiento.textContent = formatFecha(factura.fecha_vencimiento);
-            const celdaSaldo = document.createElement('td');
-            celdaSaldo.className = 'text-right saldo-factura';
-            celdaSaldo.textContent = formatMonto(factura.saldo_disponible);
-
-            const celdaImporte = document.createElement('td');
-            const inputImporte = document.createElement('input');
-            inputImporte.type = 'number';
-            inputImporte.step = '0.01';
-            inputImporte.min = '0.01';
-            inputImporte.max = String(factura.saldo_disponible);
-            inputImporte.className = 'input-field input-imputacion';
-            inputImporte.disabled = true;
-            inputImporte.dataset.saldo = String(factura.saldo_disponible);
-            inputImporte.setAttribute('aria-label', `Importe a imputar a ${factura.n_documento || factura.id}`);
-            celdaImporte.appendChild(inputImporte);
-
-            fila.append(celdaSeleccion, celdaDocumento, celdaFecha, celdaVencimiento, celdaSaldo, celdaImporte);
-            tbody.appendChild(fila);
-        });
-
-        contenedorFacturas.appendChild(tabla);
-        contenedorFacturas.querySelectorAll('.chk-factura-pago').forEach(checkbox => {
-            checkbox.addEventListener('change', () => {
-                const inputImporte = checkbox.closest('tr').querySelector('.input-imputacion');
-                inputImporte.disabled = !checkbox.checked;
-                if (checkbox.checked && !inputImporte.value) {
-                    inputImporte.value = Number(inputImporte.dataset.saldo || 0).toFixed(2);
-                }
-                if (!checkbox.checked) inputImporte.value = '';
-                actualizarResumenImputacion();
-            });
-        });
-        contenedorFacturas.querySelectorAll('.input-imputacion').forEach(inputImporte => {
-            inputImporte.addEventListener('input', actualizarResumenImputacion);
-        });
-        actualizarResumenImputacion();
-    }
-
-    async function cargarFacturasPendientes(idCliente) {
-        panelImputacion.style.display = modoImputacion.value === 'a_cuenta' ? 'none' : 'block';
-        btnImputarAntiguedad.disabled = true;
-        contenedorFacturas.innerHTML = '<p class="sin-facturas"><i class="fas fa-spinner fa-spin"></i> Cargando facturas pendientes...</p>';
-        facturasPendientes = [];
-        saldoAFavorActual = 0;
-        actualizarResumenImputacion();
-
-        try {
-            const response = await fetch('<?php echo url('ajax/obtener_facturas_ctacte_ajax.php'); ?>?id_cliente=' + encodeURIComponent(idCliente), {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            });
-            const data = await response.json();
-            if (!response.ok || !data.success) throw new Error(data.error || 'No se pudieron cargar las facturas pendientes.');
-            renderizarFacturasPendientes(data.facturas || []);
-            saldoAFavorActual = Number(data.saldo_a_favor_actual || 0);
-            actualizarResumenImputacion();
-        } catch (error) {
-            console.error('Error al cargar facturas pendientes:', error);
-            contenedorFacturas.innerHTML = '';
-            const mensaje = document.createElement('p');
-            mensaje.className = 'sin-facturas error-carga-facturas';
-            mensaje.textContent = error.message;
-            contenedorFacturas.appendChild(mensaje);
-            actualizarResumenImputacion();
-        }
+        saldoCliente = Math.round((Number(cliente.saldo) || 0) * 100) / 100;
+        boxSaldo.style.display = 'flex';
+        pintarSaldo(saldoActualTexto, saldoCliente);
+        actualizarSaldoPago();
     }
 
     function toggleChequeFields(suffix) {
-        const combo = suffix === 'pago_directo' ? document.getElementById('condicion_pago') : document.getElementById('pago_condicion_pago');
+        const combo = document.getElementById('condicion_pago');
         const panel = document.getElementById('panel_cheque_' + suffix);
-        if (combo.value === 'Cheque') {
-            panel.style.display = 'block';
-        } else {
-            panel.style.display = 'none';
-        }
+        if (!combo || !panel) return;
+        panel.style.display = combo.value === 'Cheque' ? 'block' : 'none';
     }
 
-    function limpiarImputacionFacturas() {
-        document.querySelectorAll('.chk-factura-pago').forEach(checkbox => {
-            const inputImporte = checkbox.closest('tr').querySelector('.input-imputacion');
-            checkbox.checked = false;
-            inputImporte.value = '';
-            inputImporte.disabled = true;
-        });
-    }
+    inputMonto.addEventListener('input', actualizarSaldoPago);
 
-    modoImputacion.addEventListener('change', () => {
-        if (modoImputacion.value === 'a_cuenta') {
-            limpiarImputacionFacturas();
-            panelImputacion.style.display = 'none';
-        } else {
-            panelImputacion.style.display = 'block';
-        }
-        actualizarResumenImputacion();
-    });
-
-    btnImputarAntiguedad.addEventListener('click', () => {
-        let restante = Math.round((parseFloat(inputMonto.value) || 0) * 100) / 100;
-        if (restante <= 0) {
-            mostrarMensaje('Monto Inválido', 'Ingrese el monto del pago antes de imputar por antigüedad.', 'error');
-            return;
-        }
-
-        document.querySelectorAll('.chk-factura-pago').forEach(checkbox => {
-            const inputImporte = checkbox.closest('tr').querySelector('.input-imputacion');
-            checkbox.checked = false;
-            inputImporte.value = '';
-            inputImporte.disabled = true;
-        });
-
-        facturasPendientes.forEach(factura => {
-            if (restante <= 0.005) return;
-            const fila = document.querySelector(`[data-factura-id="${factura.id}"]`);
-            const checkbox = fila.querySelector('.chk-factura-pago');
-            const inputImporte = fila.querySelector('.input-imputacion');
-            const importe = Math.min(restante, factura.saldo_disponible);
-            checkbox.checked = true;
-            inputImporte.disabled = false;
-            inputImporte.value = importe.toFixed(2);
-            restante = Math.round((restante - importe) * 100) / 100;
-        });
-        actualizarResumenImputacion();
-    });
-
-    inputMonto.addEventListener('input', actualizarResumenImputacion);
-
-    // Interceptamos el envío del formulario para usar los modales estilizados
+    // El formulario ya no envia imputaciones: solo cliente, monto y datos del recibo.
     document.getElementById('formRegistroPagoCC').onsubmit = function(e) {
-        e.preventDefault(); // Detenemos el envío automático
+        e.preventDefault();
         const form = this;
 
         if (!idHidden.value) {
@@ -406,45 +238,6 @@ if ($id_cliente_inicial) {
             return;
         }
 
-        const pagarACuenta = modoImputacion.value === 'a_cuenta';
-        const filasImputadas = pagarACuenta
-            ? []
-            : Array.from(document.querySelectorAll('.chk-factura-pago:checked'));
-        if (!pagarACuenta && !filasImputadas.length) {
-            mostrarMensaje("Imputación Requerida", "⚠️ Seleccione al menos una factura o elija 'Pago a cuenta'.", "error");
-            return;
-        }
-
-        const imputaciones = {};
-        let totalImputado = 0;
-        for (const checkbox of filasImputadas) {
-            const fila = checkbox.closest('tr');
-            const inputImporte = fila.querySelector('.input-imputacion');
-            const importe = Math.round((parseFloat(inputImporte.value) || 0) * 100) / 100;
-            const saldo = Math.round((parseFloat(inputImporte.dataset.saldo) || 0) * 100) / 100;
-            const documento = fila.children[1].textContent;
-            if (importe <= 0) {
-                mostrarMensaje("Importe Inválido", `❌ Ingrese un importe mayor a $0,00 para ${documento}.`, "error");
-                return;
-            }
-            if (importe > saldo + 0.005) {
-                mostrarMensaje("Importe Excedido", `❌ El importe de ${documento} supera su saldo disponible.`, "error");
-                return;
-            }
-            imputaciones[fila.dataset.facturaId] = importe;
-            totalImputado = Math.round((totalImputado + importe) * 100) / 100;
-        }
-        if (totalImputado > monto + 0.005) {
-            mostrarMensaje(
-                "Imputación Excedida",
-                `❌ La suma de las facturas supera el monto del pago. Asignado: $${totalImputado.toLocaleString('es-AR', {minimumFractionDigits:2})}; recibido: $${monto.toLocaleString('es-AR', {minimumFractionDigits:2})}.`,
-                "error"
-            );
-            return;
-        }
-        const saldoFavorPago = Math.round((monto - totalImputado) * 100) / 100;
-
-        // Validación de Cheque
         const condicion = document.getElementById('condicion_pago').value;
         if (condicion === 'Cheque') {
             const nro = this.querySelector('[name="chq_nro"]').value.trim();
@@ -456,14 +249,20 @@ if ($id_cliente_inicial) {
         }
 
         const nombreCli = document.getElementById('display_nombre_cliente').innerText;
-
-        const detalleImputacion = pagarACuenta
-            ? `Todo el pago quedará como saldo a favor ($${saldoFavorPago.toLocaleString('es-AR', {minimumFractionDigits:2})}).`
-            : `Se imputarán $${totalImputado.toLocaleString('es-AR', {minimumFractionDigits:2})} a ${filasImputadas.length} factura(s)${saldoFavorPago > 0 ? ` y quedarán $${saldoFavorPago.toLocaleString('es-AR', {minimumFractionDigits:2})} a favor` : ''}.`;
+        const saldoDespues = Math.round((saldoCliente - monto) * 100) / 100;
+        let detalleSaldo;
+        if (saldoDespues > 0.005) {
+            detalleSaldo = `Quedará una deuda de ${formatMonto(saldoDespues)}.`;
+        } else if (saldoDespues < -0.005) {
+            detalleSaldo = `Quedarán ${formatMonto(Math.abs(saldoDespues))} a favor del cliente.`;
+        } else {
+            detalleSaldo = 'La cuenta queda saldada.';
+        }
 
         confirmarAccion(
             "Registrar Pago Cuenta Corriente",
-            `¿Está seguro de registrar el abono de $${monto.toLocaleString('es-AR', {minimumFractionDigits:2})} para el cliente ${nombreCli}? ${detalleImputacion}`,
+            `¿Está seguro de registrar el abono de ${formatMonto(monto)} para el cliente ${nombreCli}? `
+                + `Saldo actual: ${formatMonto(saldoCliente)}; después del pago: ${formatMonto(saldoDespues)}. ${detalleSaldo}`,
             "SÍ, REGISTRAR PAGO",
             "btn-success",
             () => {
@@ -471,13 +270,9 @@ if ($id_cliente_inicial) {
                 btnSubmit.disabled = true;
                 btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin"></i> PROCESANDO...';
 
-                const formData = new FormData(form);
-                Object.entries(imputaciones).forEach(([idFactura, importe]) => {
-                    formData.append(`imputaciones[${idFactura}]`, importe.toFixed(2));
-                });
                 fetch('<?php echo url('procesos/registrar_pago_cc.php'); ?>', {
                     method: 'POST',
-                    body: formData,
+                    body: new FormData(form),
                     headers: { 'X-Requested-With': 'XMLHttpRequest' }
                 })
                 .then(res => res.json())
@@ -485,7 +280,7 @@ if ($id_cliente_inicial) {
                     if (data.success) {
                         // Abrir recibo en una nueva pestaña (popup de impresión)
                         window.open(`vista_recibo.php?id_mov=${data.id_movimiento}`, '_blank', 'width=400,height=700,scrollbars=yes,resizable=yes');
-                        
+
                         // Redirigimos inmediatamente para limpiar el formulario sin mostrar avisos
                         window.location.href = 'pagos_ctacte.php';
                     } else {
@@ -517,3 +312,6 @@ if ($id_cliente_inicial) {
 </script>
 </body>
 </html>
+
+
+

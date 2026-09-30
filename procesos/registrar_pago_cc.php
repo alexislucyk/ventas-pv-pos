@@ -17,7 +17,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     $usuario = $_SESSION['usuario_nombre'] ?? 'Sistema';
     $condicion_pago = $_POST['condicion_pago'] ?? 'Efectivo';
-    $modo_imputacion = ($_POST['modo_imputacion'] ?? 'facturas') === 'a_cuenta' ? 'a_cuenta' : 'facturas';
     $n_recibo_raw = trim($_POST['n_recibo'] ?? '');
 
     $chq_nro = trim($_POST['chq_nro'] ?? '');
@@ -55,26 +54,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     try {
         $detalle_mov = "PAGO RECIBIDO - CLIENTE #$id_cliente" . (!empty($n_recibo) ? " (Recibo $n_recibo)" : '');
-        if ($modo_imputacion === 'a_cuenta') {
-            $detalle_mov .= ' | SALDO A FAVOR';
-        }
         if ($condicion_pago === 'Cheque' && !empty($chq_nro)) {
             $detalle_mov .= " | CHQ N° $chq_nro (Vto: " . date('d/m/y', strtotime($chq_vto)) . ")";
         }
 
-        $imputaciones = ($modo_imputacion === 'a_cuenta')
-            ? []
-            : ((isset($_POST['imputaciones']) && is_array($_POST['imputaciones'])) ? $_POST['imputaciones'] : []);
+        // El abono se aplica sobre el saldo de la cuenta: no se eligen facturas.
         $resultado = registrarPagoCuentaCorriente($pdo, [
             'id_cliente' => (int)$id_cliente,
             'empresa_id' => (int)$empresa_id,
             'monto_pago' => (float)$monto_pago,
             'n_recibo' => (string)$n_recibo,
             'fecha' => $fecha_movimiento,
-            'usuario' => $usuario,
-            'origen' => $modo_imputacion === 'a_cuenta' ? 'pago_a_cuenta' : 'formulario',
-            'permitir_saldo_a_favor' => true
-        ], $imputaciones, function($pagoId) use ($pdo, $monto_pago, $condicion_pago, $detalle_mov, $fecha_movimiento, $usuario, $empresa_id, $sucursal_id) {
+            'usuario' => $usuario
+        ], function($pagoId) use ($pdo, $monto_pago, $condicion_pago, $detalle_mov, $fecha_movimiento, $usuario, $empresa_id, $sucursal_id) {
             $pdo->prepare("INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado, empresa_id, sucursal_id)
                            VALUES ('INGRESO', ?, ?, ?, ?, ?, 0, ?, ?)")
                 ->execute([$monto_pago, strtoupper($condicion_pago), $detalle_mov, $fecha_movimiento, $usuario, $empresa_id, $sucursal_id]);
@@ -84,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($isAjax) {
             if (ob_get_length()) ob_clean();
             header('Content-Type: application/json');
-            echo json_encode(['success' => true, 'id_movimiento' => $resultado['pago_id'], 'imputaciones' => $resultado]);
+            echo json_encode(['success' => true, 'id_movimiento' => $resultado['pago_id'], 'saldo_final' => $resultado['saldo_final'], 'saldo_a_favor' => $resultado['saldo_a_favor']]);
         } else {
             header('Location: ../pages/vista_recibo.php?id_mov=' . $resultado['pago_id']);
         }

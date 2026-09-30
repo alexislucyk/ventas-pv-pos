@@ -201,7 +201,7 @@ $id_cliente = (int)$_GET['id_cliente'];
                         <?php endif; ?>
                         <?php if ($intereses['saldo_vencido'] < $intereses['saldo_deudor']): ?>
                             <br>Del saldo deudor, $ <?php echo number_format($intereses['saldo_vencido'], 2, ',', '.'); ?>
-                            corresponde a facturas ya vencidas (el resto está dentro del plazo).
+                            corresponde a movimientos ya vencidos (el resto está dentro del plazo).
                         <?php endif; ?>
                     </p>
                 </div>

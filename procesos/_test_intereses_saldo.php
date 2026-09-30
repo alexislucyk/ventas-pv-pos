@@ -15,6 +15,7 @@ $_SERVER['DOCUMENT_ROOT'] = 'C:/laragon/www';
 
 require_once __DIR__ . '/../config/db_config.php';
 require_once __DIR__ . '/../funciones/funciones_intereses.php';
+require_once __DIR__ . '/../funciones/funciones_pagos_ctacte.php';
 
 $empresa_id = 1;
 $hoy = date('Y-m-d');
@@ -155,38 +156,53 @@ try {
     check('interes 7 dias sobre 9000', 147.0, $r9['interes_total']);
     $pdo->exec("UPDATE configuracion_intereses SET fecha_vigencia = NULL WHERE empresa_id = $empresa_id");
 
-    echo "== 9) Smoke test de las consultas de pagos/imputaciones ==\n";
-    $cliente_con_facturas = (int)$pdo->query("SELECT id_cliente FROM ctacte
-                                              WHERE empresa_id = $empresa_id AND debe > haber AND es_interes = 0
-                                              GROUP BY id_cliente LIMIT 1")->fetchColumn();
-    check('hay un cliente con facturas impagas', true, $cliente_con_facturas > 0);
+    echo "== 9) El pago se aplica sobre el SALDO de la cuenta ==\n";
+    $cliente_pago = (int)$pdo->query("SELECT id_cliente FROM ctacte
+                                      WHERE empresa_id = $empresa_id AND debe > haber AND es_interes = 0
+                                      GROUP BY id_cliente LIMIT 1")->fetchColumn();
+    check('hay un cliente con deuda', true, $cliente_pago > 0);
 
-    // Misma consulta que usa ajax/obtener_facturas_ctacte_ajax.php (facturas imputables)
-    $sql_facturas = "SELECT c.id, c.saldo_disponible FROM (
-                        SELECT c.id,
-                               (c.debe - c.haber
-                                 - COALESCE((SELECT SUM(i.importe_aplicado) FROM ctacte_pagos_imputaciones i
-                                     WHERE i.movimiento_deudor_id = c.id AND i.empresa_id = c.empresa_id AND i.id_cliente = c.id_cliente), 0)
-                                 - COALESCE((SELECT SUM(a.importe_aplicado) FROM ctacte_creditos_a_favor_aplicaciones a
-                                     WHERE a.movimiento_deudor_id = c.id AND a.empresa_id = c.empresa_id AND a.id_cliente = c.id_cliente), 0)
-                               ) AS saldo_disponible
-                        FROM ctacte c
-                        WHERE c.id_cliente = $cliente_con_facturas AND c.empresa_id = $empresa_id
-                          AND c.debe > c.haber AND DATE(c.fecha) <= CURDATE()
-                          AND " . condicionSqlNoEsInteresCc($pdo, 'c') . "
-                     ) c
-                     HAVING saldo_disponible > 0.005";
-    $facturas_pagables = $pdo->query($sql_facturas)->fetchAll(PDO::FETCH_ASSOC);
-    check('la consulta de facturas pagables se ejecuta', true, is_array($facturas_pagables));
+    $saldo_antes = saldoCuentaCc($pdo, $cliente_pago, $empresa_id);
+    $pago = registrarPagoCuentaCorriente($pdo, [
+        'id_cliente' => $cliente_pago,
+        'empresa_id' => $empresa_id,
+        'monto_pago' => 1000,
+        'n_recibo'   => 'TEST-PAGO-51',
+        'fecha'      => $hoy,
+        'usuario'    => 'TEST-CLI'
+    ]);
+    check('el abono baja el saldo justo el monto', round($saldo_antes - 1000, 2),
+        saldoCuentaCc($pdo, $cliente_pago, $empresa_id));
+    check('el pago devuelve el saldo anterior', $saldo_antes, $pago['saldo_anterior']);
+    check('el pago devuelve el saldo final', saldoCuentaCc($pdo, $cliente_pago, $empresa_id), $pago['saldo_final']);
+    check('el pago no crea imputaciones, solo el movimiento', 1,
+        (int)$pdo->query("SELECT COUNT(*) FROM ctacte WHERE n_documento = 'TEST-PAGO-51'")->fetchColumn());
 
-    // Bloqueo + saldo disponible de una factura (rutas de registrarPagoCuentaCorrienteV2)
-    if ($facturas_pagables) {
-        $id_factura = (int)$facturas_pagables[0]['id'];
-        $saldo = saldoDisponibleMovimientoCc($pdo, $id_factura, $empresa_id, $cliente_con_facturas);
-        check('saldo disponible de la factura > 0', true, $saldo > 0);
+    // Pagar de mas deja saldo a favor: el interes se detiene hasta volver a deber.
+    $c8 = crearClienteTest($pdo, $empresa_id, '8');
+    facturaTest($pdo, $empresa_id, $c8, 4000, -20, 'T10');
+    check('el cliente nuevo arranca debiendo 4000', 4000.0, saldoCuentaCc($pdo, $c8, $empresa_id));
+    registrarPagoCuentaCorriente($pdo, [
+        'id_cliente' => $c8,
+        'empresa_id' => $empresa_id,
+        'monto_pago' => 5000,
+        'n_recibo'   => 'TEST-PAGO-52',
+        'fecha'      => $hoy,
+        'usuario'    => 'TEST-CLI'
+    ]);
+    check('el exceso sobre la deuda queda como saldo a favor', -1000.0, saldoCuentaCc($pdo, $c8, $empresa_id));
+    check('con saldo a favor no hay interes', 'sin_saldo_deudor',
+        calcularInteresesCliente($c8, $pdo, $empresa_id)['motivo']);
+
+    // La migracion 51 elimina las tablas de metadatos que ya no leen nada.
+    $tablas_viejas = 0;
+    foreach (['ctacte_pagos_imputaciones', 'ctacte_creditos_a_favor_aplicaciones'] as $tabla_vieja) {
+        $st_tabla = $pdo->prepare('SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+                                   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?');
+        $st_tabla->execute([$tabla_vieja]);
+        $tablas_viejas += (int)$st_tabla->fetchColumn();
     }
-    $credito_aplicado = reconciliarSaldosAFavorCc($pdo, $empresa_id, $cliente_con_facturas, $hoy, 'test_intereses');
-    check('la reconciliacion de saldos a favor se ejecuta', true, is_float($credito_aplicado));
+    check('las tablas de imputacion ya no existen (migracion 51)', 0, $tablas_viejas);
 
     echo "== 10) Los movimientos de interes son deuda pero no son pagables ==\n";
     $sql_pagables = "SELECT COUNT(*) FROM ctacte c WHERE c.id_cliente = $c1 AND c.empresa_id = $empresa_id

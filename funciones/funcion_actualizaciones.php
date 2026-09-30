@@ -571,12 +571,12 @@ function actualizaciones_app_root() {
 }
 
 /**
-     * Ejecuta las migraciones PHP/SQL de cuenta corriente tras el reset de git.
+     * Garantías PHP de cuenta corriente tras el reset de git.
      *
-     * El módulo de actualizaciones sólo recorre archivos .sql, pero el backfill
-     * FIFO de las imputaciones requiere PHP. Además fuerza la migración 49 para
-     * cubrir las bases sin contador 'ultima_migracion_aplicada' y garantiza el
-     * esquema de la migración 50 (intereses sobre el saldo deudor).
+     * El módulo de actualizaciones sólo recorre archivos .sql, pero el esquema de
+     * la migración 50 (intereses sobre el saldo deudor) y la eliminación de las
+     * tablas de imputación de la 51 se garantizan desde PHP: una base con la
+     * estructura a medias queda igual de bien que una migrada con la consola mysql.
      *
      * @return array{0:bool, 1:string} Estado y mensaje.
      */
@@ -586,47 +586,32 @@ function actualizaciones_migraciones_ctacte(PDO $pdo) {
             require_once $raiz . '/core/migraciones_ctacte.php';
             require_once $raiz . '/funciones/funciones_pagos_ctacte.php';
 
-            if (tablaImputacionesCcExiste($pdo)) {
-                $backfill = ejecutarMigracionImputacionesCc($pdo);
-                $msg = "[OK] Imputaciones de cuenta corriente: {$backfill['insertadas']} imputación(es) reconstruidas en {$backfill['pagos']} pago(s) histórico(s).";
-            } else {
-                $msg = '[AVISO] No se pudo reconstruir el backfill: la tabla de imputaciones no existe.';
-            }
-
-            // La 49 sólo contiene DDL, pero se fuerza aquí para cubrir el caso en
-            // que la base no tenga contador ultima_migracion_aplicada (el cálculo
-            // de pendientes asumiría que el esquema ya está al día).
-            if (!tablaCreditosAFavorCcExiste($pdo)) {
-                list($estado49, $msg49) = actualizaciones_aplicar_migracion(
-                    $pdo,
-                    $raiz . '/migrations/49_saldos_a_favor_ctacte.sql'
-                );
-                if ($estado49 === 'error') {
-                    return [false, 'Migración #49 falló: ' . $msg49];
-                }
-                $msg .= " [OK] Migración #49 aplicada ({$estado49}).";
-            } else {
-                $msg .= ' [SKIP] Migración #49 ya aplicada (estructura existente en la BD).';
-            }
-
             // La 50 (intereses sobre el saldo deudor) se garantiza siempre desde PHP:
             // completa lo que falte del esquema sentencia por sentencia, sin depender
             // de que el .sql se haya corrido por el panel, a mano, o de nunca.
             $esquema50 = garantizarEsquemaInteresesCc($pdo);
-            $msg .= empty($esquema50)
-                ? ' [SKIP] Esquema de intereses (#50) al día.'
-                : ' [OK] Esquema de intereses (#50): ' . implode(', ', $esquema50) . '.';
+            $msg = empty($esquema50)
+                ? '[SKIP] Esquema de intereses (#50) al día.'
+                : '[OK] Esquema de intereses (#50): ' . implode(', ', $esquema50) . '.';
 
-            // Registrar el contador hasta la 49 aunque las migraciones se hayan
+            // La 51 elimina los metadatos de imputacion (48 y 49): el pago a cuenta
+            // corriente se aplica sobre el saldo de la cuenta, asi que esas tablas
+            // ya no las lee nadie y sobraban.
+            $esquema51 = garantizarEliminacionImputacionesCc($pdo);
+            $msg .= empty($esquema51)
+                ? ' [SKIP] Imputaciones por factura (#51) ya eliminadas.'
+                : ' [OK] Imputaciones por factura (#51): ' . implode(', ', $esquema51) . '.';
+
+            // Registrar el contador hasta la 51 aunque las migraciones .sql se hayan
             // omitido por estructura existente, para que no vuelvan a listarse.
             try {
                 $stmt = $pdo->query("SELECT valor FROM configuracion WHERE clave = 'ultima_migracion_aplicada' LIMIT 1");
-                if ((int)$stmt->fetchColumn() < 49) {
+                if ((int)$stmt->fetchColumn() < 51) {
                     $pdo->prepare(
-                        "INSERT INTO configuracion (clave, valor) VALUES ('ultima_migracion_aplicada', '49')
-                         ON DUPLICATE KEY UPDATE valor = '49'"
+                        "INSERT INTO configuracion (clave, valor) VALUES ('ultima_migracion_aplicada', '51')
+                         ON DUPLICATE KEY UPDATE valor = '51'"
                     )->execute();
-                    $msg .= ' [OK] Contador de migraciones fijado en 49.';
+                    $msg .= ' [OK] Contador de migraciones fijado en 51.';
                 }
             } catch (Throwable $e) {
                 $msg .= ' [AVISO] No se pudo actualizar el contador: ' . $e->getMessage();
@@ -715,10 +700,9 @@ if (!function_exists('aplicar_actualizacion')) {
             }
         }
 
-        // 4b) Migraciones PHP de cuenta corriente (backfill de imputaciones + 49).
-        // Los archivos .sql crean la estructura, pero el mapeo FIFO de los pagos
-        // históricos requiere PHP: sin esto, las facturas viejas seguirían
-        // apareciendo como pendientes en producción.
+        // 4b) Garantías PHP de cuenta corriente (esquema de intereses #50 y
+        // eliminación de las tablas de imputación #51). El panel sólo recorre
+        // archivos .sql; esto cubre las bases con la estructura a medias.
         $log[] = '[PASO] Aplicando migraciones de cuenta corriente...';
         list($okCta, $msgCta) = actualizaciones_migraciones_ctacte($pdo);
         $log[] = $msgCta;

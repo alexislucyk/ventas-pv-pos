@@ -1,6 +1,9 @@
 -- Migración 49: aplicación automática de pagos no imputados a facturas posteriores.
 -- El movimiento contable sigue en ctacte; esta tabla sólo registra qué crédito
 -- se utilizó para cubrir cada factura y evita cobrarla nuevamente.
+--
+-- [OBSOLETA desde v2.15.42] La migración 51 elimina esta tabla: el saldo a favor
+-- es simplemente ctacte con más haber que debe, sin aplicaciones por factura.
 CREATE TABLE IF NOT EXISTS ctacte_creditos_a_favor_aplicaciones (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     credito_pago_movimiento_id BIGINT UNSIGNED NOT NULL,

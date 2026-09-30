@@ -8,7 +8,6 @@
 include '../pages/infosesion.php';
 require '../config/db_config.php';
 require_once '../funciones/funciones_caja.php';
-require_once '../funciones/funciones_pagos_ctacte.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -124,20 +123,8 @@ try {
                 echo json_encode(['success' => false, 'message' => 'Reversar solo aplica a pagos recibidos de cuenta corriente.']);
                 exit();
             }
-            // Elimina también cualquier crédito a favor que este pago haya
-            // aplicado posteriormente a facturas del mismo cliente.
-            $pdo->prepare("DELETE a FROM ctacte_creditos_a_favor_aplicaciones a
-                           INNER JOIN ctacte p ON p.id = a.credito_pago_movimiento_id
-                           WHERE p.empresa_id = ? AND p.id_cliente = ? AND p.n_documento = ?
-                             AND p.movimiento = 'Pago Cta.Cte.' AND p.haber = ?")
-                ->execute([$empresa_id, $idCliente, $nroDoc, $montoTransf]);
-            // Eliminar primero las imputaciones ligadas al recibo, para no dejar
-            // metadatos huérfanos al revertir un pago por transferencia.
-            $pdo->prepare("DELETE i FROM ctacte_pagos_imputaciones i
-                           INNER JOIN ctacte p ON p.id = i.pago_movimiento_id
-                           WHERE p.empresa_id = ? AND p.id_cliente = ? AND p.n_documento = ?
-                             AND p.movimiento = 'Pago Cta.Cte.' AND p.haber = ?")
-                ->execute([$empresa_id, $idCliente, $nroDoc, $montoTransf]);
+            // Reversar solo borra el pago: las imputaciones por factura ya no existen
+            // (migracion 51), el saldo de la cuenta se recalcula con debe/haber.
             // Eliminar el haber de cta.cte. registrado
             $stmtDelCC = $pdo->prepare("DELETE FROM ctacte
                                         WHERE empresa_id = ? AND id_cliente = ? AND n_documento = ?

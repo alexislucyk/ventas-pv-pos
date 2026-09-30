@@ -24,7 +24,6 @@ $id_cliente = filter_var($data['id_cliente'] ?? null, FILTER_VALIDATE_INT);
 $monto_pago = filter_var($data['monto_pago'] ?? null, FILTER_VALIDATE_FLOAT);
 $n_recibo_raw = trim($data['n_recibo'] ?? '');
 $condicion_pago = $data['condicion_pago'] ?? 'Efectivo'; // Aunque no se usa en ctacte, se guarda para consistencia
-$modo_imputacion = ($data['modo_imputacion'] ?? 'facturas') === 'a_cuenta' ? 'a_cuenta' : 'facturas';
 $usuario = $_SESSION['usuario_nombre'] ?? 'Sistema';
 
 // Lógica para evitar el '0' en n_documento:
@@ -54,17 +53,15 @@ try {
         'monto_pago' => (float)$monto_pago,
         'n_recibo' => (string)$n_recibo,
         'fecha' => $fecha_movimiento,
-        'usuario' => $usuario,
-        'origen' => $modo_imputacion === 'a_cuenta' ? 'pago_a_cuenta' : 'ajax',
-        'permitir_saldo_a_favor' => true
-    ], $modo_imputacion === 'a_cuenta' ? [] : ($data['imputaciones'] ?? []), function($pagoId) use ($pdo, $monto_pago, $condicion_pago, $n_recibo, $id_cliente, $fecha_movimiento, $usuario) {
+        'usuario' => $usuario
+    ], function($pagoId) use ($pdo, $monto_pago, $condicion_pago, $n_recibo, $id_cliente, $fecha_movimiento, $usuario) {
         if ($condicion_pago === 'Efectivo' || $condicion_pago === 'Transferencia') {
             $pdo->prepare("INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado, empresa_id, sucursal_id)
                            VALUES ('INGRESO', ?, ?, ?, ?, ?, 0, ?, ?)")
                 ->execute([$monto_pago, $condicion_pago, "PAGO CTA. CTE. CLIENTE #$id_cliente (Recibo $n_recibo)", $fecha_movimiento, $usuario, (int)($_SESSION['empresa_id'] ?? 0), (int)($_SESSION['sucursal_id'] ?? 1)]);
         }
     });
-    echo json_encode(['success' => true, 'id_movimiento' => $resultado['pago_id'], 'imputaciones' => $resultado]);
+    echo json_encode(['success' => true, 'id_movimiento' => $resultado['pago_id'], 'saldo_final' => $resultado['saldo_final'], 'saldo_a_favor' => $resultado['saldo_a_favor']]);
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
     error_log("Error al registrar pago CC (AJAX): " . $e->getMessage());

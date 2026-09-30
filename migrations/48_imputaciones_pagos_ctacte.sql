@@ -1,5 +1,9 @@
 -- Migración 48: relación persistente entre pagos y facturas de cuenta corriente.
 -- No modifica debe/haber ni saldos contables; solo guarda metadatos de imputación.
+--
+-- [OBSOLETA desde v2.15.42] La migración 51 elimina esta tabla: el pago a cuenta
+-- corriente se aplica sobre el saldo de la cuenta y ya no se imputa a facturas.
+-- El archivo se conserva sólo como historial del esquema.
 CREATE TABLE IF NOT EXISTS ctacte_pagos_imputaciones (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     pago_movimiento_id BIGINT UNSIGNED NOT NULL,
