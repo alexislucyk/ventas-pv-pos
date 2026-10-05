@@ -249,6 +249,9 @@ $id_cliente = (int)$_GET['id_cliente'];
                     <button type="button" class="btn-action btn-pdf-v" onclick="generarPDFSeleccion()" title="Generar PDF con los movimientos seleccionados">
                         <i class="fas fa-file-pdf"></i> Generar PDF
                     </button>
+                    <button type="button" class="btn-action btn-eliminar-mov" onclick="eliminarSeleccionados()" title="Eliminar los movimientos seleccionados de la cuenta corriente">
+                        <i class="fas fa-trash"></i> Eliminar
+                    </button>
                 </div>
             </div>
             <table>
@@ -447,6 +450,48 @@ $id_cliente = (int)$_GET['id_cliente'];
             document.body.appendChild(form);
             form.submit();
             form.remove();
+        }
+
+        // Eliminar de la cuenta corriente los movimientos seleccionados
+        window.eliminarSeleccionados = function() {
+            const checks = Array.from(document.querySelectorAll('.check-mov:checked'));
+            if (checks.length === 0) {
+                mostrarToast('Seleccione al menos un movimiento para eliminar.', 'error');
+                return;
+            }
+
+            const ids = checks.map(cb => cb.value);
+
+            confirmarAccion(
+                'Eliminar Movimientos',
+                '¿Está seguro de eliminar ' + ids.length + ' movimiento' + (ids.length === 1 ? '' : 's') + ' de la cuenta corriente?\n\n'
+                + 'Esta acción modificará el saldo de la cuenta y no se puede deshacer.',
+                'ELIMINAR',
+                'btn-danger',
+                function() { ejecutarEliminacion(ids); }
+            );
+        }
+
+        async function ejecutarEliminacion(ids) {
+            try {
+                const response = await fetch('<?php echo URL_BASE; ?>ajax/eliminar_movimientos_ctacte.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id_cliente: <?php echo (int)$id_cliente; ?>, ids: ids })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    mostrarToast(data.eliminados + ' movimiento' + (data.eliminados === 1 ? '' : 's') + ' eliminado' + (data.eliminados === 1 ? '' : 's') + ' correctamente. Nuevo saldo: $ ' + Number(data.saldo).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}), 'success');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    mostrarToast('Error: ' + (data.error || 'No se pudo eliminar'), 'error');
+                }
+            } catch (err) {
+                console.error('Error en fetch de eliminación:', err);
+                mostrarToast('Error de conexión con el servidor.', 'error');
+            }
         }
 
         // --- LÓGICA DE DETALLE Y PAGO ---

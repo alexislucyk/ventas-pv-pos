@@ -46,6 +46,16 @@ label { font-size: 0.85rem; margin-bottom: 4px; }
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4);
 }
+.btn-eliminar-mov {
+    background: linear-gradient(135deg, #8e44ad, #6c3483);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(142, 68, 173, 0.3);
+}
+.btn-eliminar-mov:hover {
+    background: linear-gradient(135deg, #6c3483, #5b2c6f);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(142, 68, 173, 0.4);
+}
 
 /* Info del Cliente */
 .cliente-info {
