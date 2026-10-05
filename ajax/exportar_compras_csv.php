@@ -17,6 +17,11 @@ $params = array($empresa_id);
 $proveedor_id = isset($_GET['proveedor_id']) ? (int)$_GET['proveedor_id'] : 0;
 $fecha_desde = isset($_GET['fecha_desde']) ? trim($_GET['fecha_desde']) : '';
 $fecha_hasta = isset($_GET['fecha_hasta']) ? trim($_GET['fecha_hasta']) : '';
+$tipo_doc = isset($_GET['tipo_doc']) ? trim($_GET['tipo_doc']) : '';
+$estado = $_GET['estado'] ?? 'todas';
+if (!in_array($estado, ['todas', 'Activa', 'Anulada'], true)) {
+    $estado = 'todas';
+}
 
 if ($proveedor_id > 0) {
     $where[] = 'c.cod_proveedor = ?';
@@ -31,6 +36,16 @@ if ($fecha_desde !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha_desde)) {
 if ($fecha_hasta !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha_hasta)) {
     $where[] = 'c.fecha_compra <= ?';
     $params[] = $fecha_hasta;
+}
+
+if ($tipo_doc !== '') {
+    $where[] = 'c.documento = ?';
+    $params[] = $tipo_doc;
+}
+
+if ($estado !== 'todas') {
+    $where[] = 'c.estado = ?';
+    $params[] = $estado;
 }
 
 $where_sql = 'WHERE ' . implode(' AND ', $where);

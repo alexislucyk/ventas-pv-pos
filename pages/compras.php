@@ -38,6 +38,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_compra'])) 
     $fecha_compra   = htmlspecialchars($_POST['fecha_compra'] ?? date('Y-m-d'));
     $detalle_json   = $_POST['detalle_productos'] ?? '[]'; // El JSON del carrito
     $descuento_global = filter_var($_POST['descuento_factura'] ?? 0, FILTER_VALIDATE_FLOAT); // Descuento global factura
+    $descuento_global = max(0, (float)($descuento_global ?: 0));
+    // Descuento por línea enviado por el JS: { "cod_prod": monto, ... }
+    $detalle_descuentos = json_decode((string)($_POST['detalle_descuentos'] ?? '{}'), true);
+    if (!is_array($detalle_descuentos)) $detalle_descuentos = [];
+    // Fecha de vencimiento del documento (opcional)
+    $fecha_venc_raw = trim($_POST['fecha_vencimiento'] ?? '');
+    $fecha_vencimiento = preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha_venc_raw) ? $fecha_venc_raw : null;
     $fecha_operacion = date('Y-m-d H:i:s'); // Fecha de registro en el sistema
     $usuario_id     = $_SESSION['usuario_id'] ?? 0;
 
@@ -65,8 +72,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_compra'])) 
             // ---------------------------------------------------------
             // A. INSERTAR CABECERA EN 'compras'
             // ---------------------------------------------------------
-            $sql_cabecera = "INSERT INTO compras (cod_proveedor, cond_pago, documento, n_documento, total_compra, fecha_compra, fecha_operacion, usuario_id, empresa_id, sucursal_id) 
-                             VALUES (:prov, :cond, :doc_tipo, :n_doc, :total, :f_compra, :f_op, :user, :empresa_id, :sucursal_id)";
+            $sql_cabecera = "INSERT INTO compras (cod_proveedor, cond_pago, documento, n_documento, total_compra, descuento_global, fecha_compra, fecha_vencimiento, fecha_operacion, usuario_id, empresa_id, sucursal_id) 
+                             VALUES (:prov, :cond, :doc_tipo, :n_doc, :total, :desc_global, :f_compra, :f_venc, :f_op, :user, :empresa_id, :sucursal_id)";
             $stmt_cabecera = $pdo->prepare($sql_cabecera);
             $stmt_cabecera->execute([
                 ':prov' => $id_proveedor,
@@ -74,7 +81,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_compra'])) 
                 ':doc_tipo' => $documento_tipo,
                 ':n_doc' => $n_documento,
                 ':total' => $total_compra,
+                ':desc_global' => $descuento_global,
                 ':f_compra' => $fecha_compra,
+                ':f_venc' => $fecha_vencimiento,
                 ':f_op' => $fecha_operacion,
                 ':user' => $usuario_id,
                 ':empresa_id' => $empresa_id,
@@ -86,8 +95,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_compra'])) 
             // ---------------------------------------------------------
             // B. PROCESAR DETALLE E INVENTARIO (Último Costo de Compra)
             // ---------------------------------------------------------
-            $sql_detalle = "INSERT INTO compras_detalle (cod_prod, descripcion, cant, p_unit, total, n_documento, fecha, empresa_id) 
-                            VALUES (:cod, :desc, :cant, :punit, :total_linea, :n_doc, :fecha, :empresa_id)";
+            $sql_detalle = "INSERT INTO compras_detalle (cod_prod, descripcion, cant, p_unit, descuento, total, n_documento, fecha, empresa_id) 
+                            VALUES (:cod, :desc, :cant, :punit, :descuento, :total_linea, :n_doc, :fecha, :empresa_id)";
             $stmt_detalle = $pdo->prepare($sql_detalle);
 
             // 1. Preparamos las consultas que se usarán en el bucle
@@ -107,11 +116,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_compra'])) 
             $stmt_update_prod = $pdo->prepare($sql_update_prod);
 
             foreach ($productos_detalle as $item) {
-                $cod_prod = htmlspecialchars($item['cod_prod'] ?? '');
+                $cod_prod_raw = (string)($item['cod_prod'] ?? '');
+                $cod_prod = htmlspecialchars($cod_prod_raw);
                 $descripcion = htmlspecialchars($item['descripcion'] ?? '');
                 $cant = (float)($item['cant'] ?? 0);
                 $p_unit = (float)($item['p_unit'] ?? 0);
                 $total_linea = (float)($item['total'] ?? ($cant * $p_unit));
+                // Descuento aplicado a esta línea (serializado por el JS en detalle_descuentos)
+                $descuento_linea = max(0, (float)($detalle_descuentos[$cod_prod_raw] ?? ($item['descuento'] ?? 0)));
 
                 // 1. Insertar en compras_detalle
                 $stmt_detalle->execute([
@@ -119,6 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_compra'])) 
                     ':desc' => $descripcion,
                     ':cant' => $cant,
                     ':punit' => $p_unit,
+                    ':descuento' => $descuento_linea,
                     ':total_linea' => $total_linea,
                     ':n_doc' => $n_documento,
                     ':fecha' => $fecha_compra,
@@ -158,6 +171,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_compra'])) 
                     ':user' => $usuario_id,
                     ':compra' => $id_compra_generada,
                     ':empresa_id' => $empresa_id
+                ]);
+            } else {
+                // CONTADO: la mercadería se paga al momento. Mismo patrón que compras_rapidas.php:
+                // 1) Dejar constancia de la factura y del pago en ctacte.proveedores (se anulan entre sí)
+                $sql_cc_fact = "INSERT INTO ctacte_proveedores (id_proveedor, movimiento, debe, haber, n_documento, fecha, usuario_id, compra_id, empresa_id) 
+                                VALUES (:id_prov, :mov, 0, :total, :n_doc, :fecha_op, :user, :compra, :empresa_id)";
+                $pdo->prepare($sql_cc_fact)->execute([
+                    ':id_prov' => $id_proveedor,
+                    ':mov' => "$documento_tipo $n_documento (CONTADO)",
+                    ':total' => $total_compra,
+                    ':n_doc' => $n_documento,
+                    ':fecha_op' => $fecha_operacion,
+                    ':user' => $usuario_id,
+                    ':compra' => $id_compra_generada,
+                    ':empresa_id' => $empresa_id
+                ]);
+
+                $sql_cc_pago = "INSERT INTO ctacte_proveedores (id_proveedor, movimiento, debe, haber, n_documento, fecha, usuario_id, compra_id, empresa_id) 
+                                VALUES (:id_prov, 'PAGO CONTADO', :total, 0, :n_doc, :fecha_op, :user, :compra, :empresa_id)";
+                $pdo->prepare($sql_cc_pago)->execute([
+                    ':id_prov' => $id_proveedor,
+                    ':total' => $total_compra,
+                    ':n_doc' => $n_documento,
+                    ':fecha_op' => $fecha_operacion,
+                    ':user' => $usuario_id,
+                    ':compra' => $id_compra_generada,
+                    ':empresa_id' => $empresa_id
+                ]);
+
+                // 2) Egresar el dinero de caja
+                $sql_mov = "INSERT INTO movimientos (tipo, monto, metodo_pago, detalle, fecha, usuario, cerrado, empresa_id, sucursal_id) 
+                            VALUES ('EGRESO', :monto, 'EFECTIVO', :detalle, :fecha, :usuario, 0, :empresa_id, :sucursal_id)";
+                $pdo->prepare($sql_mov)->execute([
+                    ':monto' => $total_compra,
+                    ':detalle' => "PAGO COMPRA: $documento_tipo $n_documento",
+                    ':fecha' => $fecha_operacion,
+                    ':usuario' => $_SESSION['usuario_nombre'] ?? 'Sistema',
+                    ':empresa_id' => $empresa_id,
+                    ':sucursal_id' => $sucursal_id
                 ]);
             }
             
@@ -253,12 +305,15 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
     <button id="menuToggle" aria-label="Abrir Menú">☰ Menú</button>
     <?php include 'sidebar.php'; ?> 
     
-    <div class="content">
+    <div class="content content-topbar">
         <?php include 'topbar.php'; ?>
         <div class="compra-header">
             <h1>Registro de Compra a Proveedores</h1>
-            <a href="compras_rapidas.php" class="btn btn-yellow"><i class="fas fa-bolt"></i> Carga Rápida (Sin Detalle)</a>
-            <a href="<?php echo url('ajax/exportar_compras_csv.php'); ?>" class="btn btn-secondary"><i class="fas fa-file-csv"></i> Exportar CSV</a>
+            <div class="header-actions">
+                <a href="compras_rapidas.php" class="btn btn-yellow"><i class="fas fa-bolt"></i> Carga Rápida (Sin Detalle)</a>
+                <a href="<?php echo route('compras.historial'); ?>" class="btn btn-secondary"><i class="fas fa-history"></i> Historial</a>
+                <a href="<?php echo url('ajax/exportar_compras_csv.php'); ?>" class="btn btn-secondary"><i class="fas fa-file-csv"></i> Exportar CSV</a>
+            </div>
         </div>
         
         <?php if ($mensaje): ?>
@@ -349,14 +404,27 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                         placeholder="N° de Factura"
                         required>
                         
-                    <label for="fecha_compra">Fecha del Documento*</label>
-                    <input 
-                        type="date" 
-                        id="fecha_compra" 
-                        name="fecha_compra" 
-                        class="input-field" 
-                        value="<?php echo date('Y-m-d'); ?>" 
-                        required>
+                    <div class="form-row">
+                        <div>
+                            <label for="fecha_compra">Fecha del Documento*</label>
+                            <input 
+                                type="date" 
+                                id="fecha_compra" 
+                                name="fecha_compra" 
+                                class="input-field" 
+                                value="<?php echo date('Y-m-d'); ?>" 
+                                required>
+                        </div>
+                        <div>
+                            <label for="fecha_vencimiento">Fecha de Vencimiento</label>
+                            <input 
+                                type="date" 
+                                id="fecha_vencimiento" 
+                                name="fecha_vencimiento" 
+                                class="input-field" 
+                                title="Opcional: vencimiento del documento (para reportes de proveedores)">
+                        </div>
+                    </div>
 
                     <hr>
 

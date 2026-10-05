@@ -39,14 +39,26 @@
 
 .text-right { text-align: right; }
 
+/* ── Contenedor .content: separación de la topbar fija ── */
+.content.content-topbar { padding-top: 58px; }
+
 /* Header section */
 .compra-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
     border-bottom: 2px solid #00bcd4;
     margin-bottom: 30px;
     padding-bottom: 10px;
+}
+.compra-header h1 { margin: 0; }
+.header-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
 }
 
 /* Total de compra resaltado */
@@ -122,6 +134,7 @@
 .form-group { margin-bottom: 15px; }
 .form-row { display: flex; gap: 10px; margin-bottom: 10px; }
 .form-row > div { flex: 1; }
+.form-row label { display: block; margin-bottom: 5px; }
 .busqueda-header {
     display: flex;
     justify-content: space-between;
@@ -147,10 +160,13 @@
 
 /* Botones */
 .btn {
+    display: inline-block;
     padding: 8px 15px;
     border: none;
     border-radius: 4px;
     cursor: pointer;
+    text-decoration: none;
+    text-align: center;
     transition: background-color 0.2s;
 }
 .btn-success { background-color: #4caf50; color: white; }
@@ -227,3 +243,26 @@ th { background: #252525; }
 .toast.visible { opacity: 1; }
 .toast.error { background: #f44336; }
 .toast.success { background: #4caf50; }
+
+/* ── Historial: badges de estado/tipo y filas anuladas ── */
+.badge-rapida {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.72em;
+    font-weight: bold;
+    background: rgba(0, 188, 212, 0.15);
+    color: #00bcd4;
+    border: 1px solid #00bcd4;
+}
+.badge-anulada {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.72em;
+    font-weight: bold;
+    background: rgba(231, 76, 60, 0.15);
+    color: #e74c3c;
+    border: 1px solid #e74c3c;
+}
+.fila-anulada { opacity: 0.6; }

@@ -16,6 +16,11 @@ $fecha_desde = $_GET['fecha_desde'] ?? date('Y-m-d', strtotime('-30 days'));
 $fecha_hasta = $_GET['fecha_hasta'] ?? date('Y-m-d');
 $proveedor_id = isset($_GET['proveedor_id']) ? (int)$_GET['proveedor_id'] : 0;
 $tipo_doc = $_GET['tipo_doc'] ?? '';
+// Filtro de estado: 'todas' por defecto; solo se aceptan los valores del ENUM.
+$estado = $_GET['estado'] ?? 'todas';
+if (!in_array($estado, ['todas', 'Activa', 'Anulada'], true)) {
+    $estado = 'todas';
+}
 
 $where = ['c.empresa_id = :empresa_id'];
 $params = [':empresa_id' => $empresa_id];
@@ -40,6 +45,11 @@ if ($tipo_doc) {
     $params[':tipo_doc'] = $tipo_doc;
 }
 
+if ($estado !== 'todas') {
+    $where[] = "c.estado = :estado";
+    $params[':estado'] = $estado;
+}
+
 $where_sql = implode(' AND ', $where);
 
 // Paginación
@@ -55,6 +65,7 @@ $total_pages = max(1, ceil($total / $per_page));
 
 $sql = "SELECT c.id, c.documento, c.n_documento, c.cond_pago, c.total_compra,
                c.fecha_compra, c.fecha_operacion, c.observaciones,
+               c.es_sin_detalle, c.estado,
                p.razon AS proveedor, p.cuit,
                u.usuario AS usuario
         FROM compras c
@@ -73,12 +84,13 @@ $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 $stmt->execute();
 $compras = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Totales del período
+// Totales del período (excluyen las compras anuladas)
 $sql_totales = "SELECT 
     SUM(c.total_compra) AS total_general,
     COUNT(c.id) AS cant_compras
     FROM compras c
-    WHERE $where_sql";
+    WHERE $where_sql
+      AND c.estado != 'Anulada'";
 $stmt_totales = $pdo->prepare($sql_totales);
 $stmt_totales->execute($params);
 $totales = $stmt_totales->fetch();
@@ -102,12 +114,14 @@ $proveedores = $stmt_provs->fetchAll();
     <button id="menuToggle" aria-label="Abrir Menú">☰ Menú</button>
     <?php include 'sidebar.php'; ?>
     
-    <div class="content">
+    <div class="content content-topbar">
         <?php include 'topbar.php'; ?>
         <div class="compra-header">
             <h1>📋 Historial de Compras</h1>
-            <a href="<?php echo url('pages/compras.php'); ?>" class="btn btn-secondary">Nueva Compra</a>
-            <a href="<?php echo url('ajax/exportar_compras_csv.php' . (!empty($_GET) ? '?' . http_build_query($_GET) : '')); ?>" class="btn btn-secondary">CSV</a>
+            <div class="header-actions">
+                <a href="<?php echo route('compras'); ?>" class="btn btn-secondary">Nueva Compra</a>
+                <a href="<?php echo url('ajax/exportar_compras_csv.php' . (!empty($_GET) ? '?' . http_build_query($_GET) : '')); ?>" class="btn btn-secondary">CSV</a>
+            </div>
         </div>
 
         <!-- Filtros -->
@@ -138,6 +152,14 @@ $proveedores = $stmt_provs->fetchAll();
                             <?php foreach ($proveedores as $p): ?>
                                 <option value="<?php echo $p['cod_prov']; ?>" <?php echo $proveedor_id == $p['cod_prov'] ? 'selected' : ''; ?>><?php echo $p['razon']; ?></option>
                             <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Estado</label>
+                        <select name="estado" class="input-field">
+                            <option value="todas" <?php echo $estado === 'todas' ? 'selected' : ''; ?>>Todas</option>
+                            <option value="Activa" <?php echo $estado === 'Activa' ? 'selected' : ''; ?>>Activas</option>
+                            <option value="Anulada" <?php echo $estado === 'Anulada' ? 'selected' : ''; ?>>Anuladas</option>
                         </select>
                     </div>
                 </div>
@@ -181,21 +203,41 @@ $proveedores = $stmt_provs->fetchAll();
                 <tbody>
                     <?php if (count($compras) > 0): ?>
                         <?php foreach ($compras as $c): ?>
-                            <tr>
+                            <?php
+                                $es_rapida = ((int)($c['es_sin_detalle'] ?? 0) === 1);
+                                $esta_anulada = (($c['estado'] ?? 'Activa') === 'Anulada');
+                            ?>
+                            <tr class="<?php echo $esta_anulada ? 'fila-anulada' : ''; ?>">
                                 <td><?php echo $c['id']; ?></td>
                                 <td><?php echo date('d/m/Y', strtotime($c['fecha_compra'])); ?></td>
-                                <td><?php echo htmlspecialchars($c['documento'] . ' ' . $c['n_documento']); ?></td>
+                                <td>
+                                    <?php echo htmlspecialchars($c['documento'] . ' ' . $c['n_documento']); ?>
+                                    <?php if ($esta_anulada): ?>
+                                        <span class="badge-compra badge-anulada" title="Compra anulada: no participa en los totales">Anulada</span>
+                                    <?php endif; ?>
+                                </td>
                                 <td><?php echo htmlspecialchars($c['proveedor'] ?? 'S/D'); ?></td>
                                 <td class="text-right">$<?php echo number_format($c['total_compra'], 2); ?></td>
-                                <td class="text-right"><?php echo htmlspecialchars($c['cond_pago']); ?></td>
+                                <td class="text-right">
+                                    <?php echo htmlspecialchars($c['cond_pago']); ?>
+                                    <?php if ($es_rapida): ?>
+                                        <span class="badge-compra badge-rapida" title="Compra rápida (sin detalle de productos)">S/Detalle</span>
+                                    <?php endif; ?>
+                                </td>
                                 <td>
-                                    <a href="<?php echo url('pages/compras.php'); ?>?compra_id=<?php echo $c['id']; ?>" class="btn btn-sm btn-primary" title="Ver detalle">🔍</a>
+                                    <a href="<?php echo route('compras'); ?>?compra_id=<?php echo $c['id']; ?>" class="btn btn-sm btn-primary" title="Ver detalle">🔍</a>
+                                    <?php if ($es_rapida && !$esta_anulada): ?>
+                                        <button type="button" class="btn btn-sm btn-danger" title="Anular compra rápida"
+                                                onclick="anularCompraRapida(<?php echo (int)$c['id']; ?>, '<?php echo htmlspecialchars($c['documento'] . ' ' . $c['n_documento'], ENT_QUOTES); ?>')">
+                                            <i class="fas fa-ban"></i>
+                                        </button>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
                     <?php else: ?>
                         <tr>
-                            <td colspan="8" style="text-align: center; padding: 30px; color: #888;">
+                            <td colspan="9" style="text-align: center; padding: 30px; color: #888;">
                                 No se encontraron compras en el período seleccionado.
                             </td>
                         </tr>
@@ -207,7 +249,7 @@ $proveedores = $stmt_provs->fetchAll();
             <?php if ($total_pages > 1): ?>
                 <div style="display: flex; justify-content: center; gap: 5px; margin-top: 15px;">
                     <?php for ($i = 1; $i <= $total_pages; $i++): ?>
-                        <a href="?page=<?php echo $i; ?>&<?php echo http_build_query(array_filter($_GET, fn($k) => $k !== 'page')); ?>" 
+                        <a href="?page=<?php echo $i; ?>&<?php echo http_build_query(array_filter($_GET, fn($k) => $k !== 'page', ARRAY_FILTER_USE_KEY)); ?>" 
                            class="btn btn-secondary btn-sm" style="padding: 5px 10px;">
                             <?php echo $i; ?>
                         </a>
@@ -216,5 +258,44 @@ $proveedores = $stmt_provs->fetchAll();
             <?php endif; ?>
         </div>
     </div>
+
+    <script>
+        // Anular una compra rapida (sin detalle) desde el historial
+        function anularCompraRapida(idCompra, documento) {
+            confirmarAccion(
+                'Anular Compra Rápida',
+                '¿Anular la compra ' + documento + '?\n\n'
+                + 'Se revertirán los asientos de la cuenta corriente del proveedor '
+                + 'y el egreso en caja (si fue CONTADO). La compra quedará marcada como Anulada.\n\n'
+                + 'Esta acción no se puede deshacer.',
+                'ANULAR',
+                'btn-danger',
+                function() { ejecutarAnulacion(idCompra); }
+            );
+        }
+
+        async function ejecutarAnulacion(idCompra) {
+            try {
+                const response = await fetch('<?php echo URL_BASE; ?>ajax/anular_compra_ajax.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id_compra: idCompra })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    mostrarMensaje('Compra Anulada', data.mensaje, 'success', function() {
+                        location.reload();
+                    });
+                } else {
+                    mostrarMensaje('No se pudo anular', data.mensaje || 'Error desconocido.', 'error');
+                }
+            } catch (err) {
+                console.error('Error en fetch de anulación:', err);
+                mostrarMensaje('Error', 'Error de conexión con el servidor.', 'error');
+            }
+        }
+    </script>
 </body>
 </html>
