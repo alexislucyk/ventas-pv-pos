@@ -25,18 +25,18 @@ try {
     // 1. OBTENER CABECERA
     $sql_cabecera = "SELECT v.*, CONCAT(c.apellido, ', ', c.nombre) AS nombre_cliente 
                      FROM ventas v LEFT JOIN clientes c ON v.id_cliente = c.id 
-                     WHERE v.n_documento = :n_documento";
+                     WHERE v.n_documento = :n_documento AND v.empresa_id = :empresa_id";
     $stmt_cabecera = $pdo->prepare($sql_cabecera);
-    $stmt_cabecera->execute([':n_documento' => $n_documento]);
+    $stmt_cabecera->execute([':n_documento' => $n_documento, ':empresa_id' => $empresa_id]);
     $venta = $stmt_cabecera->fetch(PDO::FETCH_ASSOC);
 
     if (!$venta) die("Venta no encontrada.");
 
     // 2. OBTENER DETALLE
-    $sql_detalle = "SELECT cod_prod, descripcion, cant, p_unit, total 
-                    FROM ventas_detalle WHERE n_documento = :n_documento";
+    $sql_detalle = "SELECT cod_prod, descripcion, cant, p_unit, descuento_unitario, p_costo_venta, total 
+                    FROM ventas_detalle WHERE n_documento = :n_documento AND empresa_id = :empresa_id";
     $stmt_detalle = $pdo->prepare($sql_detalle);
-    $stmt_detalle->execute([':n_documento' => $n_documento]);
+    $stmt_detalle->execute([':n_documento' => $n_documento, ':empresa_id' => $empresa_id]);
     $detalle = $stmt_detalle->fetchAll(PDO::FETCH_ASSOC);
 
     // 3. RESPUESTA JSON (Para reanudar venta)

@@ -538,8 +538,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 mostrarMensaje("Carrito Vacío", "Debe agregar productos antes de guardar la venta.", "error");
                 return; 
             }
+            if (form.dataset.enviando === '1') return; // anti doble clic
             document.getElementById('venta_action_input').value = 'Pendiente';
-            form.submit();
+            // requestSubmit() sí dispara el evento submit (a diferencia de submit()),
+            // con lo que corren la validación y el bloqueo de reenvío.
+            if (typeof form.requestSubmit === 'function') form.requestSubmit();
+            else form.submit();
         };
     }
 
@@ -557,6 +561,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(html => { lista.innerHTML = html; })
                 .catch(error => { lista.innerHTML = 'Error al cargar los datos.'; });
         });
+    }
+
+    // Botón "Nueva": descarta la venta en curso (por ejemplo una pendiente
+    // reanudada) y deja el formulario listo para empezar de cero.
+    const btnNuevaVenta = document.getElementById('btnNuevaVenta');
+    if (btnNuevaVenta) {
+        btnNuevaVenta.onclick = function() { window.nuevaVenta(); };
     }
 });
 
@@ -902,7 +913,7 @@ window.reanudarVenta = function(nDocumento) {
                     cod_prod: p.cod_prod,
                     descripcion: p.descripcion,
                     p_unit: parseFloat(p.p_unit),
-                    p_costo: parseFloat(p.p_costo) || 0,
+                    p_costo: parseFloat(p.p_costo_venta) || parseFloat(p.p_costo) || 0,
                     cant: parseFloat(p.cant),
                     desc: parseFloat(p.descuento_unitario) || 0,
                     total: parseFloat(p.total),
@@ -936,6 +947,20 @@ window.reanudarVenta = function(nDocumento) {
             if (obsTextareaRea) obsTextareaRea.value = obsValor;
             if (obsHiddenRea) obsHiddenRea.value = obsValor;
 
+            // Restaurar condición de pago, descuento global y pagos ya registrados:
+            // si no se restauran, el próximo "Guardar"/"Finalizar" vuelve a enviar
+            // los valores por defecto (CONTADO / 0 / 0) y el UPDATE los pisa.
+            const cab = data.cabecera;
+            const setCampo = (id, valor) => {
+                const el = document.getElementById(id);
+                if (el && valor !== null && valor !== undefined && valor !== '') el.value = valor;
+            };
+            setCampo('cond_pago', cab.cond_pago || 'CONTADO');
+            setCampo('desc_global_tipo', cab.tipo_descuento_global || 'fijo');
+            setCampo('desc_global_valor', cab.descuento_global || '0');
+            setCampo('pago_efectivo', (parseFloat(cab.pago_efectivo) || 0) > 0 ? cab.pago_efectivo : '');
+            setCampo('pago_transf', (parseFloat(cab.pago_transf) || 0) > 0 ? cab.pago_transf : '');
+
             renderizarCarrito();
             cerrarModalPendientes();
         })
@@ -949,6 +974,41 @@ function cerrarModalPendientes() {
     const modal = document.getElementById('pendientesModal');
     if (modal) modal.style.display = 'none';
 }
+
+// Limpia el formulario y el carrito para empezar una venta nueva.
+// Si había una pendiente reanudada, ésta NO se modifica: sigue guardada en el
+// listado de "Pendientes" (solo se suelta el id que la referenciaba).
+window.nuevaVenta = function() {
+    carrito = [];
+
+    const setCampo = (id, valor) => {
+        const el = document.getElementById(id);
+        if (el) el.value = valor;
+    };
+    setCampo('id_venta_existente', '');
+    setCampo('id_cliente_hidden', '0');
+    setCampo('venta_action_input', 'Finalizar');
+    setCampo('observaciones', '');
+    setCampo('observaciones_hidden', '');
+    setCampo('cond_pago', 'CONTADO');
+    setCampo('desc_global_tipo', 'fijo');
+    setCampo('desc_global_valor', '0');
+    setCampo('pago_efectivo', '');
+    setCampo('pago_transf', '');
+
+    const nombreDisplay = document.getElementById('nombre_cliente_display');
+    if (nombreDisplay) {
+        if (nombreDisplay.tagName === 'INPUT') nombreDisplay.value = 'Venta Genérica';
+        else nombreDisplay.innerHTML = 'Venta Genérica';
+    }
+
+    const form = document.getElementById('formVenta');
+    if (form) delete form.dataset.enviando;
+
+    renderizarCarrito(); // carrito vacío → limpia la tabla y el localStorage
+    cerrarModalPendientes();
+    mostrarMensaje("Nueva Venta", "Se descartó la venta en curso. Si era una pendiente reanudada, sigue guardada en el listado de Pendientes.", "success");
+};
 
 // --- PLAN DE CUOTAS DETALLADO ---
 window.mostrarPlanCuotas = function() {
@@ -1040,6 +1100,12 @@ window.mostrarPlanCuotas = function() {
 const formVenta = document.getElementById('formVenta');
 if (formVenta) {
     formVenta.addEventListener('submit', function(e) {
+        // Anti doble envío: si ya se envió, se ignora el nuevo intento.
+        if (formVenta.dataset.enviando === '1') {
+            e.preventDefault();
+            return false;
+        }
+
         const condicion = document.getElementById('cond_pago').value; 
         const idCliente = document.getElementById('id_cliente_hidden').value;
         const action = document.getElementById('venta_action_input').value;
@@ -1062,5 +1128,18 @@ if (formVenta) {
                 }
             }
         }
+
+        // Validaciones OK: se bloquea el reenvío hasta que el servidor responda
+        // (si todo sale bien la página redirecciona y los botones vuelven solos).
+        formVenta.dataset.enviando = '1';
+        setTimeout(function() {
+            const btnGuardar = document.getElementById('btnGuardarPendiente');
+            if (btnGuardar) btnGuardar.disabled = true;
+            const btnFinalizar = formVenta.querySelector('button[type="submit"]');
+            if (btnFinalizar) {
+                btnFinalizar.disabled = true;
+                btnFinalizar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
+            }
+        }, 0);
     });
 }

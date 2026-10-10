@@ -3,6 +3,7 @@
 include 'infosesion.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 require_once dirname(__FILE__) . '/../config/db_config.php';
+require_once dirname(__FILE__) . '/../config/numeradores.php';
 
 $empresa_id = $_SESSION['empresa_id'] ?? 1;
 $sucursal_id = $_SESSION['sucursal_id'] ?? 1;
@@ -125,9 +126,10 @@ if (isset($pdo) && ($pdo instanceof PDO)) {
 
                 $total_recalculado = max(0, $total_bruto);
 
-                $stmt_n = $pdo->query("SELECT MAX(n_documento) AS ultimo FROM ventas FOR UPDATE");
-                $res_n = $stmt_n->fetch();
-                $n_documento = ($res_n['ultimo'] !== null) ? $res_n['ultimo'] + 1 : 1;
+                // Numeradores separados (ver config/numeradores.php):
+                // "Pendiente" usa el numerador propio de pendientes; "Finalizar"
+                // usa el numerador normal de ventas.
+                $n_documento = venta_siguiente_n($pdo, !$es_finalizar);
 
                 $fecha_venta = date('Y-m-d H:i:s');
                 $sql_v = "INSERT INTO ventas (empresa_id, sucursal_id, id_cliente, cond_pago, n_documento,

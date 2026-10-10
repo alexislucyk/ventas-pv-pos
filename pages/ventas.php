@@ -4,6 +4,7 @@ include 'infosesion.php';
 date_default_timezone_set('America/Argentina/Buenos_Aires');
 
 require '../config/db_config.php';
+require_once __DIR__ . '/../config/numeradores.php';
 
 $mensaje = '';
 
@@ -211,24 +212,46 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                 $monto_desc_global = ($desc_global_tipo === 'porcentaje') ? ($total_bruto * ($desc_global_valor / 100)) : $desc_global_valor;
                 $total_recalculado = max(0, $total_bruto - $monto_desc_global);
 
-                // Obtener N° Documento correlativo
+                // Obtener N° Documento correlativo.
+                // NUMERADORES SEPARADOS (ver config/numeradores.php):
+                //   - "Pendiente" → numerador propio de pendientes (>= VENTA_PENDIENTE_BASE),
+                //     NO gasta números de la serie normal de ventas.
+                //   - "Finalizar" → numerador normal de ventas (< VENTA_PENDIENTE_BASE).
                 if ($id_venta_existente <= 0) {
-                    $stmt_n = $pdo->query("SELECT MAX(n_documento) AS ultimo FROM ventas FOR UPDATE");
-                    $res_n = $stmt_n->fetch();
-                    $n_documento = ($res_n['ultimo'] !== null) ? $res_n['ultimo'] + 1 : 1;
+                    $n_documento = venta_siguiente_n($pdo, !$es_finalizar);
                 }
 
                 $id_venta_actual = 0;
                 // --- A) Insertar o Actualizar Cabecera de Venta ---
                 if ($id_venta_existente > 0) {
-                    $sql_v = "UPDATE ventas SET id_cliente=?, cond_pago=?, total_venta=?, descuento_global=?, tipo_descuento_global=?, pago_efectivo=?, pago_transf=?, estado=?, usuario=?, observaciones=? WHERE id=?";
-                    $pdo->prepare($sql_v)->execute([$id_cliente, $cond_pago, $total_recalculado, $monto_desc_global, $desc_global_tipo, $pago_efectivo, $pago_transf, $estado_venta, $usuario_activo, $observaciones, $id_venta_existente]);
+                    // Al FINALIZAR, la venta se cierra con la fecha de HOY
+                    // (no la del día en que se dejó pendiente). Al re-guardar
+                    // como pendiente se conserva su fecha original.
+                    $sql_v = "UPDATE ventas SET id_cliente=?, cond_pago=?, total_venta=?, descuento_global=?, tipo_descuento_global=?, pago_efectivo=?, pago_transf=?, estado=?, usuario=?, observaciones=?" . ($es_finalizar ? ", fecha_venta=?" : "") . " WHERE id=?";
+                    $params_v = [$id_cliente, $cond_pago, $total_recalculado, $monto_desc_global, $desc_global_tipo, $pago_efectivo, $pago_transf, $estado_venta, $usuario_activo, $observaciones];
+                    if ($es_finalizar) { $params_v[] = date('Y-m-d H:i:s'); }
+                    $params_v[] = $id_venta_existente;
+                    $pdo->prepare($sql_v)->execute($params_v);
                     
                     $stmt_doc = $pdo->prepare("SELECT n_documento FROM ventas WHERE id=?");
                     $stmt_doc->execute([$id_venta_existente]);
-                    $n_documento = $stmt_doc->fetchColumn();
+                    $n_documento_anterior = (int)$stmt_doc->fetchColumn();
+                    $n_documento = $n_documento_anterior;
 
-                    $pdo->prepare("DELETE FROM ventas_detalle WHERE n_documento = ?")->execute([$n_documento]);
+                    // Al FINALIZAR una venta pendiente que fue numerada con el
+                    // numerador propio de pendientes, adopta el numerador normal
+                    // de ventas (y su detalle se re-enlaza con el nuevo número).
+                    // Las ventas que ya tienen número normal (serie < BASE) lo
+                    // conservan sin cambios.
+                    if ($es_finalizar && $n_documento_anterior >= VENTA_PENDIENTE_BASE) {
+                        $n_documento = venta_siguiente_n($pdo, false);
+                        $pdo->prepare("UPDATE ventas SET n_documento = ? WHERE id = ?")
+                            ->execute([$n_documento, $id_venta_existente]);
+                    }
+
+                    // El detalle previo se borra SIEMPRE con el número anterior
+                    // (que es con el que quedó guardado la última vez).
+                    $pdo->prepare("DELETE FROM ventas_detalle WHERE n_documento = ? AND empresa_id = ?")->execute([$n_documento_anterior, $_SESSION['empresa_id'] ?? 1]);
                     // Limpiamos financiación previa si existiera para evitar duplicados
                     $pdo->prepare("DELETE FROM ventas_financiacion WHERE id_venta = ?")->execute([$id_venta_existente]);
                     $pdo->prepare("DELETE FROM cuotas_seguimiento WHERE id_venta = ?")->execute([$id_venta_existente]);
@@ -394,9 +417,15 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
                 }
 
                 $pdo->commit();
-                $_SESSION['ticket_a_imprimir_doc'] = $n_documento;
-                $_SESSION['ticket_a_imprimir_id'] = $id_venta_actual;
-                $_SESSION['status_msj'] = "✅ Venta N° $n_documento procesada correctamente.";
+                // El ticket solo se ofrece cuando la venta quedó finalizada:
+                // una venta "Pendiente" todavía no se cobra ni se factura.
+                if ($es_finalizar) {
+                    $_SESSION['ticket_a_imprimir_doc'] = $n_documento;
+                    $_SESSION['ticket_a_imprimir_id'] = $id_venta_actual;
+                    $_SESSION['status_msj'] = "✅ Venta N° $n_documento procesada correctamente.";
+                } else {
+                    $_SESSION['status_msj'] = "⏳ Venta N° $n_documento guardada como PENDIENTE. Retómala desde el botón Pendientes.";
+                }
                 // Marca para que ventas.js limpie el carrito persistido en localStorage
                 $_SESSION['pos_limpiar_carrito'] = true;
 
@@ -429,8 +458,8 @@ $ticket_cuota_venta_doc = isset($_SESSION['ticket_cuota_venta_doc']) ? $_SESSION
 $cliente_tel = '';
 $cliente_nom = '';
 if ($ticket_doc_a_imprimir) {
-    $stmt_c = $pdo->prepare("SELECT c.telefono, CONCAT(c.apellido, ' ', c.nombre) as nombre FROM ventas v JOIN clientes c ON v.id_cliente = c.id WHERE v.n_documento = ?");
-    $stmt_c->execute([$ticket_doc_a_imprimir]);
+    $stmt_c = $pdo->prepare("SELECT c.telefono, CONCAT(c.apellido, ' ', c.nombre) as nombre FROM ventas v JOIN clientes c ON v.id_cliente = c.id WHERE v.n_documento = ? AND v.empresa_id = ?");
+    $stmt_c->execute([$ticket_doc_a_imprimir, $_SESSION['empresa_id'] ?? 1]);
     $res_c = $stmt_c->fetch();
     if ($res_c) {
         $cliente_tel = $res_c['telefono'];
@@ -441,6 +470,26 @@ unset($_SESSION['ticket_a_imprimir_doc']);
 unset($_SESSION['ticket_a_imprimir_id']);
 unset($_SESSION['ticket_cuota_a_imprimir']);
 unset($_SESSION['ticket_cuota_venta_doc']);
+
+// Si el POST devolvió un error, se repuebla el formulario con los datos enviados
+// para que un reintento actualice la misma venta pendiente en vez de duplicarla.
+$form_repost = ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['venta_action']) && !empty($mensaje) && str_contains($mensaje, '❌'));
+$rp = function ($campo, $default = '') use ($form_repost) {
+    return $form_repost ? trim((string)($_POST[$campo] ?? $default)) : $default;
+};
+$rp_id_venta   = $rp('id_venta_existente');
+$rp_id_cliente = $rp('id_cliente_hidden', '0');
+$rp_cond_pago  = $rp('cond_pago', 'CONTADO');
+$rp_desc_tipo  = $rp('desc_global_tipo', 'fijo');
+$rp_desc_valor = $rp('desc_global_valor', '0');
+$rp_pago_efe   = $rp('pago_efectivo');
+$rp_pago_tra   = $rp('pago_transf');
+$rp_obs        = $rp('observaciones');
+$rp_detalle = null;
+if ($form_repost && isset($_POST['detalle_productos'])) {
+    $rp_decoded = json_decode($_POST['detalle_productos'], true);
+    $rp_detalle = is_array($rp_decoded) ? $rp_decoded : [];
+}
 ?>
 
 <!DOCTYPE html>
@@ -508,7 +557,7 @@ unset($_SESSION['ticket_cuota_venta_doc']);
                     <label for="observaciones"><i class="fas fa-sticky-note"></i> Observaciones</label>
                     <textarea name="observaciones" id="observaciones" class="input-field" rows="3"
                               placeholder="Notas opcionales sobre la venta (aparecerán en el ticket)..."
-                              style="width: 100%; resize: vertical; font-family: inherit;"></textarea>
+                              style="width: 100%; resize: vertical; font-family: inherit;"><?php echo htmlspecialchars($rp_obs, ENT_QUOTES, 'UTF-8'); ?></textarea>
                 </div>
             </div>
 
@@ -516,9 +565,9 @@ unset($_SESSION['ticket_cuota_venta_doc']);
                 <form id="formVenta" method="POST">
                     <input type="hidden" name="detalle_productos" id="detalle_productos_input">
                     <input type="hidden" name="venta_action" id="venta_action_input" value="Finalizar">
-                    <input type="hidden" name="id_venta_existente" id="id_venta_existente" value="">
-                    <input type="hidden" name="id_cliente_hidden" id="id_cliente_hidden" value="0">
-                    <input type="hidden" name="observaciones" id="observaciones_hidden" value="">
+                    <input type="hidden" name="id_venta_existente" id="id_venta_existente" value="<?php echo htmlspecialchars($rp_id_venta, ENT_QUOTES, 'UTF-8'); ?>">
+                    <input type="hidden" name="id_cliente_hidden" id="id_cliente_hidden" value="<?php echo htmlspecialchars($rp_id_cliente, ENT_QUOTES, 'UTF-8'); ?>">
+                    <input type="hidden" name="observaciones" id="observaciones_hidden" value="<?php echo htmlspecialchars($rp_obs, ENT_QUOTES, 'UTF-8'); ?>">
 
                     <div class="contenedor-busqueda-cliente" style="position:relative;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -536,19 +585,19 @@ unset($_SESSION['ticket_cuota_venta_doc']);
                     <hr>
                     <label>Condición de Pago</label>
                     <select id="cond_pago" name="cond_pago" class="input-field">
-                        <option value="CONTADO">CONTADO</option>
-                        <option value="CUENTA CORRIENTE">CUENTA CORRIENTE</option>
-                        <option value="FINANCIADO">FINANCIADO</option>
+                        <option value="CONTADO" <?php echo $rp_cond_pago === 'CONTADO' ? 'selected' : ''; ?>>CONTADO</option>
+                        <option value="CUENTA CORRIENTE" <?php echo $rp_cond_pago === 'CUENTA CORRIENTE' ? 'selected' : ''; ?>>CUENTA CORRIENTE</option>
+                        <option value="FINANCIADO" <?php echo $rp_cond_pago === 'FINANCIADO' ? 'selected' : ''; ?>>FINANCIADO</option>
                     </select>
 
                     <div id="panel_descuento_global" style="margin-top: 15px; padding: 10px; background: #252525; border-radius: 6px; border: 1px solid #444;">
                         <label><i class="fas fa-percentage"></i> Descuento Global</label>
                         <div style="display: flex; gap: 5px;">
                             <select name="desc_global_tipo" id="desc_global_tipo" class="input-field" style="flex: 1;">
-                            <option value="porcentaje">Porcentaje (%)</option>    
-                            <option value="fijo">Monto ($)</option>
+                            <option value="porcentaje" <?php echo $rp_desc_tipo === 'porcentaje' ? 'selected' : ''; ?>>Porcentaje (%)</option>    
+                            <option value="fijo" <?php echo $rp_desc_tipo === 'fijo' ? 'selected' : ''; ?>>Monto ($)</option>
                             </select>
-                            <input type="number" step="0.01" name="desc_global_valor" id="desc_global_valor" class="input-field" style="flex: 1;" placeholder="0.00" value="0">
+                            <input type="number" step="0.01" name="desc_global_valor" id="desc_global_valor" class="input-field" style="flex: 1;" placeholder="0.00" value="<?php echo htmlspecialchars($rp_desc_valor, ENT_QUOTES, 'UTF-8'); ?>">
                         </div>
                     </div>
 
@@ -614,21 +663,24 @@ unset($_SESSION['ticket_cuota_venta_doc']);
                     </div>
 
                     <label>Pago en Efectivo ($)</label>
-                    <input type="number" step="0.01" name="pago_efectivo" id="pago_efectivo" class="input-field" value="" placeholder="0.00">
+                    <input type="number" step="0.01" name="pago_efectivo" id="pago_efectivo" class="input-field" value="<?php echo htmlspecialchars($rp_pago_efe, ENT_QUOTES, 'UTF-8'); ?>" placeholder="0.00">
                     
                     <label style="margin-top:10px;">Pago por Transferencia ($)</label>
-                    <input type="number" step="0.01" name="pago_transf" id="pago_transf" class="input-field" value="" placeholder="0.00">
+                    <input type="number" step="0.01" name="pago_transf" id="pago_transf" class="input-field" value="<?php echo htmlspecialchars($rp_pago_tra, ENT_QUOTES, 'UTF-8'); ?>" placeholder="0.00">
 
                     <button type="submit" class="btn btn-primary btn-block" style="height:55px; font-size:1.1rem; margin-top:20px; cursor:pointer;">
                         <i class="fas fa-check-circle"></i> Finalizar Venta
                     </button>
                     
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 15px;">
                         <button type="button" class="btn btn-success" id="btnGuardarPendiente" style="padding:10px;">
                             <i class="fas fa-save"></i> Guardar
                         </button>
                         <button type="button" id="btnVerPendiente" class="btn btn-warning" style="padding:10px;">
                             <i class="fas fa-clock"></i> Pendientes
+                        </button>
+                        <button type="button" id="btnNuevaVenta" class="btn btn-secondary" style="padding:10px;" title="Descarta la venta en curso (si era una pendiente reanudada, sigue guardada en el listado)">
+                            <i class="fas fa-plus"></i> Nueva
                         </button>
                     </div>
                 </form>
@@ -810,11 +862,21 @@ unset($_SESSION['ticket_cuota_venta_doc']);
     <script>
         var clientesData = <?php echo json_encode($clientes); ?>;
 
-        // RESTAURAR CARRITO SI HUBO ERROR DE STOCK
-        <?php if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($mensaje) && strpos($mensaje, '❌') !== false): ?>
+        // RESTAURAR CARRITO Y DATOS DE LA VENTA SI EL POST DEVOLVIÓ UN ERROR
+        <?php if ($rp_detalle !== null): ?>
             document.addEventListener('DOMContentLoaded', function() {
-                carrito = <?php echo $_POST['detalle_productos']; ?>;
+                carrito = <?php echo json_encode($rp_detalle, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>.filter(function(i) { return i && i.cod_prod; });
                 renderizarCarrito(); // Función definida en ventas.js
+
+                // Restaurar el cliente (el hidden ya viene repoblado desde PHP)
+                const idCliRp = <?php echo json_encode($rp_id_cliente, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+                const clientesRp = (typeof clientesData !== 'undefined') ? clientesData : [];
+                const cliRp = clientesRp.find(function(c) { return c.id_cliente == idCliRp; });
+                const dispRp = document.getElementById('nombre_cliente_display');
+                if (cliRp && dispRp) {
+                    if (dispRp.tagName === 'INPUT') dispRp.value = cliRp.nombre_completo;
+                    else dispRp.innerHTML = cliRp.nombre_completo;
+                }
             });
         <?php endif; ?>
 
