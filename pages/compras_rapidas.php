@@ -13,6 +13,11 @@ if (!$empresa_id) {
 $mensaje = '';
 $error = false;
 
+// Aviso de éxito tras redirect PRG (evita duplicar al refrescar con F5)
+if (isset($_GET['ok']) && ctype_digit((string)$_GET['ok'])) {
+    $mensaje = '✅ Compra registrada con éxito. ID: ' . (int)$_GET['ok'];
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_factura'])) {
     $id_prov         = filter_var($_POST['proveedor_id'] ?? 0, FILTER_VALIDATE_INT);
     $total           = filter_var($_POST['total_compra'] ?? 0, FILTER_VALIDATE_FLOAT);
@@ -61,7 +66,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_factura']))
             }
 
             $pdo->commit();
-            $mensaje = "✅ Compra rápida registrada con éxito (ID Sistema: $id_generado).";
+            // PRG: redirect con el ID en la URL. Asi F5/refresh hace GET y NO duplica la compra.
+            header('Location: ' . route('compras.rapidas') . '?ok=' . (int)$id_generado);
+            exit;
         } catch (Exception $e) {
             $pdo->rollBack();
             $mensaje = "❌ Error en el registro: " . $e->getMessage();
@@ -95,9 +102,7 @@ $proveedores = $stmt_p->fetchAll(PDO::FETCH_ASSOC);
         <?php endif; ?>
 
         <div class="card container-factura">
-            <form method="POST">
-                <input type="hidden" name="registrar_factura" value="1">
-                
+            <form method="POST" id="formCompraRapida">
                 <label>1. Seleccionar Proveedor</label>
                 <div style="position: relative; margin-bottom: 15px;">
                     <input type="text" id="busq_prov" class="input-field" placeholder="Buscar por nombre o CUIT..." autocomplete="off">
@@ -158,7 +163,7 @@ $proveedores = $stmt_p->fetchAll(PDO::FETCH_ASSOC);
                 <label>Observaciones / Detalle General</label>
                 <textarea name="observaciones" class="input-field" rows="3" placeholder="Ej: Compra de cables y térmicas s/detalle stock..."></textarea>
 
-                <button type="submit" class="btn btn-primary btn-block" style="height: 50px; font-weight: bold; margin-top: 15px;">
+                <button type="submit" name="registrar_factura" value="1" id="btnRegistrarRapida" class="btn btn-primary btn-block" style="height: 50px; font-weight: bold; margin-top: 15px;">
                     REGISTRAR COMPRA RÁPIDA
                 </button>
                 <a href="compras.php" class="btn btn-secondary btn-block" style="text-align: center; display: block; margin-top: 10px;">Volver a Compras con Detalle</a>
@@ -202,6 +207,26 @@ $proveedores = $stmt_p->fetchAll(PDO::FETCH_ASSOC);
         document.addEventListener('click', (e) => {
             if (!inputBusq.contains(e.target) && !resDiv.contains(e.target)) resDiv.style.display = 'none';
         });
+
+        // ── Registro SOLO al hacer click en "REGISTRAR COMPRA RÁPIDA" ──
+        // 1) Enter en los campos NO envía el formulario.
+        // 2) Se bloquea el doble envío (doble clic / doble Enter).
+        const formCompraRapida = document.getElementById('formCompraRapida');
+        let enviandoCompraRapida = false;
+
+        if (formCompraRapida) {
+            formCompraRapida.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+                    e.preventDefault();
+                }
+            });
+            formCompraRapida.addEventListener('submit', function(e) {
+                if (enviandoCompraRapida) { e.preventDefault(); return; }
+                enviandoCompraRapida = true;
+            });
+            // Al volver desde el caché (botón Atrás) se desbloquea el envío
+            window.addEventListener('pageshow', function() { enviandoCompraRapida = false; });
+        }
     </script>
 </body>
 </html>
