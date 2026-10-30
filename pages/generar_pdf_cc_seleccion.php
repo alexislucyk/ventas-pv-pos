@@ -236,7 +236,10 @@ try {
         // --- Construir textos del detalle ---
         $ancho_texto = $w_detalle - 4;  // ancho util dentro de la celda de detalle
 
-        $bloque_detalle = to_iso($mov['movimiento']);
+        // Remover la palabra "FACTURA" del texto del detalle para el PDF
+$texto_detalle = $mov['movimiento'];
+$texto_detalle = str_ireplace('FACTURA', '', $texto_detalle);
+$bloque_detalle = to_iso(trim($texto_detalle));
         $lineas_extra = [];
 
         if ($es_venta && !empty($cache_detalle_venta[(int)$mov['n_documento']])) {
