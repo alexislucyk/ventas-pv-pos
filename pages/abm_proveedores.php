@@ -254,14 +254,15 @@ try {
 
     <!-- Modal para ver Lista de Precios del Proveedor -->
     <div id="modalPreciosProveedor" class="modal">
-        <div class="modal-content" style="max-width: 85%; border-top: 4px solid #ff9800;">
+        <div class="modal-content" style="max-width: 70%; margin-top: 4%; border-top: 4px solid #ff9800;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #444; padding-bottom: 10px;">
                 <h3 style="margin: 0; color: #ff9800;"><i class="fas fa-list"></i> Lista de Precios: <span id="nombreProvModal"></span></h3>
                 <span style="cursor: pointer; font-size: 24px; color: #888;" onclick="cerrarModalPrecios()">&times;</span>
             </div>
             
-            <div style="margin-bottom: 15px;">
-                <input type="text" id="filtroCatalogo" class="input-field" placeholder="🔍 Buscar por código o descripción..." style="width: 100%;">
+            <div style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center;">
+                <input type="text" id="filtroCatalogo" class="input-field" placeholder="🔍 Buscar por código o descripción..." style="flex: 0 0 80%;">
+                <input type="number" id="descuentoGlobalCatalogo" value="0" step="0.01" min="0" max="100" placeholder="Desc %" style="flex: 0 0 20%; padding:6px; border-radius:4px; border:1px solid #555; background:#111; color:#fff;">
             </div>
 
             <div id="contenedorTablaPrecios" style="max-height: 60vh; overflow-y: auto;">
@@ -327,6 +328,9 @@ try {
             .then(res => res.text())
             .then(html => {
                 contenedor.innerHTML = html;
+                const descInput = document.getElementById('descuentoGlobalCatalogo');
+                if (descInput) { descInput.addEventListener('input', recalcularCatalogo); }
+                recalcularCatalogo();
             })
             .catch(err => {
                 console.error(err);
@@ -351,6 +355,36 @@ try {
                 };
             });
     }
+
+    function recalcularCatalogo() {
+        const descInput = document.getElementById('descuentoGlobalCatalogo');
+        const meta = document.getElementById('catalogoMeta');
+        const desc = descInput ? (parseFloat(descInput.value) || 0) : 0;
+        const factorDesc = 1 - (desc / 100);
+        const dolar = meta ? (parseFloat(meta.dataset.dolar) || 0) : 0;
+        document.querySelectorAll('#tablaCatalogo tbody tr').forEach(function(tr) {
+            const precio = parseFloat(tr.dataset.precio) || 0;
+            const conDesc = precio * factorDesc;
+            tr.dataset.precioDesc = conDesc.toFixed(2);
+            const arsCell = tr.querySelector('.col-ars');
+            if (arsCell) {
+                arsCell.textContent = (dolar > 0) ? (conDesc * dolar).toFixed(2) : '-';
+            }
+        });
+    }
+
+    window.abrirModalCopiaCatalogo = function(btn) {
+        const tr = btn.closest('tr');
+        if (!tr) return;
+        const codigo = tr.dataset.codigo;
+        const descripcion = tr.dataset.desc;
+        const precioOriginal = parseFloat(tr.dataset.precio) || 0;
+        const razonProv = tr.dataset.prov || '';
+        const descInput = document.getElementById('descuentoGlobalCatalogo');
+        const descuento = descInput ? (parseFloat(descInput.value) || 0) : 0;
+        const precioConDesc = precioOriginal * (1 - (descuento / 100));
+        abrirModalCopia(codigo, descripcion, precioConDesc, razonProv);
+    };
 
     function cerrarModalPrecios() {
         document.getElementById('modalPreciosProveedor').style.display = 'none';
@@ -504,12 +538,20 @@ try {
                 
                 <div style="background: #333; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
                     <p style="font-size: 0.9em; margin-top: 0;"><strong>Formato del archivo (.csv):</strong></p>
-                    <code style="color: #00bcd4;">codigo ; descripcion ; precio</code> (sin encabezados)
-                    <p style="font-size: 0.8em; color: #aaa; margin-bottom: 0;">(Use punto y coma como separador de campos. Para los decimales en el precio, puede usar coma o punto.)</p>
+                    <code style="color: #00bcd4;">codigo ; descripcion ; precio</code> (sin encabezados)<br>
+                    <code style="color: #00bcd4;">SKU ; DESCRIPCION ; ... ; PRECIO DE LISTA</code> (con encabezados, varias columnas)
+                    <p style="font-size: 0.8em; color: #aaa; margin-bottom: 0;">(Use punto y coma como separador de campos. Para los decimales en el precio, puede usar coma o punto. Precios en USD como "USD 0,84" se convierten automáticamente.)</p>
                 </div>
 
-                <label>Seleccionar Archivo CSV:</label>
-                <input type="file" name="archivo_csv" accept=".csv" required style="margin-top: 10px;">
+                <label>Seleccionar Archivo(s) CSV:</label>
+                <input type="file" name="archivo_csv[]" accept=".csv" multiple required style="margin-top: 10px;">
+
+                <div style="margin-top: 10px;">
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                        <input type="checkbox" name="borrar_previo" value="1" checked>
+                        Borrar catálogo anterior antes de importar
+                    </label>
+                </div>
 
                 <div id="importProgressBar" class="progress-bar-container" style="display: none; margin-top: 20px;">
                     <div class="progress-bar-indeterminate"></div>
