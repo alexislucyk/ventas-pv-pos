@@ -75,6 +75,44 @@ foreach ($cuotas as $c) {
     <link rel="stylesheet" href="<?php echo url('css/style.css'); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="<?php echo url('css/pages/reportes.css'); ?>">
+    <style>
+        /* ============================================================
+           Igualar tamaños de letra a cobro-cuotas (cobro_cuotas.css)
+           ============================================================ */
+        .filter-grid label,
+        .filter-grid select,
+        .filter-grid input {
+            font-size: 0.82rem !important;
+        }
+        table.table-full {
+            font-size: 0.8rem !important;
+        }
+        table.table-full th {
+            font-size: 0.68rem !important;
+            padding: 8px 8px !important;
+        }
+        table.table-full td {
+            font-size: 0.8rem !important;
+            padding: 8px 8px !important;
+        }
+        .badge {
+            font-size: 0.68rem !important;
+            padding: 3px 9px !important;
+        }
+        .btn, .btn-primary, .btn-secondary {
+            font-size: 0.8rem !important;
+        }
+        .btn-sm {
+            font-size: 0.72rem !important;
+            padding: 4px 8px !important;
+        }
+        .mora-badge {
+            font-size: 0.68rem !important;
+        }
+        h1 {
+            font-size: 1.3rem !important;
+        }
+    </style>
 </head>
 <body>
     <?php include 'sidebar.php'; ?>
@@ -164,19 +202,9 @@ foreach ($cuotas as $c) {
                                     <?php echo $c['estado_cuota']; ?></span>
                             </td>
                             <td>
-                                <div style="display: flex; gap: 5px;">
-                                    <a href="cobro_cuotas.php?id_venta=<?php echo $c['n_documento']; ?>" class="btn btn-primary btn-sm" title="Ir a Cobrar">
-                                        <i class="fas fa-hand-holding-usd"></i>
-                                    </a>
-                                    <?php if ($c['telefono']): 
-                                        $mensaje_wa = "Hola " . $c['nombre'] . ", te recordamos que tenés una cuota vencida de $" . number_format($saldo, 2) . " en " . $nombre_empresa_sistema . ". Venta #" . $c['n_documento'];
-                                        $link_wa = "https://wa.me/" . preg_replace('/[^0-9]/', '', $c['telefono']) . "?text=" . urlencode($mensaje_wa);
-                                    ?>
-                                        <a href="<?php echo $link_wa; ?>" target="_blank" class="btn-whatsapp" title="Enviar Recordatorio">
-                                            <i class="fab fa-whatsapp"></i>
-                                        </a>
-                                    <?php endif; ?>
-                                </div>
+                                <a href="cobro_cuotas.php?id_venta=<?php echo $c['n_documento']; ?>" class="btn btn-primary btn-sm" title="Ir a Cobrar">
+                                    <i class="fas fa-hand-holding-usd"></i>
+                                </a>
                             </td>
                         </tr>
                         <?php endforeach; ?>

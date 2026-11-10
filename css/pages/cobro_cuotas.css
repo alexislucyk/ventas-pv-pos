@@ -11,3 +11,79 @@
 .badge-pendiente { background: #f1c40f; color: #000; }
 .badge-parcial { background: #e67e22; color: #fff; }
 .saldo-destacado { color: #e74c3c; font-weight: bold; font-size: 1.1em; }
+
+/* Reducir tamaño de letra general en cobro-cuotas */
+.cb-body { font-size: 0.8rem !important; }
+
+.cb-card-header { font-size: 0.8rem !important; }
+.cb-card-header i { font-size: 0.85rem !important; }
+
+.cb-body h1 { font-size: 1.15rem !important; }
+
+/* Labels y textos de filtros */
+.cb-filters label,
+.cb-card-body label,
+label { font-size: 0.78rem !important; }
+
+/* Inputs, selects y botones */
+.cb-input,
+input[type="date"],
+input[type="number"],
+select.input-field,
+button.btn,
+.cb-btn {
+    font-size: 0.78rem !important;
+}
+
+/* Texto de alertas y mensajes */
+.cb-alert { font-size: 0.8rem !important; }
+
+/* Tablas de cuotas */
+.cb-table th,
+.cb-table td {
+    font-size: 0.78rem !important;
+    padding: 6px 8px !important;
+}
+
+/* Detalle de cuotas y modales */
+.cb-cuota-detalle { font-size: 0.78rem !important; }
+.cb-cuota-detalle table td { font-size: 0.75rem !important; }
+
+/* Historial */
+.cb-historial { font-size: 0.7rem !important; }
+
+/* Badges de estado (usados por obtener_cuotas_pago.php) */
+.cb-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.cb-badge-error {
+    background: #e74c3c;
+    color: #fff;
+}
+
+.cb-badge-exito {
+    background: #27ae60;
+    color: #fff;
+}
+
+.cb-badge-vencida {
+    background: #f39c12;
+    color: #fff;
+}
+
+.cb-badge-pendiente {
+    background: #f1c40f;
+    color: #000;
+}
+
+/* Saldo deudor negativo (cuando no está pagado) */
+.cb-saldo-negativo {
+    color: #e74c3c;
+    font-weight: bold;
+}

@@ -55,34 +55,56 @@ try {
         <?php endif; ?>
 
         <div class="card">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 0;">
-                <div>
-                    <label for="buscar_cliente_cuotas">Buscar Cliente con Deuda Financiada</label>
-                    <div class="contenedor-busqueda-cliente" style="position:relative;">
-                        <input type="text" id="buscar_cliente_cuotas" class="input-field" autocomplete="off" placeholder="Escriba nombre o CUIT...">
+            <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; justify-content: space-between; padding: 14px 0 0 0; border-bottom: 1px solid #333;">
+                <!-- 1. Buscar cliente -->
+                <div style="display: flex; flex-direction: column; gap: 6px; min-width: 240px; flex: 1 1 240px;">
+                    <label for="buscar_cliente_cuotas" style="font-size: 0.8rem; color: #ccc; white-space: nowrap;">Buscar Cliente con Deuda Financiada</label>
+                    <div class="contenedor-busqueda-cliente" style="position:relative; flex: 1; min-width: 0;">
+                        <input type="text" id="buscar_cliente_cuotas" class="input-field" autocomplete="off" placeholder="Escriba nombre o CUIT..." style="flex: 1; min-width: 0;">
                         <div id="resultadosBusquedaClientes"></div>
                     </div>
                 </div>
-                <div>
-                    <label for="input_busqueda_venta">Buscar por N° de Venta / Documento</label>
-                    <div style="display: flex; gap: 10px;">
-                        <input type="number" id="input_busqueda_venta" class="input-field" placeholder="Ingrese N° de Venta..." style="margin-bottom:0 !important;" min="1">
-                        <button type="button" class="btn btn-primary" onclick="buscarVentaDesdeInput()"><i class="fas fa-search"></i> BUSCAR</button>
-                    </div>
+
+                <!-- 2. Buscar por N° de Venta -->
+                <div style="display: flex; flex-direction: column; gap: 6px; min-width: 200px; flex: 1 1 200px;">
+                    <label for="input_busqueda_venta" style="font-size: 0.8rem; color: #ccc; white-space: nowrap;">Buscar por N° de Venta / Documento</label>
+                    <input type="number" id="input_busqueda_venta" class="input-field" placeholder="Ingrese N° de Venta..." style="margin-bottom:0 !important;" min="1">
                 </div>
-            </div>
-            <div style="margin-top: 15px; display: flex; gap: 15px; align-items: flex-end; justify-content: space-between; border-top: 1px solid #333; padding-top: 15px;">
-                <div style="display: flex; gap: 10px;">
-                    <div style="width: 170px;">
-                        <label style="font-size: 0.8rem;">Ventas Desde:</label>
-                        <input type="date" id="fecha_desde" class="input-field" style="margin-bottom: 0 !important;">
-                    </div>
-                    <div style="width: 170px;">
-                        <label style="font-size: 0.8rem;">Ventas Hasta:</label>
-                        <input type="date" id="fecha_hasta" class="input-field" style="margin-bottom: 0 !important;">
-                    </div>
+
+                <!-- 3. Ventas Desde -->
+                <div style="display: flex; flex-direction: column; gap: 6px; min-width: 140px; flex: 0 0 140px;">
+                    <label style="font-size: 0.8rem; color: #ccc; white-space: nowrap;">Ventas Desde:</label>
+                    <input type="date" id="fecha_desde" class="input-field" style="margin-bottom: 0 !important; min-width: 0;">
                 </div>
-                <button class="btn btn-secondary" style="height: 40px;" onclick="verTodosLosCreditos()"><i class="fas fa-list"></i> Ver Todos los Créditos</button>
+
+                <!-- 4. Ventas Hasta -->
+                <div style="display: flex; flex-direction: column; gap: 6px; min-width: 140px; flex: 0 0 140px;">
+                    <label style="font-size: 0.8rem; color: #ccc; white-space: nowrap;">Ventas Hasta:</label>
+                    <input type="date" id="fecha_hasta" class="input-field" style="margin-bottom: 0 !important; min-width: 0;">
+                </div>
+
+                <!-- 5. Estado de cuotas -->
+                <div style="display: flex; flex-direction: column; gap: 6px; min-width: 130px; flex: 0 0 130px;">
+                    <label style="font-size: 0.8rem; color: #ccc; white-space: nowrap;">Estado de cuotas</label>
+                    <select id="filtro_estado_cuota" class="input-field" style="margin-bottom: 0 !important; min-width: 0;">
+                        <option value="todos">Todos</option>
+                        <option value="pendiente">Pendiente</option>
+                        <option value="vencido">Vencido</option>
+                        <option value="pagado">Pagado</option>
+                    </select>
+                </div>
+
+                <!-- 6. Ver Todos los Créditos -->
+                <div style="display: flex; flex-direction: column; gap: 6px; min-width: 130px; flex: 0 0 130px;">
+                    <div style="height: 1rem;"></div>
+                    <button class="btn btn-secondary" style="height: 40px;" onclick="verTodosLosCreditos()"><i class="fas fa-list"></i> Ver Todos los Créditos</button>
+                </div>
+
+                <!-- 7. Botón Buscar (al final, a la derecha de todo) -->
+                <div style="display: flex; flex-direction: column; gap: 6px; min-width: 100px; flex: 0 0 100px;">
+                    <div style="height: 1rem;"></div>
+                    <button type="button" class="btn btn-primary" style="height: 40px;" onclick="buscarVentaDesdeInput()"><i class="fas fa-search"></i> BUSCAR</button>
+                </div>
             </div>
         </div>
 
@@ -199,16 +221,24 @@ try {
             resultadosDiv.style.display = 'none';
             document.getElementById('panel_cuotas').style.display = 'block';
             document.querySelector('#titulo_cliente span').innerText = c.nombre_completo;
+            window.clienteActual = c.id;
             cargarCuotas(c.id);
         }
 
         function cargarCuotas(idCliente) {
             const desde = document.getElementById('fecha_desde').value;
             const hasta = document.getElementById('fecha_hasta').value;
+            const estadoCuota = document.getElementById('filtro_estado_cuota').value;
+            const nDocumento = document.getElementById('input_busqueda_venta').value.trim();
             const container = document.getElementById('lista_cuotas_container');
             container.innerHTML = '<p><i class="fas fa-spinner fa-spin"></i> Cargando créditos...</p>';
             
-            fetch(`<?php echo URL_BASE; ?>ajax/obtener_cuotas_pago.php?id_cliente=${idCliente}&desde=${desde}&hasta=${hasta}`)
+            let url = `<?php echo URL_BASE; ?>ajax/obtener_cuotas_pago.php?id_cliente=${idCliente}&desde=${desde}&hasta=${hasta}&estado_cuota=${estadoCuota}`;
+            if (nDocumento) {
+                url += `&n_documento=${encodeURIComponent(nDocumento)}`;
+            }
+            
+            fetch(url)
                 .then(res => res.text())
                 .then(html => container.innerHTML = html);
         }
@@ -217,6 +247,7 @@ try {
             document.getElementById('panel_cuotas').style.display = 'block';
             document.querySelector('#titulo_cliente span').innerText = "Listado General del Sistema";
             document.getElementById('buscar_cliente_cuotas').value = '';
+            window.clienteActual = 'all';
             cargarCuotas('all');
         };
 
@@ -254,22 +285,24 @@ try {
         window.buscarVentaDesdeInput = function() {
             const input = document.getElementById('input_busqueda_venta');
             const valor = input.value.trim();
-            
-            if (!valor) {
-                mostrarMensaje("Campo Vacío", "⚠️ Por favor ingrese un número de venta para buscar.", "error");
-                input.focus();
-                return;
+
+            // Validar que el n° de venta, si se ingresó, sea numérico y mayor a 0
+            if (valor !== '') {
+                const nDoc = parseInt(valor, 10);
+                if (isNaN(nDoc) || nDoc <= 0) {
+                    mostrarMensaje("Valor Inválido", "⚠️ El número de venta debe ser un valor numérico mayor a 0.", "error");
+                    input.focus();
+                    input.select();
+                    return;
+                }
             }
-            
-            const nDoc = parseInt(valor, 10);
-            if (isNaN(nDoc) || nDoc <= 0) {
-                mostrarMensaje("Valor Inválido", "⚠️ El número de venta debe ser un valor numérico mayor a 0.", "error");
-                input.focus();
-                input.select();
-                return;
-            }
-            
-            buscarVentaParaCobro(nDoc);
+
+            // Mostrar el panel de cuotas si está oculto
+            document.getElementById('panel_cuotas').style.display = 'block';
+
+            // Aplicar todos los filtros: cliente, fechas, estado de cuotas y n° de venta
+            const clienteId = window.clienteActual || 'all';
+            cargarCuotas(clienteId);
         };
 
         window.verDetalleCuotas = function(idVenta, nDoc) {

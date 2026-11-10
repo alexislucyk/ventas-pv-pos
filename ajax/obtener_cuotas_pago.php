@@ -14,6 +14,8 @@ if (!tiene_permiso('pages/cobro_cuotas.php')) {
 $id_cliente_raw = $_GET['id_cliente'] ?? '0';
 $desde = $_GET['desde'] ?? '';
 $hasta = $_GET['hasta'] ?? '';
+$estado_cuota = $_GET['estado_cuota'] ?? 'todos';
+$n_documento = $_GET['n_documento'] ?? '';
 $params = [':empresa_id1' => $empresa_id, ':empresa_id2' => $empresa_id];
 $where_clause = "WHERE v.empresa_id = :empresa_id2";
 $is_all = ($id_cliente_raw === 'all');
@@ -31,6 +33,30 @@ if (!empty($desde) && !empty($hasta)) {
     $params[':hasta'] = $hasta;
 }
 
+if ($estado_cuota === 'vencido') {
+    $where_clause .= " AND EXISTS (
+        SELECT 1 FROM cuotas_seguimiento cs
+        WHERE cs.id_venta = v.id
+          AND cs.estado NOT IN ('Pagada', 'Anulada')
+          AND cs.monto_original > cs.monto_pagado
+          AND cs.fecha_vencimiento < CURDATE()
+    )";
+} elseif ($estado_cuota === 'pendiente') {
+    $where_clause .= " AND EXISTS (
+        SELECT 1 FROM cuotas_seguimiento cs
+        WHERE cs.id_venta = v.id
+          AND cs.estado = 'Pendiente'
+          AND cs.monto_original > cs.monto_pagado
+    )";
+} elseif ($estado_cuota === 'pagado') {
+    $where_clause .= " AND (SELECT COALESCE(SUM(monto_original - monto_pagado), 0) FROM cuotas_seguimiento WHERE id_venta = v.id AND estado != 'Anulada') <= 0.05";
+}
+
+if (!empty($n_documento)) {
+    $where_clause .= " AND v.n_documento = :n_documento";
+    $params[':n_documento'] = (int)$n_documento;
+}
+
 try {
     $sql = "SELECT 
                 v.id, v.n_documento, v.fecha_venta, 
@@ -38,7 +64,8 @@ try {
                 vf.cant_cuotas, vf.interes_porcentaje, vf.monto_interes,
                 CONCAT(c.apellido, ', ', c.nombre) as nombre_cliente,
                 (SELECT COALESCE(SUM(monto_original), 0) FROM cuotas_seguimiento WHERE id_venta = v.id AND estado != 'Anulada') as total_financiado,
-                (SELECT COALESCE(SUM(monto_original - monto_pagado), 0) FROM cuotas_seguimiento WHERE id_venta = v.id AND estado != 'Anulada') as saldo_total
+                (SELECT COALESCE(SUM(monto_original - monto_pagado), 0) FROM cuotas_seguimiento WHERE id_venta = v.id AND estado != 'Anulada') as saldo_total,
+                (SELECT COUNT(*) FROM cuotas_seguimiento cs WHERE cs.id_venta = v.id AND cs.estado NOT IN ('Pagada','Anulada') AND cs.monto_original > cs.monto_pagado AND cs.fecha_vencimiento < CURDATE()) as cuotas_vencidas
             FROM ventas v
             JOIN ventas_financiacion vf ON v.id = vf.id_venta
             JOIN clientes c ON v.id_cliente = c.id AND c.empresa_id = :empresa_id1
@@ -53,7 +80,7 @@ try {
         exit("<p style='padding:20px; text-align:center; color:#aaa;'>No se encontraron créditos registrados.</p>");
     }
 
-    echo '<table class="table-full">
+    echo '<table class="cb-table">
             <thead>
                 <tr>
                     <th>Fecha</th>';
@@ -79,15 +106,22 @@ try {
         $btn_disabled = '';
 
         if ($v['estado_venta'] === 'Anulada') {
-            $badge_venta = '<span class="badge badge-danger">Anulada</span>';
-            $badge_cuotas = '<span class="badge badge-danger">Anuladas</span>';
+            $badge_venta = '<span class="cb-badge cb-badge-error">Anulada</span>';
+            $badge_cuotas = '<span class="cb-badge cb-badge-error">Anuladas</span>';
             $v['saldo_total'] = 0;
             $btn_disabled = 'disabled';
         } else {
-            $badge_venta = '<span class="badge badge-success">Activa</span>';
+            $badge_venta = '<span class="cb-badge cb-badge-exito">Activa</span>';
             $esta_pago = ($v['saldo_total'] <= 0.05);
-            $badge_cuotas = $esta_pago ? '<span class="badge badge-success">Saldado</span>' : '<span class="badge badge-warning">Pendiente</span>';
-            $clase_saldo = $esta_pago ? '' : 'saldo-destacado';
+            $hay_vencidas = (isset($v['cuotas_vencidas']) && (int)$v['cuotas_vencidas'] > 0);
+            if ($hay_vencidas) {
+                $badge_cuotas = '<span class="cb-badge cb-badge-vencida">Vencida</span>';
+            } elseif ($esta_pago) {
+                $badge_cuotas = '<span class="cb-badge cb-badge-exito">Saldado</span>';
+            } else {
+                $badge_cuotas = '<span class="cb-badge cb-badge-pendiente">Pendiente</span>';
+            }
+            $clase_saldo = $esta_pago ? '' : 'cb-saldo-negativo';
         }
         
         echo "<tr>
@@ -102,8 +136,8 @@ try {
                 <td class='text-center'>$badge_venta</td>
                 <td class='text-center'>$badge_cuotas</td>
                 <td class='text-center'>
-                    <button class='btn btn-primary btn-sm' onclick='verDetalleCuotas({$v['id']}, \"{$v['n_documento']}\")' $btn_disabled>
-                        <i class='fas fa-list'></i> Ver Cuotas
+                    <button class='cb-btn cb-btn-primary cb-btn-sm' onclick='verDetalleCuotas({$v['id']}, \"{$v['n_documento']}\")' $btn_disabled>
+                        <i class='fas fa-list'></i> Detalle
                     </button>
                 </td>
               </tr>";

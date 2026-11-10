@@ -32,7 +32,7 @@ try {
 
     if (!$cuotas) exit("<p>No se encontró el plan de cuotas.</p>");
 
-    echo '<table class="table-full">
+    echo '<table class="cb-table">
             <thead>
                 <tr>
                     <th>Cuota</th>
@@ -46,9 +46,17 @@ try {
             </thead>
             <tbody>';
 
+    $hoy = date('Y-m-d');
     foreach ($cuotas as $c) {
         $saldo = $c['monto_original'] - $c['monto_pagado'];
-        $clase_badge = ($c['estado'] == 'Pendiente') ? 'badge-pendiente' : (($c['estado'] == 'Parcial') ? 'badge-parcial' : 'badge-success');
+        $es_vencida = ($c['fecha_vencimiento'] < $hoy && $c['estado'] != 'Pagada' && $saldo > 0);
+        if ($es_vencida) {
+            $clase_badge = 'cb-badge-vencida';
+            $estado_mostrar = 'Vencida';
+        } else {
+            $clase_badge = ($c['estado'] == 'Pendiente') ? 'cb-badge-pendiente' : (($c['estado'] == 'Parcial') ? 'cb-badge-parcial' : 'cb-badge-exito');
+            $estado_mostrar = $c['estado'];
+        }
         $deshabilitado = ($c['estado'] == 'Pagada') ? 'disabled style="opacity:0.5; cursor:default;"' : '';
         
         // Construir HTML de pagos parciales
@@ -80,10 +88,10 @@ try {
                     $" . number_format($c['monto_pagado'], 2, ',', '.') . "
                     $historial_pagos
                 </td>
-                <td class='text-right saldo-destacado'>$" . number_format($saldo, 2, ',', '.') . "</td>
-                <td class='text-center'><span class='badge $clase_badge'>{$c['estado']}</span></td>
+                <td class='text-right cb-saldo-negativo'>$" . number_format($saldo, 2, ',', '.') . "</td>
+                <td class='text-center'><span class='cb-badge $clase_badge'>{$estado_mostrar}</span></td>
                 <td class='text-center'>
-                    <button class='btn btn-success btn-sm' onclick='abrirCobro({$c['id']}, {$c['id_venta']}, $saldo)' $deshabilitado>
+                    <button class='cb-btn cb-btn-success cb-btn-sm' onclick='abrirCobro({$c['id']}, {$c['id_venta']}, $saldo)' $deshabilitado>
                         <i class='fas fa-dollar-sign'></i> Cobrar
                     </button>
                 </td>
