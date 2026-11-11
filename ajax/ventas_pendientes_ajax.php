@@ -1,6 +1,6 @@
-﻿<?php
-// 1. CORRECCIÃ“N: Zona Horaria
-date_default_timezone_set('America/Argentina/Buenos_Aires'); 
+<?php
+// 1. CORRECCIÓN: Zona Horaria
+date_default_timezone_set('America/Argentina/Buenos_Aires');
 // ventas_pendientes_ajax.php
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -8,19 +8,19 @@ if (session_status() === PHP_SESSION_NONE) {
 
 $empresa_id = $_SESSION['empresa_id'] ?? null;
 if (!$empresa_id) {
-    echo "Debe iniciar sesiÃ³n para acceder a esta informaciÃ³n.";
+    echo "Debe iniciar sesión para acceder a esta información.";
     exit();
 }
 
 if (!isset($_SESSION['usuario_id'])) {
-    echo "Debe iniciar sesiÃ³n para acceder a esta informaciÃ³n.";
+    echo "Debe iniciar sesión para acceder a esta información.";
     exit();
 }
 
-require '../config/db_config.php'; 
+require '../config/db_config.php';
 
 if (!isset($pdo) || !($pdo instanceof PDO)) {
-    echo "Error crÃ­tico: ConexiÃ³n a la base de datos no disponible.";
+    echo "Error crítico: Conexión a la base de datos no disponible.";
     exit();
 }
 
@@ -49,7 +49,7 @@ try {
 
 // 2. Generar la tabla HTML
 if (empty($ventas_pendientes)) {
-    echo '<p style="padding: 15px; background: #333; border-radius: 5px;">ðŸŽ‰ No hay ventas en espera actualmente.</p>';
+    echo '<p style="padding: 15px; background: #333; border-radius: 5px;">🎉 No hay ventas en espera actualmente.</p>';
     exit();
 }
 ?>
@@ -57,11 +57,11 @@ if (empty($ventas_pendientes)) {
 <table style="width: 100%; border-collapse: collapse;">
     <thead>
         <tr>
-            <th>NÂ° Doc.</th>
+            <th>N° Doc.</th>
             <th>Cliente</th>
             <th>Fecha</th>
             <th style="text-align: right;">Total</th>
-            <th>AcciÃ³n</th>
+            <th>Acción</th>
         </tr>
     </thead>
     <tbody>
@@ -73,7 +73,7 @@ if (empty($ventas_pendientes)) {
                 if (!empty($venta['nombre']) || !empty($venta['apellido'])) {
                     echo htmlspecialchars(trim($venta['apellido'] . ', ' . $venta['nombre']));
                 } else {
-                    echo 'Venta GenÃ©rica';
+                    echo 'Venta Genérica';
                 }
                 ?>
             </td>
@@ -81,22 +81,20 @@ if (empty($ventas_pendientes)) {
             <td style="text-align: right;">$<?php echo number_format($venta['total_venta'], 2, ',', '.'); ?></td>
             <td>
                 <?php
-                // CORRECCIÃ“N: Usar concatenaciÃ³n para asegurar que el nÃºmero de documento se pasa como argumento JS
+                $nDocJs = htmlspecialchars($venta['n_documento'], ENT_QUOTES);
                 echo "<button 
                         type='button' 
                         class='btn btn-success' 
-                        onclick='reanudarVenta(" . $venta['n_documento'] . ")' 
-                        data-venta-id='" . htmlspecialchars($venta['id_venta']) . "'>
-                    Reanudar
-                </button>
+                        onclick='reanudarVenta(\" . $nDocJs . \" )' 
+                        data-venta-id='\" . htmlspecialchars($venta['id_venta']) . \"'>\n                    Reanudar\n                </button>
                 <button 
                         type='button' 
                         class='btn btn-danger' 
-                        onclick='eliminarVentaPendiente(" . $venta['n_documento'] . ")' 
-                        data-venta-id='" . htmlspecialchars($venta['id_venta']) . "' 
+                        onclick='eliminarVentaPendiente(\" . $nDocJs . \" )' 
+                        data-venta-id='\" . htmlspecialchars($venta['id_venta']) . \"' 
                         style='margin-left:5px;'>
                     <i class='fas fa-trash'></i> Eliminar
-                </button>";
+                </button>\";
                 ?>
             </td>
         </tr>

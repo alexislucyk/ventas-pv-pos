@@ -689,7 +689,7 @@ if ($form_repost && isset($_POST['detalle_productos'])) {
     </div>
 
     <div id="pendientesModal" class="modal" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; background: rgba(0,0,0,0.9);">
-        <div class="modal-content" style="background: #1a1a1a; margin: 5% auto; padding: 25px; width: 80%; border-radius: 12px; border: 1px solid #333; max-height: 85vh; overflow-y: auto;">
+        <div class="modal-content" style="background: #1a1a1a; margin: 2% auto; padding: 15px; width: 95%; max-width: 700px; border-radius: 12px; border: 1px solid #333; max-height: 85vh; overflow-y: auto;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px;">
                 <h2 style="margin:0; color:#00bcd4;">Ventas en Espera</h2>
                 <span onclick="document.getElementById('pendientesModal').style.display='none'" style="cursor:pointer; font-size: 28px; color: #ff4444;">&times;</span>
