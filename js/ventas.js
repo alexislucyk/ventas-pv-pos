@@ -970,6 +970,47 @@ window.reanudarVenta = function(nDocumento) {
         });
 };
 
+window.eliminarVentaPendiente = function(nDocumento) {
+    if (!nDocumento) {
+        mostrarMensaje("Error", "Número de documento inválido.", "error");
+        return;
+    }
+    confirmarAccion(
+        "Eliminar Venta en Espera",
+        "¿Está seguro de eliminar la venta N° " + nDocumento + " de la lista de espera?\nEsta acción no afectará el stock y no se puede deshacer.",
+        "ELIMINAR",
+        "btn-danger",
+        function() {
+            fetch(APP_BASE + "ajax/eliminar_venta_pendiente.php", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ n_documento: nDocumento })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    mostrarMensaje("Éxito", "Venta eliminada de la lista de espera.", "success");
+                    // Recargar la lista de pendientes sin cerrar el modal
+                    const lista = document.getElementById("listaPendientes");
+                    if (lista) {
+                        lista.innerHTML = '<p>Cargando ventas...</p>';
+                        fetch(APP_BASE + "ajax/ventas_pendientes_ajax.php")
+                            .then(response => response.text())
+                            .then(html => { lista.innerHTML = html; })
+                            .catch(error => { lista.innerHTML = "Error al cargar los datos."; });
+                    }
+                } else {
+                    mostrarMensaje("Error", data.error || "No se pudo eliminar la venta.", "error");
+                }
+            })
+            .catch(err => {
+                console.error("Error al eliminar:", err);
+                mostrarMensaje("Error de Conexión", "No se pudo eliminar la venta.", "error");
+            });
+        }
+    );
+};
+
 function cerrarModalPendientes() {
     const modal = document.getElementById('pendientesModal');
     if (modal) modal.style.display = 'none';
