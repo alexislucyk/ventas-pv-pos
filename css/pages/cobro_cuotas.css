@@ -152,3 +152,59 @@ button.btn,
 #resultadosBusquedaClientes {
     border: none !important;
 }
+
+/* ===== Botones modernos para tabla de créditos (Detalle / Cobrar) ===== */
+.cb-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.78rem !important;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    transition: all 0.2s ease;
+    justify-content: center;
+}
+
+.cb-btn i {
+    font-size: 0.85em;
+}
+
+.cb-btn-primary {
+    background-color: #005cd4;
+    color: #fff;
+}
+
+.cb-btn-primary:hover:not(:disabled) {
+    background-color: #004bb5;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 92, 212, 0.3);
+}
+
+.cb-btn-success {
+    background-color: #27ae60;
+    color: #fff;
+}
+
+.cb-btn-success:hover:not(:disabled) {
+    background-color: #229954;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(39, 174, 96, 0.3);
+}
+
+.cb-btn-sm {
+    padding: 4px 8px;
+    font-size: 0.7rem !important;
+}
+
+.cb-btn:disabled,
+.cb-btn[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+}
