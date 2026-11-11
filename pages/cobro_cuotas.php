@@ -55,7 +55,7 @@ try {
         <?php endif; ?>
 
         <div class="card">
-            <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; justify-content: space-between; padding: 14px 0 0 0;">
+            <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; justify-content: space-between; padding: 8px 0 0 0;">
                 <!-- 1. Buscar cliente -->
                 <div style="display: flex; flex-direction: column; gap: 6px; min-width: 240px; flex: 1 1 240px;">
                     <label for="buscar_cliente_cuotas" style="font-size: 0.8rem; color: #ccc; white-space: nowrap;">Buscar Cliente con Deuda Financiada</label>
