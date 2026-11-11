@@ -82,20 +82,10 @@ if (empty($ventas_pendientes)) {
             <td>
                 <?php
                 $nDocJs = htmlspecialchars($venta['n_documento'], ENT_QUOTES);
-                echo "<button 
-                        type='button' 
-                        class='btn btn-success' 
-                        onclick='reanudarVenta(\" . $nDocJs . \" )' 
-                        data-venta-id='\" . htmlspecialchars($venta['id_venta']) . \"'>\n                    Reanudar\n                </button>
-                <button 
-                        type='button' 
-                        class='btn btn-danger' 
-                        onclick='eliminarVentaPendiente(\" . $nDocJs . \" )' 
-                        data-venta-id='\" . htmlspecialchars($venta['id_venta']) . \"' 
-                        style='margin-left:5px;'>
-                    <i class='fas fa-trash'></i> Eliminar
-                </button>\";
+                $idVentaJs = htmlspecialchars($venta['id_venta'], ENT_QUOTES);
                 ?>
+                <button type="button" class="btn btn-success" onclick="reanudarVenta('<?php echo $nDocJs; ?>')" data-venta-id="<?php echo $idVentaJs; ?>">Reanudar</button>
+                <button type="button" class="btn btn-danger" onclick="eliminarVentaPendiente('<?php echo $nDocJs; ?>')" data-venta-id="<?php echo $idVentaJs; ?>" style="margin-left:5px;"><i class="fas fa-trash"></i> Eliminar</button>
             </td>
         </tr>
         <?php endforeach; ?>
