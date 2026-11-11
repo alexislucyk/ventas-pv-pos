@@ -18,7 +18,15 @@
 .cb-card-header { font-size: 0.8rem !important; }
 .cb-card-header i { font-size: 0.85rem !important; }
 
-.cb-body h1 { font-size: 1.15rem !important; }
+.cb-body h1 { font-size: 1rem !important; }
+
+/* Quitar línea turquesa debajo del título principal de esta página */
+.content > h1,
+.card h1,
+.card h2,
+.card h3 {
+    border-bottom: none !important;
+}
 
 /* Labels y textos de filtros */
 .cb-filters label,
@@ -86,4 +94,36 @@ button.btn,
 .cb-saldo-negativo {
     color: #e74c3c;
     font-weight: bold;
+}
+
+/* ===== Quitar cualquier línea celeste dentro de la card de cobro-cuotas ===== */
+.card {
+    border-bottom: none !important;
+}
+
+.card > div,
+.card .contenedor-busqueda-cliente,
+.card input,
+.card select,
+.card button {
+    border-bottom: none !important;
+}
+
+/* Neutralizar borde celeste en focus de inputs de esta página */
+.card .input-field:focus,
+.card input:focus,
+.card select:focus,
+#buscar_cliente_cuotas:focus,
+#input_busqueda_venta:focus,
+#fecha_desde:focus,
+#fecha_hasta:focus,
+#filtro_estado_cuota:focus {
+    border-color: #444 !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Quitar borde celeste del dropdown de resultados de búsqueda */
+#resultadosBusquedaClientes {
+    border: none !important;
 }

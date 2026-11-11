@@ -48,14 +48,14 @@ try {
     <?php include 'sidebar.php'; ?>
     <div class="content" style="padding-top: 70px;">
         <?php include 'topbar.php'; ?>
-        <h1><i class="fas fa-hand-holding-usd"></i> Gestión de Cobro de Cuotas</h1>
+        <h1 style="border-bottom: none !important;"><i class="fas fa-hand-holding-usd"></i> Cobro de Cuotas</h1>
 
         <?php if ($mensaje): ?>
             <div class="alert alert-success"><?php echo htmlspecialchars($mensaje); ?></div>
         <?php endif; ?>
 
         <div class="card">
-            <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; justify-content: space-between; padding: 14px 0 0 0; border-bottom: 1px solid #333;">
+            <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; justify-content: space-between; padding: 14px 0 0 0;">
                 <!-- 1. Buscar cliente -->
                 <div style="display: flex; flex-direction: column; gap: 6px; min-width: 240px; flex: 1 1 240px;">
                     <label for="buscar_cliente_cuotas" style="font-size: 0.8rem; color: #ccc; white-space: nowrap;">Buscar Cliente con Deuda Financiada</label>
