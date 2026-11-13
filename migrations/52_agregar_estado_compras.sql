@@ -20,10 +20,11 @@
 -- Idempotente: puede ejecutarse en cualquier entorno (chequeo INFORMATION_SCHEMA).
 
 -- 1.1. Columna compras.es_sin_detalle (si no existe; requerida por compras rapidas)
+-- Se agrega al final de la tabla para no depender de columnas que puedan faltar en entornos antiguos.
 SET @existe_es_sin_detalle := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
                                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'compras' AND COLUMN_NAME = 'es_sin_detalle');
 SET @sql := IF(@existe_es_sin_detalle = 0,
-    'ALTER TABLE compras ADD COLUMN es_sin_detalle TINYINT(1) NOT NULL DEFAULT 0 COMMENT ''1 = compra rapida sin detalle. 0 = compra con detalle'' AFTER usuario_id',
+    'ALTER TABLE compras ADD COLUMN es_sin_detalle TINYINT(1) NOT NULL DEFAULT 0 COMMENT ''1 = compra rapida sin detalle. 0 = compra con detalle''',
     'DO 0');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
